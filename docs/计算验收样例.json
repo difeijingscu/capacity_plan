@@ -1,0 +1,316 @@
+{
+  "schema_version": "1.0",
+  "design_version": "1.0",
+  "is_demo": true,
+  "description": "全部为数值合同或合成场景，不是客户测算或模型性能实测。8B为合成参数，不能误标为Qwen3-8B。",
+  "tolerance": {
+    "absolute_p": 1e-9,
+    "relative": 1e-8
+  },
+  "common": {
+    "model_id": "synthetic-dense-8b",
+    "resident_parameters": 8000000000,
+    "active_parameters_prefill": 8000000000,
+    "active_parameters_decode": 8000000000,
+    "kappa_prefill": 1.1,
+    "kappa_decode": 1.1,
+    "eta_prefill": 0.35,
+    "eta_decode": 0.15,
+    "headroom": 0.2,
+    "reference_precision": "BF16_DENSE_EQUIVALENT"
+  },
+  "cases": [
+    {
+      "id": "business_8b",
+      "kind": "online_llm",
+      "input": {
+        "online_users": 100,
+        "requests_per_user_min": 0.5,
+        "calls_per_request": 1,
+        "input_tokens": 2048,
+        "answer_tokens": 512,
+        "reasoning_tokens": 0
+      },
+      "expected": {
+        "request_rate": 0.8333333333333334,
+        "effective_p": 0.03754666666666667,
+        "base_p": 0.13588317460317462,
+        "planned_p": 0.16305980952380952
+      }
+    },
+    {
+      "id": "business_double_users",
+      "kind": "online_llm",
+      "input": {
+        "online_users": 200,
+        "requests_per_user_min": 0.5,
+        "calls_per_request": 1,
+        "input_tokens": 2048,
+        "answer_tokens": 512,
+        "reasoning_tokens": 0
+      },
+      "expected": {
+        "base_p": 0.27176634920634923,
+        "planned_p": 0.32611961904761905
+      }
+    },
+    {
+      "id": "shared_group",
+      "kind": "shared_model_memory",
+      "input": {
+        "scenario_count": 2,
+        "request_profile_case": "business_8b",
+        "layers": 36,
+        "kv_heads": 8,
+        "head_dim": 128,
+        "kv_bytes": 2,
+        "weight_bytes": 2,
+        "ttft_seconds": 2,
+        "output_tokens_per_second": 30,
+        "memory_reserve_fraction": 0.15
+      },
+      "expected": {
+        "base_p": 0.27176634920634923,
+        "weight_gb_once": 16,
+        "kv_gb_per_scenario": 6.03979776,
+        "group_memory_gb": 35.387759435294114
+      }
+    },
+    {
+      "id": "single_memory",
+      "kind": "gqa_memory",
+      "input": {
+        "request_profile_case": "business_8b",
+        "layers": 36,
+        "kv_heads": 8,
+        "head_dim": 128,
+        "kv_bytes": 2,
+        "weight_bytes": 2,
+        "ttft_seconds": 2,
+        "output_tokens_per_second": 30,
+        "memory_reserve_fraction": 0.15
+      },
+      "expected": {
+        "expected_concurrent": 15.88888888888889,
+        "allocated_sequences": 16,
+        "kv_gb": 6.03979776,
+        "memory_gb": 28.282115011764706
+      }
+    },
+    {
+      "id": "innovation_8b_monthly",
+      "kind": "innovation",
+      "input": {
+        "users": 1000,
+        "quota_per_user_month": 1000000,
+        "usage_ratio": 1,
+        "service_days": 22,
+        "service_hours_per_day": 8,
+        "peak_factor": 3,
+        "input_fraction": 0.8,
+        "model_shares": [
+          {
+            "model_id": "synthetic-dense-8b",
+            "share": 1
+          }
+        ]
+      },
+      "expected": {
+        "monthly_total_tokens": 1000000000,
+        "input_tokens_per_second": 3787.878787878788,
+        "output_tokens_per_second": 946.969696969697,
+        "base_p": 0.3015873015873016,
+        "planned_p": 0.36190476190476195
+      }
+    },
+    {
+      "id": "innovation_allocation",
+      "kind": "innovation_split",
+      "input": {
+        "monthly_total_tokens": 1000000000,
+        "model_shares": [
+          {
+            "model_id": "synthetic-dense-8b",
+            "active_parameters": 8000000000,
+            "share": 0.7
+          },
+          {
+            "model_id": "synthetic-dense-16b",
+            "active_parameters": 16000000000,
+            "share": 0.3
+          }
+        ],
+        "inherit_profile": "innovation_8b_monthly"
+      },
+      "expected": {
+        "monthly_allocations": [
+          700000000,
+          300000000
+        ],
+        "base_p": 0.3920634920634921,
+        "planned_p": 0.4704761904761905
+      }
+    },
+    {
+      "id": "development_standard_8b",
+      "kind": "development",
+      "input": {
+        "method": "lora",
+        "train_data_tokens": 5000000,
+        "epochs": 2,
+        "train_k": 4,
+        "train_eta": 0.25,
+        "train_deadline_hours": 12,
+        "train_slots": 1,
+        "eval_samples": 1000,
+        "eval_input_tokens": 2048,
+        "eval_output_tokens": 512,
+        "eval_deadline_hours": 4,
+        "eval_slots": 1,
+        "train_eval_parallel": true
+      },
+      "expected": {
+        "train_base_p": 0.029629629629629627,
+        "eval_base_p": 0.011323597883597885,
+        "base_p": 0.04095322751322751,
+        "planned_p": 0.04914387301587301
+      }
+    },
+    {
+      "id": "cv_streams",
+      "kind": "cv",
+      "input": {
+        "streams": 10,
+        "analysis_fps": 5,
+        "flop_per_frame": 20900000000,
+        "eta": 0.3
+      },
+      "expected": {
+        "frames_per_second": 50,
+        "base_p": 0.0034833333333333335,
+        "planned_p": 0.00418
+      }
+    },
+    {
+      "id": "three_pool_project",
+      "kind": "aggregate",
+      "input": {
+        "business_cases": [
+          "business_8b",
+          "cv_streams"
+        ],
+        "innovation_case": "innovation_8b_monthly",
+        "development_case": "development_standard_8b"
+      },
+      "expected": {
+        "business_planned_p": 0.16723980952380954,
+        "innovation_planned_p": 0.36190476190476195,
+        "development_planned_p": 0.04914387301587301,
+        "total_base_p": 0.4819070370370371,
+        "total_planned_p": 0.5782884444444445
+      }
+    },
+    {
+      "id": "pool_rounding",
+      "kind": "cost_rounding",
+      "input": {
+        "pools_planned_p": [
+          0.4,
+          0.4
+        ],
+        "card_dense_p": 1,
+        "memory_constraint": "not_evaluated"
+      },
+      "expected": {
+        "compute_cards_per_pool": [
+          1,
+          1
+        ],
+        "compute_cards_total": 2,
+        "cost_completeness": "COMPUTE_LOWER_BOUND_ONLY"
+      }
+    }
+  ],
+  "validation_cases": [
+    {
+      "id": "invalid_share",
+      "input": {
+        "shares": [
+          0.7,
+          0.4
+        ]
+      },
+      "expected_error": "INVALID_SHARE"
+    },
+    {
+      "id": "missing_baseline",
+      "input": {
+        "enabled": true,
+        "task_type": "video_generation",
+        "baseline": null
+      },
+      "expected": {
+        "value": null,
+        "completeness": "PARTIAL",
+        "missing_item_retained": true
+      }
+    },
+    {
+      "id": "disabled_development",
+      "input": {
+        "enabled": false
+      },
+      "expected": {
+        "planned_p": 0,
+        "status": "DISABLED"
+      }
+    },
+    {
+      "id": "enabled_missing_development",
+      "input": {
+        "enabled": true,
+        "models": []
+      },
+      "expected_error": "MISSING_WORKLOAD"
+    },
+    {
+      "id": "missing_price",
+      "input": {
+        "price_low": null,
+        "price_high": null
+      },
+      "expected": {
+        "amount_low": null,
+        "amount_high": null,
+        "status": "PRICE_MISSING"
+      }
+    },
+    {
+      "id": "native_int8_no_mapping",
+      "input": {
+        "native_precision": "INT8",
+        "reference_mapping": null
+      },
+      "expected": {
+        "reference_p16": null,
+        "include_in_p16_total": false
+      }
+    },
+    {
+      "id": "zero_service_time",
+      "input": {
+        "monthly_tokens": 1000000000,
+        "service_hours_per_day": 0
+      },
+      "expected_error": "MISSING_WORKLOAD"
+    },
+    {
+      "id": "stale_proposal",
+      "input": {
+        "proposal_base_revision": 5,
+        "current_revision": 6
+      },
+      "expected_error": "STALE_REVISION"
+    }
+  ]
+}

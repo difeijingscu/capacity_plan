@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "算力规划智能体 · 当前项目架构",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-compute-planner-20261021-032213/compute-planner.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "planner",
+      "type": "external",
+      "icon": "person",
+      "label": "专业规划人员",
+      "sublabel": "Excel / 文字 / 手工录入",
+      "pos": [40, 40],
+      "size": [240, 84]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "单用户网页",
+      "sublabel": "React · TypeScript · Ant Design",
+      "tag": "ECharts 结果展示",
+      "pos": [450, 40],
+      "size": [260, 100]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "规划 API 与任务编排",
+      "sublabel": "FastAPI · Pydantic · Uvicorn",
+      "tag": "2线程任务池",
+      "pos": [450, 300],
+      "size": [260, 100]
+    },
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "确定性计算引擎",
+      "sublabel": "业务场景 / 创新服务 / 开发测试",
+      "tag": "Decimal 固定公式",
+      "pos": [890, 300],
+      "size": [270, 100]
+    },
+    {
+      "id": "derivation",
+      "type": "backend",
+      "label": "快照推导与解释",
+      "sublabel": "输入 → 公式代入 → 汇总与余量",
+      "tag": "四张结果卡片",
+      "pos": [40, 300],
+      "size": [240, 100]
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite 本地数据",
+      "sublabel": "data/planner.db · WAL",
+      "tag": "SQLAlchemy 统一记录存储",
+      "pos": [450, 580],
+      "size": [260, 100]
+    },
+    {
+      "id": "assistant",
+      "type": "backend",
+      "label": "可选 AI 提案后端",
+      "sublabel": "本地规则 / 已配置的模型接口",
+      "tag": "业务页面无助手入口",
+      "pos": [890, 580],
+      "size": [270, 100]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Windows 本机 · Python 服务与本地数据",
+      "wraps": ["api", "engine", "derivation", "sqlite", "assistant"],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {"id": "user-web", "from": "planner", "to": "web", "label": "录入与查看", "variant": "emphasis"},
+    {"id": "web-api", "from": "web", "to": "api", "label": "同源 HTTP /api/v1", "variant": "emphasis"},
+    {"id": "api-engine", "from": "api", "to": "engine", "label": "线程池执行测算", "variant": "emphasis"},
+    {"id": "api-derivation", "from": "api", "to": "derivation", "label": "传入保存的快照"},
+    {"id": "api-store", "from": "api", "to": "sqlite", "label": "SQLAlchemy 读写"},
+    {"id": "api-assistant", "from": "api", "to": "assistant", "label": "显式调用提案接口"}
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "从规划输入到结果",
+      "items": [
+        "网页管理项目与多个方案，填写三类资源池；Excel/文字先预览，再确认导入。",
+        "API校验方案修订号，复用相同测算或提交进程内任务；网页轮询任务状态。",
+        "FastAPI同时托管frontend/dist；正式运行使用同源网页与API。",
+        "依据：App.tsx:103–121、147–157；main.py:218–245、292–322、495–504。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "三个资源池，共同汇总",
+      "items": [
+        "业务场景：在线人数或直接吞吐 → 请求速率 → 模型分阶段或单位工作量。",
+        "创新服务：人数 × 人均月Token × 使用率 → 有效服务窗口与峰值 → 模型份额。",
+        "开发测试：候选模型最大单任务 × 槽位；微调与评测按串行或并行组合。",
+        "三池独立汇总，余量增加一次；同时输出显存下界、缺项与敏感性分析。依据：calculator.py:119–393。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "持久化与可追溯",
+      "items": [
+        "项目 → 方案 → 业务/创新/开发测试；同一项目可保留多个独立方案。",
+        "records表按kind保存项目、方案、模型基线、任务、报价及历史测算等JSON记录。",
+        "每次测算保存输入、模型目录、修订号和结果快照；四卡推导只读取所选快照。",
+        "依据：store.py:19–83；main.py:229–231、263–265；derivations.py:149–172。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "AI 与费用的实际边界",
+      "items": [
+        "助手提案API与设置仍在后端保留，当前业务页面没有助手入口。",
+        "仅显式调用提案接口时运行：已配置模型接口失败后回退本地规则，应用前校验字段白名单与修订号。",
+        "AI不生成最终算力数值；费用附录按保存的测算结果、代表卡规格和用户维护的报价另行折算。",
+        "依据：assistant.py:34–94；main.py:404–440、443–489。"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "阅读范围与源码依据",
+      "items": [
+        "图中Python模块属于同一应用进程；计算引擎、推导模块不是独立部署的服务。",
+        "按当前本地源码绘制；目录未初始化Git，未进行提交级源码出处验证。",
+        "源码路径以backend/app和frontend/src为基准；同目录source-evidence.md保留具体文件、行号与SHA256。",
+        "Windows启动脚本使用127.0.0.1；应用提供的是规划估算，效率代理与硬件吞吐仍需实际校准。"
+      ]
+    }
+  ]
+}

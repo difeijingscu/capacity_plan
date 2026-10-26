@@ -1,0 +1,113 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>算力规划智能体 · 项目说明与Windows部署指南</title>
+<style>body{margin:0;background:#f3f6f1;color:#34473c;font:15px/1.9 "Microsoft YaHei",sans-serif}
+main{max-width:1020px;margin:30px auto;padding:38px 48px;background:#fff;border:1px solid #dfe6db;border-radius:12px}
+h1{font-size:28px;color:#164f3c}h2{margin-top:42px;padding-top:20px;border-top:1px solid #e2e9dc;color:#245e46;font-size:22px}h3{font-size:17px;margin-top:28px}
+a{color:#176658}p{overflow-wrap:anywhere}.item{margin:8px 0}pre{background:#eef4e8;border:1px solid #dce7d5;padding:18px;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+code{font-family:Consolas,monospace}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:12px;border:1px solid #e1e7dc;text-align:left;min-width:100px}th{background:#edf3e7}
+@media(max-width:700px){main{margin:0;padding:22px;border-radius:0}h1{font-size:23px}}@media print{body{background:white}main{margin:0;border:0;padding:0;max-width:none}h2,h3{break-after:avoid}tr,pre{break-inside:avoid}}</style>
+<main><h1>算力规划智能体：项目说明与Windows部署指南</h1>
+<p>交付版本：应用1.0.0；计算引擎engine-v1.0.0；Windows迁移包，2026-10-21。</p>
+<h2>1. 项目用途</h2>
+<p>本项目是面向专业人员的单用户算力规划网页应用，用于根据组织规划期末的AI应用需求，估算业务场景、创新服务、开发测试三个资源池所需的计算能力，并保留计算依据。</p>
+<p>规划主体以T/P及必要的计算精度、显存等辅助指标输出，不绑定某一厂商卡型。费用附录可按少量代表性卡型和用户录入的报价进行粗略折算。</p>
+<p>本应用不加载或运行被规划的大模型，也不进行实际微调或发放Token，因此运行规划工具本身不需要GPU。模型选择用于确定计算参数与基线。</p>
+<h2>2. 功能与组织方式</h2>
+<h3>项目、方案和测算记录</h3>
+<p class="item">- 一个项目管理一次独立的规划工作，可包含多个方案。</p>
+<p class="item">- 新建项目自动生成“基准方案”。点击项目卡片中的方案按钮进入具体规划。</p>
+<p class="item">- 每个方案独立保存规划周期、规模口径、增长率、余量和三类规划。</p>
+<p class="item">- “复制方案”复制输入，方便比较不同假设；复制后的方案各自维护。</p>
+<p class="item">- 每个方案可保留多次测算记录，历史结果保存当时输入和模型快照。</p>
+<p class="item">- 左侧业务场景、创新服务和开发测试页面跟随当前方案；历史结果选择只改变查看的结果，不改变编辑中的方案。</p>
+<h3>三类资源池</h3>
+<div class="table-wrap"><table><tr><th>资源池</th><th>主要输入</th><th>处理方法</th></tr><tr><td>业务场景</td><td>Excel或粘贴清单、在线人数、模型、输入输出长度等</td><td>多组件汇总为场景，多场景汇总为业务池；默认高峰同时发生</td></tr><tr><td>创新服务</td><td>支持人数、人均月Token、模型份额、服务窗口</td><td>按月额度分配给模型，再转换为服务峰值和容量</td></tr><tr><td>开发测试</td><td>候选模型、实验强度、微调与评测参数</td><td>按最大单任务能力及并行槽位配置资源</td></tr></table></div>
+<p>同一方案的三类资源池需求相加，形成方案总需求；同一项目的多个备选方案用于比较，彼此不相加。三池按独立资源配置，同模型不自动跨池共享。</p>
+<h3>已实现的页面能力</h3>
+<p class="item">- 业务清单导入、场景与模型配置、参数默认值及点击说明。</p>
+<p class="item">- 业务、创新服务、开发测试的独立配置与统一测算。</p>
+<p class="item">- 三池规模、显存、缺失任务、依据等级、敏感性与历史版本比较。</p>
+<p class="item">- 点击测算结果中的总算力、业务场景、创新服务、开发测试四张卡片，可展开本次输入、公式代入、中间值和汇总过程；历史结果使用当时的测算快照。</p>
+<p class="item">- 模型与任务基线管理、来源追踪、参考卡和报价附录。</p>
+<p class="item">- “规划依据”详细解释公式、默认假设与参考资料。</p>
+<p class="item">- 项目概览提供“规划思路和依据”“规划方案组织设计”两个说明入口。</p>
+<p>业务场景页的规划助手已按当前需求移除。日常运行无需连接AI、GitHub或其他云服务；AI接口设置与后端扩展仍保留，不是部署前置条件。</p>
+<h2>3. 本次运行包包含什么</h2>
+<div class="table-wrap"><table><tr><th>内容</th><th>说明</th></tr><tr><td>runtime/python</td><td>Python 3.13.8 Windows x64随包运行环境及锁定的后端依赖</td></tr><tr><td>frontend/dist</td><td>已构建网页，日常运行无需Node.js或重新构建</td></tr><tr><td>backend、frontend/src</td><td>后端和前端源码，便于后续继续开发</td></tr><tr><td>data/planner.db</td><td>打包时当前已保存项目、方案、测算历史与基线的一致性数据库备份</td></tr><tr><td>docs</td><td>规划设计、开发任务、计算样例、测试报告与使用说明</td></tr><tr><td>启动.bat、停止.bat、检查环境.bat</td><td>常用操作入口</td></tr><tr><td>release-info.json、文件校验清单.json</td><td>包版本、运行环境来源、数据统计及文件SHA256</td></tr></table></div>
+<p>未打包本机.venv、node_modules、测试数据库、服务日志、原机器进程记录、环境变量或.env文件。尚未保存的浏览器输入不属于数据库备份。API Key不从本机内存迁移。</p>
+<p>Python运行环境取自Python官方的嵌入式分发包，并随应用部署依赖；固定版本用于复现本次验证，不表示该补丁版本始终为最新。来源与许可证随包保留：</p>
+<p class="item">- <a href="https://www.python.org/downloads/release/python-3138/">Python 3.13.8官方发布页</a></p>
+<p class="item">- <a href="https://docs.python.org/3.13/using/windows.html#the-embeddable-package">Python Windows嵌入式分发说明</a></p>
+<h2>4. 目标机器要求</h2>
+<div class="table-wrap"><table><tr><th>项目</th><th>要求</th></tr><tr><td>操作系统</td><td>Windows 10/11，64位x64；本包不是ARM64或32位原生包</td></tr><tr><td>浏览器</td><td>已安装的Microsoft Edge或Chrome</td></tr><tr><td>PowerShell</td><td>Windows内置Windows PowerShell 5.1即可</td></tr><tr><td>目录</td><td>本机磁盘上当前用户可读写的目录，例如D:\Apps\ComputePlanner</td></tr><tr><td>网络</td><td>解压、启动、日常计算无需联网；查看外部资料或调用外部AI接口时才需要网络</td></tr><tr><td>Python、Node.js、Git</td><td>使用此运行包时，无需另行安装</td></tr><tr><td>管理员权限</td><td>常规本机运行不需要；组织设备策略仍由该机器管理员管理</td></tr></table></div>
+<p>建议预留至少500MB磁盘空间用于程序、数据增长和备份。这是部署空间建议，不是容量计算参数。</p>
+<h2>5. 在另一台Windows机器上启动</h2>
+<h3>第一步：复制并完整解压</h3>
+<p>将Windows运行包ZIP复制到目标机器，右键选择“全部提取”。解压后进入ComputePlanner目录。请先解压，再启动程序；目录内应同时能看到启动.bat、backend、frontend和runtime。</p>
+<p>推荐解压至较短路径，例如D:\Apps\ComputePlanner。不要只复制启动.bat，也不要直接在压缩包预览窗口内运行。</p>
+<h3>第二步：检查环境</h3>
+<p>双击“检查环境.bat”。正常时会显示Python版本、64位架构、依赖检查OK及“环境检查通过”。此步骤不联网下载依赖。</p>
+<h3>第三步：启动应用</h3>
+<p>双击“启动.bat”，浏览器将打开：</p>
+<p>http://127.0.0.1:8000</p>
+<p>首次在该目录启动时会检查数据库并补齐种子模型。迁移包已包含打包时保存的数据，可在项目概览找到已有项目。</p>
+<h3>第四步：停止应用</h3>
+<p>关闭浏览器只会关闭页面，后台服务仍可能运行。需要退出或备份时，双击“停止.bat”。下次继续双击启动.bat即可。</p>
+<h2>6. 端口与数据目录</h2>
+<h3>8000端口被占用</h3>
+<p>在解压后的项目目录打开PowerShell，执行：</p>
+<pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\启动.ps1 -Port 8008</code></pre>
+<p>浏览器将访问http://127.0.0.1:8008。同一目录一次运行一个服务实例；切换端口前先停止该目录已启动的服务。启动器会拒绝将另一个目录下的同类服务当作本目录服务。</p>
+<h3>单独存放业务数据</h3>
+<p>默认使用项目目录中的data/planner.db。如果需要单独存放，可在启动前设置：</p>
+<pre><code>$env:PLANNER_DATA_DIR = &#x27;D:\PlannerData&#x27;
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\启动.ps1</code></pre>
+<p>新数据目录为空时会初始化为新的工作空间，不会自动读取原data中的项目。要继续已有项目，先停止服务，再将已有数据库备份放入指定目录。以后启动时需继续设置相同环境变量。</p>
+<p>服务默认只监听127.0.0.1，供本机浏览器访问。本包未配置局域网多人访问、账号或权限管理。</p>
+<h2>7. 数据备份、恢复与再次迁移</h2>
+<h3>备份</h3>
+<p class="item">1. 在网页中保存当前修改，并等待正在运行的计算完成。</p>
+<p class="item">2. 双击停止.bat。</p>
+<p class="item">3. 复制整个data目录到带日期的备份目录；如果设置了PLANNER_DATA_DIR，备份那个数据目录。</p>
+<p>SQLite可能使用planner.db-wal和planner.db-shm辅助文件。手工备份时复制完整数据目录，不在运行中只复制一个.db文件。本次交付包的数据库通过SQLite备份接口生成，已将已提交WAL内容合并为一致性快照。</p>
+<h3>恢复</h3>
+<p class="item">1. 先停止目标目录服务，并保留目标现有data作为回退备份。</p>
+<p class="item">2. 用完整备份数据替换目标业务数据；恢复到单独目录时，启动前设置PLANNER_DATA_DIR。</p>
+<p class="item">3. 不复用其他机器备份中的server.json、server.log和server-error.log；它们是进程与日志文件，不是业务数据。</p>
+<p class="item">4. 启动后核对项目、方案及测算记录。</p>
+<h3>从空白数据开始</h3>
+<p>停止服务后，将data目录重命名为data-backup，再启动。系统会新建data并初始化模型目录；原项目仍保留在data-backup中。不要在未备份时删除原数据。</p>
+<p>API Key不写入数据库，迁移后如确需使用保留的AI后端接口，应重新配置。当前业务规划流程无需该接口。</p>
+<h2>8. 使用步骤</h2>
+<p class="item">1. 在项目概览阅读“规划方案组织设计”，理解项目与方案的关系。</p>
+<p class="item">2. 选择已有项目的方案，或新建项目；也可载入示例体验。</p>
+<p class="item">3. 上传Excel或粘贴业务场景清单，核对任务类型、模型和业务规模。</p>
+<p class="item">4. 展开“技术参数与默认值”，查看默认数值；点击感叹号理解参数含义与选择原因。</p>
+<p class="item">5. 按需要启用创新服务、开发测试，确认各自参数和统一规划口径。</p>
+<p class="item">6. 保存方案并点击“开始测算”，检查缺失任务、三池需求、显存及计算依据。</p>
+<p class="item">7. 需要比较其他假设时复制方案；费用附录需先录入有来源的报价。</p>
+<h2>9. 常见问题</h2>
+<div class="table-wrap"><table><tr><th>现象</th><th>处理方式</th></tr><tr><td>双击启动后没有网页</td><td>先运行检查环境.bat，再查看data/server-error.log；也可手动打开本机网址</td></tr><tr><td>端口被占用</td><td>按第6节使用其他端口；先停止同目录已有服务</td></tr><tr><td>显示缺少文件或模块</td><td>重新完整解压运行包，确认runtime和frontend/dist都在；不要从原机复制.venv</td></tr><tr><td>提示不支持的程序或无法加载DLL</td><td>核对目标为x64 Windows 10/11，检查包是否完整及终端策略；记录错误后由目标机器管理员处理</td></tr><tr><td>文件被Windows标记或组织策略阻止</td><td>核对来源和SHA256，按本机或组织规定允许该项目运行；无需修改全局执行策略</td></tr><tr><td>页面更新后仍显示旧内容</td><td>先保存输入，再按Ctrl+F5刷新</td></tr><tr><td>看不到原项目</td><td>核对解压目录、访问端口和PLANNER_DATA_DIR是否对应迁移数据</td></tr><tr><td>关闭页面后端口仍占用</td><td>使用停止.bat退出后台服务</td></tr><tr><td>某任务显示未计入</td><td>属于业务参数或模型基线缺失，按结果提示补齐；与安装失败不同</td></tr><tr><td>网页可用但外部模型资料打不开</td><td>日常测算不依赖外部链接；资料页面需要目标机器具备相应网络访问能力</td></tr></table></div>
+<p>如需定位问题，提供检查环境输出、使用端口和server-error.log中的报错即可；无需提供API Key。</p>
+<h2>10. 从源码继续开发</h2>
+<p>随包源码与已构建网页对应。日常使用无需执行以下步骤。</p>
+<p>若需要修改前端或升级依赖，建议使用独立源码工作目录和完整Python安装，不在runtime内直接执行pip升级。随包嵌入式环境用于运行，不含完整的开发工具链。</p>
+<p>源码开发已验证的环境为Python 3.13.8 x64、Node.js 24.13.1。Python依赖见backend/requirements.lock.txt；前端依赖由frontend/package-lock.json锁定。</p>
+<p>保留源码、移出runtime目录后，在源码根目录执行：</p>
+<pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\安装依赖.ps1 -SkipBrowser</code></pre>
+<p>该源码安装步骤需要Python、Node.js/npm和网络，会建立新的.venv、安装锁定依赖、重建网页并执行数据库迁移。Windows运行包日常启动则直接使用runtime和已构建网页。</p>
+<p>前端修改后在frontend目录执行npm ci、npm run build；后端与计算测试可在backend目录执行：</p>
+<pre><code>..\.venv\Scripts\python.exe -m pytest -q</code></pre>
+<p>前端测试在frontend目录执行：</p>
+<pre><code>npm test
+npm run test:e2e</code></pre>
+<p>浏览器端到端测试优先使用Edge，在8010端口和独立测试数据目录运行；没有Edge时，需按开发流程安装Playwright浏览器。</p>
+<h2>11. 计算口径与当前范围</h2>
+<p>P16/T16是本产品定义的参考BF16稠密等效规划口径，效率、请求频次、部分显存预算和实验档位属于透明的早期规划假设。具体公式与来源请阅读应用中的“规划依据”或docs内的详细设计。</p>
+<p>缺少可靠基线的任务保留为未计入，不用0冒充完整需求。响应时间、设备互联及实际模型吞吐需要匹配条件下的后续测试。费用附录只作参考折算，不构成整机配置或采购报价。</p>
+<p>当前版本为本机单用户应用，不包含部门填报、审核审批、实际资源调度、真实Token发放和模型训练执行。</p>
+<h2>12. 包完整性与许可证</h2>
+<p>Windows运行包旁提供ZIP的SHA256校验文件；包内提供文件校验清单.json。可在PowerShell中核对：</p>
+<pre><code>Get-FileHash -Algorithm SHA256 -LiteralPath &#x27;算力规划智能体-Windows-x64-20261021.zip&#x27;</code></pre>
+<p>Python许可证位于runtime/python/LICENSE.txt；第三方包的许可信息保留在各包或.dist-info目录中。计算设计、代码及业务数据按项目自身的权属管理；本包没有另行授予项目源码的开源许可证。</p></main></html>

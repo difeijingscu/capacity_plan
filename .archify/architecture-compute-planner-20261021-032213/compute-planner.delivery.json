@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "721387b9-b760-4d8d-9e55-fdc6dc20ff85",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\candidate.json",
+  "output": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\compute-planner.html",
+  "specification": {
+    "sha256": "2132483616ef76034ee794f3a3f1932f89a097f83a84ba8224bd8b76261108a4",
+    "bytes": 5644
+  },
+  "artifact": {
+    "sha256": "617728b28cac3c023ad779a5f630949df117859a9f1092c6f662ad5913b1dce9",
+    "bytes": 823834
+  }
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "l40s",
+    "name": "NVIDIA L40S 48GB",
+    "dense_p16": 0.36205,
+    "memory_gb": 48,
+    "source_url": "https://www.nvidia.com/en-us/data-center/l40s/",
+    "checked_at": "2026-10-20",
+    "interconnect": "PCIe Gen4 x16；无NVLink",
+    "notes": "BF16稠密参考采用官网完整规格表明确列示的362.05 TFLOPS，即0.36205 PFLOPS；该表稀疏列733T与稠密列不完全二倍，保留官网当前原值并标注冲突待复核，禁止用733T稀疏值作稠密。48GB GDDR6。仅规格折算，拓扑/显存切分/大陆供给未验证，无购置报价。",
+    "price_low": null,
+    "price_high": null
+  },
+  {
+    "id": "h100-sxm",
+    "name": "NVIDIA H100 SXM 80GB",
+    "dense_p16": 0.9895,
+    "memory_gb": 80,
+    "source_url": "https://www.nvidia.com/en-us/data-center/h100/",
+    "checked_at": "2026-10-20",
+    "interconnect": "NVLink 900GB/s；PCIe Gen5 128GB/s；须验证具体SXM/HGX拓扑",
+    "notes": "官网BF16 Tensor Core 1979 TFLOPS脚注明确with sparsity；本目录按结构化稀疏双倍理论关系除2得到稠密参考989.5T=0.9895P，为规格推导而非实测。80GB HBM3，不能混用H100 NVL 94GB规格。不代表可直接采购数量或大陆供给已确认，无报价。",
+    "price_low": null,
+    "price_high": null
+  },
+  {
+    "id": "h200-sxm",
+    "name": "NVIDIA H200 SXM 141GB",
+    "dense_p16": 0.9895,
+    "memory_gb": 141,
+    "source_url": "https://www.nvidia.com/en-us/data-center/h200/",
+    "checked_at": "2026-10-20",
+    "interconnect": "NVLink 900GB/s；PCIe Gen5 128GB/s；须验证具体SXM/HGX拓扑",
+    "notes": "官网BF16 1979 TFLOPS带with sparsity脚注；按结构化稀疏双倍理论关系折算稠密989.5T=0.9895P，为规格推导而非实测。141GB HBM3e。官网保留preliminary/specifications may change说明；本目录固定核验日期，不等于保证硬件供给或应用吞吐，无报价。",
+    "price_low": null,
+    "price_high": null
+  }
+]

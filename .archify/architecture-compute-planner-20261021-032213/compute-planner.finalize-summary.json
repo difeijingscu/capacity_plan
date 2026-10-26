@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\candidate.json",
+    "sha256": "2132483616ef76034ee794f3a3f1932f89a097f83a84ba8224bd8b76261108a4",
+    "bytes": 5644
+  },
+  "artifact": {
+    "path": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\compute-planner.html",
+    "sha256": "617728b28cac3c023ad779a5f630949df117859a9f1092c6f662ad5913b1dce9",
+    "bytes": 823834
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\compute-planner.finalize.json",
+    "summaryReceipt": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\compute-planner.finalize-summary.json",
+    "browserCheckReceipt": "D:\\Coding\\算力规划智能体\\.archify\\architecture-compute-planner-20261021-032213\\compute-planner.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-21T10:26:16.999Z",
+    "source": "network",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 10120,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}
