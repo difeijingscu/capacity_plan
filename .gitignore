@@ -12,3 +12,6 @@ playwright-report/
 *.tsbuildinfo
 .release-build/
 releases/
+.workbuddy/
+.pytest-out.txt
+.vitest-out.txt
