@@ -34,8 +34,8 @@ test('无需项目即可阅读规划依据，首页和侧栏入口一致', async
 test('业务场景移除助手并使用全宽，切换规划依据保留未保存输入', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '载入示例项目' }).click();
-  await page.getByLabel('规模-企业知识问答').fill('321');
-  await page.getByLabel('规模-企业知识问答').blur();
+  await page.getByLabel('并发会话-企业知识问答').fill('321');
+  await page.getByLabel('并发会话-企业知识问答').blur();
   await expect(page.getByLabel('与规划助手对话')).toHaveCount(0);
   await expect(page.locator('.assistant')).toHaveCount(0);
   const panel = await page.locator('.main-panel').boundingBox();
@@ -45,7 +45,7 @@ test('业务场景移除助手并使用全宽，切换规划依据保留未保�
   await expect(page.getByRole('button', { name: '开始测算', exact: true })).toHaveCount(0);
   await page.screenshot({ path: '../docs/screenshots/06-planning-basis.png', fullPage: true });
   await page.getByRole('button', { name: '业务场景', exact: true }).click();
-  await expect(page.getByLabel('规模-企业知识问答')).toHaveValue('321');
+  await expect(page.getByLabel('并发会话-企业知识问答')).toHaveValue('321');
   await expect(page.getByRole('button', { name: /保存方案/ })).toBeEnabled();
 });
 

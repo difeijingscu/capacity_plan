@@ -39,23 +39,23 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
 
   const overview = <div className="basis-content">
     <Card title="先理解：我们规划的是什么？">
-      <p>本工具估算组织在规划期末需要配置的计算能力。用户先描述业务规模与模型，再把请求、Token、图像帧或实验任务转换为计算工作量，最后结合效率和余量形成容量建议。</p>
-      <p>默认输入的是<strong>规划期末规模</strong>。三年规划与五年规划如果期末业务量相同，峰值算力不会因为年数不同而自动相乘；选择“当前规模＋年增长”时，才按增长率推算期末规模。</p>
+      <p>本工具估算组织当前业务规模需要配置的计算能力。用户先描述业务规模与模型，再把请求、Token、图像帧或实验任务转换为计算工作量，最后结合效率和余量形成容量建议。</p>
+      <p>所有输入按<strong>当前峰值规模</strong>理解，不引入规划年限、年增长率等时间外推参数：早期规划只需要回答“现在这个规模大概需要多少算力”，周期与增长留给后续实测校准。</p>
       <div className="basis-pool-grid">{[
         ['01', '业务场景', '支撑已规划的具体应用', '在线人数、模型、请求内容与响应目标'],
         ['02', '创新服务', '提供灵活可用的模型服务池', '支持人数、人均月Token与模型份额'],
-        ['03', '开发测试', '按需支撑模型实验与评测', '候选模型、实验强度与并行槽位'],
+        ['03', '开发测试', '按需支撑模型微调', '候选模型、微调强度与并行槽位'],
       ].map(([index, name, purpose, inputs]) => <div key={name}><span>{index}</span><h3>{name}</h3><p>{purpose}</p><small>{inputs}</small></div>)}</div>
       <Steps className="basis-steps" responsive items={[{ title: '定义业务规模', description: '场景清单与期末需求' }, { title: '匹配模型与基线', description: '任务、参数与计量单位' }, { title: '换算工作量', description: '每秒请求或单位任务' }, { title: '形成容量', description: '效率、余量与显存' }]} />
     </Card>
     <Card title="怎样阅读 T / P、显存与余量">
       <Descriptions column={1} items={[
         { key: 'units', label: 'T / P', children: '1 TFLOPS = 每秒10¹²次浮点运算；1 PFLOPS = 每秒10¹⁵次；1 P = 1000 T。FLOP是工作量，FLOPS是速度。' },
-        { key: 'precision', label: 'P16 / T16', children: '本产品定义的参考BF16稠密等效规划口径。FP8、INT8、稀疏峰值与BF16容量不能按位宽直接换算或混加。' },
+        { key: 'precision', label: '精度基准', children: '本产品的算力以 BF16 稠密算力为基准折算（按所选推理精度），数值旁标注为「BF16 基准」。FP8、INT8、稀疏峰值与 BF16 容量不能按位宽直接换算或混加。' },
         { key: 'effective', label: '有效需求', children: '模型执行算法所需的计算工作量速率，尚未考虑实际运行效率。' },
         { key: 'base', label: '基础规划算力', children: '将有效需求按阶段效率折算为参考容量，效率越低，相同业务需要的参考容量越大。' },
         { key: 'planned', label: '建议规划算力', children: <>在基础容量上增加一次余量，初始默认 {percent(planning.headroom)}。余量是容量预留，不等于高可用副本。</> },
-        { key: 'memory', label: '显存', children: '辅助判断权重、缓存和运行状态能否容纳；同样的P值不代表相同的模型承载能力。' },
+        { key: 'memory', label: '显存', children: '辅助判断权重、缓存和运行状态能否容纳；同样的算力值不代表相同的模型承载能力。' },
       ]} />
       <Formula title="三类资源池独立汇总" note="三池分别配置；相同模型不会跨资源池去重。">C总建议 = C业务建议 + C创新建议 + C研发建议<br />C每池建议 = C每池基础 × (1 + h)</Formula>
       <p>同一业务池内，多个场景可共享兼容的模型服务：计算负载仍分别相加，基础模型权重只驻留一份。场景高峰默认同时发生；独立部署、不同精度或不兼容配置分别计算。</p>
@@ -133,30 +133,26 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
   const devRows = Object.entries(defaults.intensities || {}).map(([id, values]) => ({ id, name: ({ light: '轻度', standard: '标准（默认）', high: '高强度' } as Obj)[id], ...(values as Obj) }));
   const development = <div className="basis-content">
     <Card title="开发测试：按任务能力和并行槽位配置">
-      <p>开发测试池按需启用。选定需要支持的模型，再选择实验强度；微调与评测先计算单任务容量，资源池按允许同时运行的槽位组合。多个候选模型可以轮流使用同一槽位，因此不按模型数量机械累加。</p>
+      <p>开发测试池按需启用。选定需要支持的模型，再选择实验强度；先计算单个微调任务的容量，资源池按允许同时运行的槽位组合。多个候选模型可以轮流使用同一槽位，因此不按模型数量机械累加。开发测试只规划微调，不包含效果评测的算力。</p>
       <Variables rows={[
         ['Ntrain / D / E', '训练阶段激活参数 / 未乘轮数的数据Token / 训练轮数', '参数 / Token / 轮'],
         ['ktrain / ηtrain', '微调工作量系数 / 训练有效效率', '经验系数 / 比例'],
         ['H', '单次微调希望在多少小时内完成', '小时'],
-        ['Seval / Heval', '评测样本总调用次数 / 评测完成时间', '调用 / 小时'],
-        ['st / se', '可同时运行的微调 / 评测槽位', '任务个数'],
+        ['st', '可同时运行的微调槽位', '任务个数'],
       ]} />
       <Formula title="轻量微调 · 每任务计算量与容量">F训练 = ktrain × Ntrain × D × E<br />C微调单任务 = F训练 ÷ (H × 3600 × ηtrain × 10¹⁵)</Formula>
       <p>ktrain 初始 {text(training.train_k)}，ηtrain 初始 {text(training.train_eta)}。训练激活参数缺专用资料时采用有标记的架构代理；这不是“总参数 × 可训练参数比例”的简单缩减。</p>
       <Provenance><p>LoRA通过冻结基础权重、训练低秩适配器降低需要更新的参数量。<Source id="lora" /> <Source id="peft" /></p><p>上述资料支持LoRA机制，不支持“LoRA固定为4ND”的结论。ktrain是本产品的经验工作量系数，数据、轮数与完成窗口换算是规划推导；特殊架构、QLoRA及检查点策略需单独校准。</p></Provenance>
-      <Formula title="新模型测试与效果评测">Q评测调用 = 评测样本数（每样本一次调用）<br />λ评测 = Q评测调用 ÷ (Heval × 3600)<br />C评测单任务 = 用对应文本 / 图文 / CV计算器处理上述速率</Formula>
-      <p>当前每个样本按一次调用计算；多轮评测需将总调用次数折算为样本量。评测沿用业务推理或单位任务公式，功能验证包含在评测槽位中，不另加一个重复百分比。评测吞吐和延迟指标可参考 <Source id="metrics" />。</p>
     </Card>
     <Card title="档位定义与资源池聚合">
       <Table<Obj> rowKey="id" pagination={false} dataSource={devRows} size="small" scroll={{ x: 900 }} columns={[
         { title: '强度', dataIndex: 'name' }, { title: '数据Token', dataIndex: 'train_data_tokens', render: v => num(v) },
         { title: '轮数', dataIndex: 'epochs' }, { title: '微调时限', dataIndex: 'train_deadline_hours', render: v => v + '小时' },
-        { title: '评测样本', dataIndex: 'eval_samples', render: v => num(v) }, { title: '评测时限', dataIndex: 'eval_deadline_hours', render: v => v + '小时' },
-        { title: '微调 / 评测槽位', render: (_, r) => r.train_slots + ' / ' + r.eval_slots }, { title: '并行关系', dataIndex: 'train_eval_parallel', render: v => v ? '可同时运行' : '排队串行' },
+        { title: '微调槽位', dataIndex: 'train_slots' },
       ]} />
-      <Formula title="先取支持全部候选模型的能力包络">Ct = st × max(各候选模型的单任务微调容量)<br />Ce = se × max(各候选模型的单任务评测容量)<br />轻度基础容量 = max(Ct, Ce)<br />标准 / 高强度基础容量 = Ct + Ce<br />C研发建议 = C研发基础 × (1 + h)</Formula>
-      <p>取最大值意味着一个槽位能承接任意选中模型，默认还允许不同槽位运行同一模型的不同实验。各档位的样本、窗口与槽位都是本产品定义，允许高级参数覆盖，不是行业统一标准。</p>
-      <Collapse items={[{ key: 'dev-memory', label: '微调显存的辅助估算方法', children: <><Formula title="训练状态与激活预算">M微调 = (基础权重 + 适配器状态 + 激活预算 + 工作空间) ÷ (1 − 显存预留比例)</Formula><p>当前适配器参数缺专用统计时，用完整参数的 {percent(training.adapter_fraction)} 作代理，状态按每适配器参数16字节预算；激活预算为 max(8GB, 基础权重×20%) × 序列长度/2048 × micro batch，工作空间取 max(2GB, 基础权重×10%)。均是可校准的经验预算，不是框架级显存实测。</p><p>微调与评测进程分别驻留；显存也按槽位及串/并行关系聚合。QLoRA需额外的量化元数据基线，未知时不能声称完整可落地。</p></> }]} />
+      <Formula title="先取支持全部候选模型的能力包络">Ct = st × max(各候选模型的单任务微调容量)<br />C研发建议 = Ct × (1 + h)</Formula>
+      <p>取最大值意味着一个槽位能承接任意选中模型，默认还允许不同槽位运行同一模型的不同实验。各档位的数据量、窗口与槽位都是本产品定义，允许高级参数覆盖，不是行业统一标准。</p>
+      <Collapse items={[{ key: 'dev-memory', label: '微调显存的辅助估算方法', children: <><Formula title="训练状态与激活预算">M微调 = (基础权重 + 适配器状态 + 激活预算 + 工作空间) ÷ (1 − 显存预留比例)</Formula><p>当前适配器参数缺专用统计时，用完整参数的 {percent(training.adapter_fraction)} 作代理，状态按每适配器参数16字节预算；激活预算为 max(8GB, 基础权重×20%) × 序列长度/2048 × micro batch，工作空间取 max(2GB, 基础权重×10%)。均是可校准的经验预算，不是框架级显存实测。</p><p>微调进程按槽位各自驻留；显存按槽位数 × 最大单任务显存聚合。QLoRA需额外的量化元数据基线，未知时不能声称完整可落地。</p></> }]} />
     </Card>
   </div>;
 

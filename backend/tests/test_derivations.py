@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from app.catalogs import SYNTHETIC, seeds
 from app.engine.calculator import calculate, clean
 from app.main import create_app
-from app.schemas import Allocation, Development, DevModel, Innovation, PlanInput, Scenario, Task
+from app.schemas import (Allocation, Development, DevModel, InferenceRequest, Innovation,
+                          PlanInput, Scenario, Task)
 
 
 @pytest.fixture
@@ -36,6 +37,10 @@ def by_title(steps, title):
     return next(s for s in steps if s["title"] == title)
 
 
+def by_title_input(fields, label):
+    return next(f for f in fields if f["label"] == label)
+
+
 def test_innovation_large_quota_matches_32p_snapshot(client):
     model = next(m for m in seeds("models") if m["id"] == "deepseek-v4-flash")
     payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=50_000_000,
@@ -54,14 +59,15 @@ def test_innovation_large_quota_matches_32p_snapshot(client):
 
 
 def test_derivation_is_read_only_and_uses_frozen_inputs_and_catalog(client):
-    payload = PlanInput(scenarios=[Scenario(name="问答", components=[Task(model_id=SYNTHETIC["id"], online_users=100)])])
+    payload = PlanInput(scenarios=[Scenario(name="问答", inference=InferenceRequest(
+        model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
     run = save_run(client, payload)
     before = get(client, run, "business")
     plan = client.get("/api/v1/plans/" + run["plan_id"]).json()
     assert plan["calculations"][0]["plan_id"] == plan["id"]
     changed = deepcopy(plan["payload"])
     changed["headroom"] = ".5"
-    changed["scenarios"][0]["components"][0]["online_users"] = 900
+    changed["scenarios"][0]["inference"]["concurrency"] = 900
     assert client.patch("/api/v1/plans/" + plan["id"], json={"expected_revision": plan["revision"], "payload": changed}).status_code == 200
     store = client.app.state.store
     live_model = store.get(SYNTHETIC["id"])
@@ -69,66 +75,60 @@ def test_derivation_is_read_only_and_uses_frozen_inputs_and_catalog(client):
     counts = {kind: len(store.list(kind)) for kind in ["calculation", "plan_history", "job"]}
     assert get(client, run, "business") == before
     assert {kind: len(store.list(kind)) for kind in counts} == counts
-    assert "100 ×" in by_title(before["items"][0]["steps"], "在线人数换算模型请求速率")["substitution"]
+    # 快照读的是当次输入，不是当前表单：场景级输入冻结在 items 里
+    scenario = before["items"][0]
+    assert D(by_title_input(scenario["inputs"], "并发会话")["value"]) == 100
+    assert "max(A, B, C)" in by_title(scenario["steps"], "三维取最大（不是相加）")["formula"]
+    assert D(by_title(before["steps"], "增加一次容量余量")["value"]) == pytest.approx(D(before["planned_p"]))
 
 
-def test_total_margin_once_and_native_mapping_are_explained(client):
-    payload = PlanInput(headroom=".2", scenarios=[Scenario(name="映射", components=[
-        Task(task_type="native", native_capacity=10, native_precision="INT8", reference_mapping=".5", baseline_source="人工核验映射")
-    ])])
+def test_total_margin_once_and_cards_are_explained(client):
+    payload = PlanInput(headroom=".2", scenarios=[Scenario(name="问答", inference=InferenceRequest(
+        model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
     run = save_run(client, payload)
     total = get(client, run, "total")
-    assert D(total["base_p"]) == 5 and D(total["planned_p"]) == 6
-    assert D(total["steps"][-1]["value"]) == 6
+    assert D(total["planned_p"]) == pytest.approx(D(total["base_p"]) * D("1.2"))
+    assert D(total["steps"][-1]["value"]) == D(total["planned_p"])
     business = get(client, run, "business")
-    assert D(business["items"][0]["steps"][0]["value"]) == 5
+    pool = run["result"]["pools"][0]
+    assert D(business["base_p"]) == D(pool["base_p"])
+    assert by_title(business["steps"], "汇总场景卡数")["value"] == str(pool["cards_planned"])
     assert get(client, run, "innovation")["steps"] == []
     assert get(client, run, "innovation")["completeness"] == "DISABLED"
 
 
-@pytest.mark.parametrize("parallel", [False, True])
-def test_development_uses_largest_candidate_and_slots_not_sum(client, parallel):
+def test_development_uses_largest_candidate_and_slots_not_sum(client):
     large = {**SYNTHETIC, "id": "large", "active_parameters_prefill": 16_000_000_000,
              "active_parameters_decode": 16_000_000_000, "resident_parameters": 16_000_000_000}
     payload = PlanInput(development=Development(enabled=True, models=[DevModel(model_id=SYNTHETIC["id"]), DevModel(model_id="large")],
-                                               train_slots=2, eval_slots=3, train_eval_parallel=parallel))
+                                               train_slots=2))
     run = save_run(client, payload, [SYNTHETIC, large])
     explanation = get(client, run, "development")
     trains = [i for i in run["result"]["pools"][2]["items"] if i["id"].startswith("train-")]
     evaluations = [i for i in run["result"]["pools"][2]["items"] if i["id"].startswith("eval-")]
-    tc, ec = max(D(i["base_p"]) for i in trains) * 2, max(D(i["base_p"]) for i in evaluations) * 3
-    assert D(explanation["base_p"]) == (tc + ec if parallel else max(tc, ec))
+    assert len(trains) == 2 and evaluations == []
+    tc = max(D(i["base_p"]) for i in trains) * 2
+    assert D(explanation["base_p"]) == tc
     assert D(by_title(explanation["steps"], "微调槽位容量")["value"]) == tc
-    assert D(by_title(explanation["steps"], "评测槽位容量")["value"]) == ec
     assert all(t["steps"] for t in explanation["items"])
 
 
-def test_cv_direct_override_partial_and_unmapped_capacity(client):
+def test_non_llm_scenarios_are_blocked_with_reasons(client):
     cv = next(m for m in seeds("models") if m["id"] == "yolo26s")
     payload = PlanInput(scenarios=[
-        Scenario(name="检测", components=[Task(task_type="cv", model_id=cv["id"], online_users=100, request_rate=9, images_per_request=2)]),
+        Scenario(name="检测", components=[Task(task_type="cv", model_id=cv["id"], online_users=100, request_rate=9)]),
         Scenario(name="未知任务", components=[Task(task_type="unit", units_per_second=3)]),
         Scenario(name="未映射", components=[Task(task_type="native", native_capacity=5, native_precision="INT8")]),
     ])
     run = save_run(client, payload, [cv])
     explanation = get(client, run, "business")
-    assert explanation["completeness"] == "PARTIAL"
-    assert len(explanation["missing_items"]) == 2
-    detection = explanation["items"][0]
-    rate = by_title(detection["steps"], "确定任务处理速率")
-    assert D(rate["value"]) == 18
-    assert rate["substitution"] == "9 × 2"
-    assert D(detection["base_p"]) == D("0.001254")
-    assert explanation["items"][1]["base_p"] is None and explanation["items"][1]["steps"] == []
+    assert explanation["completeness"] == "BLOCKED"
+    assert len(explanation["missing_items"]) == 3
+    assert {m["code"] for m in explanation["missing_items"]} == {"UNSUPPORTED_PROFILE"}
+    assert explanation["items"] == []
 
 
-def test_offline_units_and_zero_vs_missing(client):
-    task = Task(task_type="unit", total_units=1000, deadline_hours=2, flop_per_unit="1e12", baseline_source="离线任务测量")
-    run = save_run(client, PlanInput(scenarios=[Scenario(name="离线", components=[task])]))
-    explanation = get(client, run, "business")
-    rate = by_title(explanation["items"][0]["steps"], "确定任务处理速率")
-    assert rate["substitution"] == "1,000 ÷ (2 × 3600)"
-    assert float(rate["value"]) == pytest.approx(1000 / 7200)
+def test_zero_vs_missing(client):
     zero = save_run(client, PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=0,
                                                           allocations=[Allocation(model_id=SYNTHETIC["id"], share=1)])))
     assert D(get(client, zero, "innovation")["planned_p"]) == 0

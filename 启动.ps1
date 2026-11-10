@@ -1,6 +1,12 @@
 ﻿param([int]$Port = 8000, [switch]$NoBrowser)
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
+# Windows PowerShell 5.1 在进程环境里同时存在 http_proxy / HTTP_PROXY 时，
+# Start-Process 会抛 "Item has already been added" 导致服务起不来。
+# 本服务只监听本地端口，清掉进程级代理变量不影响功能。
+foreach ($proxyKey in 'HTTP_PROXY','HTTPS_PROXY','NO_PROXY','ALL_PROXY') {
+    try { [Environment]::SetEnvironmentVariable($proxyKey, $null, 'Process') } catch { }
+}
 if ($Port -lt 1024 -or $Port -gt 65535) { throw '端口必须介于1024和65535。' }
 $portablePython = Join-Path $PSScriptRoot 'runtime\python\python.exe'
 $sourcePython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'

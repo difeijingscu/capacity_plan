@@ -21,9 +21,12 @@ from pydantic import ValidationError
 from app.assistant import Proposal, ask_provider, check_changes, local_proposal
 from app.derivations import build_derivation
 from app.catalogs import seeds
+from app.catalogs import inference_catalog
 from app.engine.calculator import ENGINE_VERSION, CalculationIssue, calculate, clean, cost_estimate, resolved, INTENSITIES, TEMPLATES
+from app.engine import inference as inference_engine
+from app.engine import params as inference_params
 from app.imports import preview, suggest_task
-from app.schemas import Development, PlanInput, Scenario, Task
+from app.schemas import Development, InferenceModelInput, InferenceRequest, PlanInput, Scenario, Task, prune_payload
 from app.store import RevisionConflict, Store, now
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +38,9 @@ def create_app(data_dir=None):
     store.publish_seeds("model", seeds("models"))
     store.publish_seeds("card", seeds("cards"))
     store.recover()
+    saved_params = store.get("active", "inference-params")
+    inference_params.load((saved_params or {}).get("overrides"))
+    inference_engine.reload()
     executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="planner")
     credential = {"key": os.getenv("PLANNER_AI_KEY","")}
     calculation_lock=Lock()
@@ -86,6 +92,11 @@ def create_app(data_dir=None):
     def plan_record(key):
         return need(key,"plan")
 
+    def readable_payload(payload):
+        """读路径兜底：剪掉当前 schema 已下线的字段，让旧方案能被打开。
+        写入仍然走 PlanInput 严格校验，字段名写错不会被静默吞掉。"""
+        return prune_payload(PlanInput, payload or {})
+
     def update_plan(key, payload, expected):
         record = plan_record(key)
         old_revision = record["revision"]
@@ -119,14 +130,14 @@ def create_app(data_dir=None):
             "templates":TEMPLATES,
             "task_defaults":Task().model_dump(mode="json",exclude={"id","provenance"}),
             "development_defaults":Development().model_dump(mode="json",exclude={"models"}),
-            "planning_defaults":PlanInput().model_dump(mode="json",include={"headroom","memory_reserve","input_time_basis"}),
+            "planning_defaults":PlanInput().model_dump(mode="json",include={"headroom","memory_reserve"}),
             "intensities":INTENSITIES,
             "defaults_version":"defaults-v1",
         }
 
     @app.get("/api/v1/projects")
     def projects(archived: bool=False):
-        all_plans = store.list("plan")
+        all_plans = [{**v,"payload":readable_payload(v.get("payload"))} for v in store.list("plan")]
         return [{**p,"plans":[v for v in all_plans if v["project_id"]==p["id"]]} for p in store.list("project") if bool(p.get("archived_at"))==archived]
 
     @app.post("/api/v1/projects")
@@ -158,11 +169,14 @@ def create_app(data_dir=None):
         catalog = models()
         text_task = suggest_task("知识问答","查询制度与知识",catalog)
         text_task.online_users=Decimal(100)
-        vision_task = suggest_task("扫描件图文分析","图片与扫描件理解",catalog)
-        vision_task.online_users=Decimal(30)
-        cv_task = suggest_task("园区目标检测","摄像头监控",catalog)
-        cv_task.streams=Decimal(10)
-        payload = PlanInput(is_demo=True,scenarios=[Scenario(name="企业知识问答",description="查询内部制度与知识并回答",components=[text_task]),Scenario(name="扫描件图文分析",description="识别文档图片与表格",components=[vision_task]),Scenario(name="园区目标检测",description="视频流目标检测，10路、每路5帧/秒",components=[cv_task])])
+        payload = PlanInput(is_demo=True,scenarios=[
+            Scenario(name="企业知识问答",description="查询内部制度与知识并回答",components=[text_task],
+                     inference=InferenceRequest(model_key="qwen3_8b",chip_key="910c",scene_key="kb_qa",concurrency=Decimal(100))),
+            Scenario(name="技术文档摘要",description="长文档一次送入，输出结构化摘要",
+                     inference=InferenceRequest(model_key="qwen36_35b_a3b",chip_key="910c",scene_key="long_summary",concurrency=Decimal(30))),
+            Scenario(name="报告与文案生成",description="短输入、长输出，含思考链",
+                     inference=InferenceRequest(model_key="deepseek_v4_flash",chip_key="950(486T)",scene_key="long_gen",concurrency=Decimal(20))),
+        ])
         if text_task.model_id:
             payload.innovation.enabled=True
             payload.innovation.users=Decimal(1000)
@@ -176,6 +190,9 @@ def create_app(data_dir=None):
     @app.get("/api/v1/plans/{plan_id}")
     def get_plan(plan_id:str):
         record = plan_record(plan_id)
+        record = {**record,"payload":readable_payload(record.get("payload"))}
+        if record.get("previous_payload"):
+            record["previous_payload"] = readable_payload(record["previous_payload"])
         record["calculations"] = [{k:r.get(k) for k in ("id","plan_id","plan_revision","created_at","result","status")} for r in store.list("calculation") if r["plan_id"]==plan_id]
         return record
 
@@ -193,7 +210,7 @@ def create_app(data_dir=None):
         record=plan_record(plan_id)
         if not record.get("previous_payload"):
             raise ValueError("没有可撤销的修改")
-        return update_plan(plan_id,record["previous_payload"],body.get("expected_revision"))
+        return update_plan(plan_id,readable_payload(record["previous_payload"]),body.get("expected_revision"))
 
     @app.post("/api/v1/plans/{plan_id}/clone")
     def clone(plan_id:str,body:dict):
@@ -227,7 +244,7 @@ def create_app(data_dir=None):
         if cached:
             return {"run_id":cached["id"],"status":"SUCCEEDED"}
         def work():
-            report=calculate(PlanInput.model_validate(record["payload"]),catalog,True)
+            report=calculate(PlanInput.model_validate(readable_payload(record["payload"])),catalog,True)
             calculation=store.insert("calculation",{"plan_id":plan_id,"project_id":record["project_id"],"plan_revision":record["revision"],"input_hash":fingerprint,"input_snapshot":record["payload"],"catalog_snapshot":catalog,"result":report,"status":"SUCCEEDED"})
             return {"run_id":calculation["id"]}
         with calculation_lock:
@@ -333,6 +350,120 @@ def create_app(data_dir=None):
     @app.get("/api/v1/catalog/baselines")
     def catalog_baselines():
         return store.list("baseline")
+
+    # ------------------------------------------------ 推理算力评估（A/B/C 四约束）
+    @app.get("/api/v1/inference/catalog")
+    def inference_catalog_all():
+        """推理评估所需的全部模板：模型结构、芯片规格、场景档位。"""
+        custom = [m for m in store.list("inference-model") if not m.get("archived_at")]
+        return {
+            "models": inference_catalog.models(),
+            "custom_models": custom,
+            "chips": inference_catalog.chips(),
+            "scenes": inference_catalog.scenes(),
+            "sensitivity": [
+                {"key": k, "label": v["label"]} for k, v in inference_engine.SENSITIVITY.items()
+            ],
+            "precision": ["auto", "bf16", "fp8", "int8", "int4"],
+            "defaults_version": "inference-v1",
+        }
+
+    @app.post("/api/v1/inference/estimate")
+    def inference_estimate(body: dict):
+        """算一次推理评估，返回三维约束、拓扑与卡数。
+
+        结果同时写入 calculation 快照，供历史对比与推导回看。
+        """
+        request = InferenceRequest.model_validate(body)
+        custom = [m for m in store.list("inference-model") if not m.get("archived_at")]
+        try:
+            result = inference_engine.estimate(
+                request.to_engine(),
+                inference_catalog.models() + custom,
+                inference_catalog.chips(),
+                inference_catalog.scenes(),
+                request.profile,
+            )
+        except inference_engine.InferenceIssue as exc:
+            raise ValueError(f"{exc.code}: {exc.message}") from exc
+        payload = {"request": request.model_dump(mode="json"), "result": result}
+        return clean(payload)
+
+    @app.post("/api/v1/inference/models")
+    def inference_model_create(body: dict):
+        """登记自定义模型结构，供清单外模型复用。"""
+        data = InferenceModelInput.model_validate(body)
+        if inference_catalog.find_model(data.key):
+            raise ValueError("该模型标识已存在于内置清单，请换一个标识")
+        existing = next((m for m in store.list("inference-model") if m["id"] == data.key), None)
+        if existing:
+            raise ValueError("该自定义模型已登记，可直接选用")
+        return store.insert("inference-model", {**data.to_engine(), "archived_at": None}, data.key)
+
+    @app.get("/api/v1/inference/models")
+    def inference_model_list():
+        return [m for m in store.list("inference-model") if not m.get("archived_at")]
+
+    @app.delete("/api/v1/inference/models/{key}")
+    def inference_model_archive(key: str):
+        record = need(key, "inference-model")
+        return store.replace(key, {**record, "archived_at": now()})
+
+    # ------------------------------------------------ 推理参数（可配置）
+    def params_state():
+        effective = inference_params.current()
+        overrides = inference_params.overrides()
+        return clean({
+            "defaults_version": effective.get("version"),
+            "defaults_updated": effective.get("updated"),
+            "notes": effective.get("notes", []),
+            "effective": effective,
+            "overrides": overrides,
+            "has_overrides": bool(overrides),
+            "schema": inference_params.describe(),
+            "engine": {
+                "tp_intra_cap": inference_engine.TP_INTRA_CAP,
+                "sensitivity": [
+                    {"key": k, "label": v["label"]}
+                    for k, v in inference_engine.SENSITIVITY.items()
+                ],
+            },
+        })
+
+    def persist_params(patch):
+        body = {"overrides": patch, "updated_at": now()}
+        if store.get("active", "inference-params"):
+            store.replace("active", body)
+        else:
+            store.insert("inference-params", body, "active")
+
+    @app.get("/api/v1/inference/params")
+    def inference_params_read():
+        """当前生效参数 + 覆盖层 + 字段说明（前端按 schema 渲染表单）。"""
+        return params_state()
+
+    @app.put("/api/v1/inference/params")
+    def inference_params_write(body: dict):
+        """局部覆盖参数：只传要改的字段，按 schema 校验后落库并立即生效。"""
+        patch = body.get("overrides") if isinstance(body.get("overrides"), dict) else body
+        cleaned, errors = inference_params.validate(patch)
+        if errors:
+            raise ValueError("参数不合法：" + "；".join(
+                f"{e['key']} {e['message']}" for e in errors[:6]))
+        if not cleaned:
+            raise ValueError("没有可应用的参数改动")
+        merged = inference_params.set_overrides(cleaned)
+        inference_engine.reload()
+        persist_params(merged)
+        return params_state()
+
+    @app.post("/api/v1/inference/params/reset")
+    def inference_params_reset():
+        """清空覆盖层，回到 catalogs/inference_params.json 的默认值。"""
+        inference_params.reset()
+        inference_engine.reload()
+        persist_params({})
+        return params_state()
 
     @app.post("/api/v1/catalog/model-revisions")
     def model_revision(body:dict):

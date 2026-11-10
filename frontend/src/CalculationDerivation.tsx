@@ -47,7 +47,7 @@ export default function CalculationDerivation({ runId, scope, stale, onClose }: 
       !view ? <div className="derivation-loading"><Spin tip="正在读取本次测算快照"><div /></Spin></div> : <div className="derivation-content">
         <Space wrap><Tag>方案修订 {view.plan_revision}</Tag><Tag color={view.completeness === 'COMPLETE' ? 'green' : 'orange'}>{stateNames[view.completeness]}</Tag><span className="muted">测算时间 {new Date(view.created_at).toLocaleString('zh-CN')}</span></Space>
         {stale && <Alert type="warning" showIcon message="当前输入已变更，以下推导来自所选历史测算快照" description="尚未测算的新输入不会混入此处。请重新测算后查看对应的新结果。" />}
-        <div className="derivation-summary"><span>本次保存的建议容量</span><strong>{capacity(view.planned_p)}</strong><small>快照值：{valueText(view.planned_p)}{view.planned_p != null && ' P16'} · 基础容量：{valueText(view.base_p)}{view.base_p != null && ' P16'}</small></div>
+        <div className="derivation-summary"><span>本次保存的建议容量</span><strong>{capacity(view.planned_p)}</strong><small>快照值：{valueText(view.planned_p)}{view.planned_p != null && ' P'} · 基础容量：{valueText(view.base_p)}{view.base_p != null && ' P'}</small></div>
         {view.completeness === 'DISABLED' && <Alert type="info" showIcon message="本次方案未启用此资源池" description="该资源池计入总量为0，没有任务推导。" />}
         {view.missing_items.length > 0 && <Alert type="warning" showIcon message="以下需求尚未完整计入，当前数值仅代表已计入部分" description={<ul>{view.missing_items.map((r: Obj, i: number) => <li key={i}>{r.name || r.id}：{r.message}</li>)}</ul>} />}
         <Card size="small" title="本次输入与共同口径"><Inputs rows={view.inputs} /></Card>
@@ -56,7 +56,7 @@ export default function CalculationDerivation({ runId, scope, stale, onClose }: 
           { title: '名称', dataIndex: 'name' }, { title: '基础容量', dataIndex: 'base_p', render: capacity },
           { title: '建议容量（已含余量）', dataIndex: 'planned_p', render: capacity }, { title: '状态', dataIndex: 'completeness', render: v => stateNames[v] || v },
         ]} /></Card>}
-        {view.items.length > 0 && <Card size="small" title={scope === 'development' ? '单任务计算：候选模型与评测' : '逐项展开：输入、公式与代入数值'}>
+        {view.items.length > 0 && <Card size="small" title={scope === 'development' ? '单任务计算：候选模型与微调' : '逐项展开：输入、公式与代入数值'}>
           <Collapse key={view.run_id + view.scope + taskPage} defaultActiveKey={taskItems.length ? [taskItems[0].id] : []} items={taskItems.map((item: Obj) => ({
             key: item.id, label: <div className="derivation-task-label"><span>{item.name}</span><strong>{capacity(item.base_p)} · 单任务基础</strong></div>,
             children: <><p className="derivation-note">模型：{item.model || '自定义任务'}{item.revision && ' · 固定版本：' + item.revision}</p>

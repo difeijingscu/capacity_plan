@@ -4,8 +4,8 @@ import type { Page } from '@playwright/test';
 async function createAndCalculate(page: Page, name: string, partial = false) {
   const response = await page.request.post('/api/v1/projects', { data: { name, payload: {
     scenarios: [
-      { name: '推导问答', components: [{ task_type: 'text', model_id: 'qwen3-8b', online_users: 100 }] },
-      { name: '推导检测', components: [{ task_type: 'cv', model_id: 'yolo26s', streams: 10, analysis_fps: 5 }] },
+      { name: '推导问答', inference: { model_key: 'qwen3_8b', chip_key: '910c', scene_key: 'kb_qa', concurrency: 100 } },
+      { name: '推导长文', inference: { model_key: 'deepseek_v4_flash', chip_key: '950(486T)', scene_key: 'long_gen', concurrency: 20 } },
       ...(partial ? [{ name: '待补基线任务', components: [{ task_type: 'unit', units_per_second: 3 }] }] : []),
     ],
     innovation: partial ? { enabled: false } : { enabled: true, users: 1000, quota_per_user_month: 50000000,
@@ -43,16 +43,23 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await expect(drawer).toContainText('三类资源池的数值组成');
   await expect(drawer).toContainText('汇总后不再次增加余量');
   await drawer.locator('.ant-drawer-close').click();
+  // 业务池：三维取最大 + SLA 回验 + 卡数与算力两套口径都要能看到
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();
-  await expect(drawer).toContainText('在线人数换算模型请求速率');
-  await expect(drawer).toContainText('100 × 0.5 × 1 ÷ 60');
-  await drawer.getByRole('button', { name: /推导检测/ }).click();
-  await expect(drawer).toContainText('10 × 5');
+  await expect(drawer).toContainText('显存约束卡数');
+  await expect(drawer).toContainText('三维取最大（不是相加）');
+  await expect(drawer).toContainText('物理下界 = max(A, B, C)');
+  await expect(drawer).toContainText('折算参考算力');
+  await expect(drawer).toContainText('时延回验');
+  await expect(drawer).toContainText('汇总场景卡数');
+  await expect(drawer).toContainText('卡数是物理台数');
+  await drawer.getByRole('button', { name: /推导长文/ }).click();
+  await expect(drawer).toContainText('deepseek_v4_flash');
   await drawer.locator('.ant-drawer-close').click();
   await page.getByRole('button', { name: '查看开发测试计算推导', exact: true }).click();
   await expect(drawer).toContainText('微调槽位容量');
   await expect(drawer).toContainText('max(');
-  await expect(drawer).toContainText('并行：C微调 + C评测');
+  await expect(drawer).toContainText('× 微调槽位数');
+  await expect(drawer).toContainText('不机械累加所有候选模型');
   await expect(drawer).toContainText('F训练 = k训练 × N训练激活 × D × E');
   expect(errors).toEqual([]);
 });
@@ -60,26 +67,29 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
 test('修改输入后推导保留历史口径，重新测算后展示新输入', async ({ page }) => {
   await createAndCalculate(page, '推导快照验收');
   await page.getByRole('button', { name: '业务场景', exact: true }).click();
-  await page.getByLabel('规模-推导问答').fill('200');
-  await page.getByLabel('规模-推导问答').blur();
+  await page.getByLabel('并发会话-推导问答').fill('200');
+  await page.getByLabel('并发会话-推导问答').blur();
   await page.getByRole('button', { name: '测算结果', exact: true }).click();
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();
   const drawer = page.locator('.calculation-derivation');
   await expect(drawer).toContainText('当前输入已变更，以下推导来自所选历史测算快照');
-  await expect(drawer).toContainText('100 × 0.5 × 1 ÷ 60');
+  // 场景级输入走 items 里的输入表，池级输入只有余量与卡数
+  const conc = () => drawer.locator('.derivation-inputs').nth(1)
+    .locator('.ant-descriptions-item').filter({ hasText: '并发会话' });
+  await expect(conc()).toContainText('100');
   await drawer.locator('.ant-drawer-close').click();
   await page.getByRole('button', { name: '开始测算', exact: true }).click();
   await expect(page.getByRole('button', { name: '开始测算', exact: true })).not.toHaveClass(/ant-btn-loading/);
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();
-  await expect(drawer).toContainText('200 × 0.5 × 1 ÷ 60');
+  await expect(conc()).toContainText('200');
   await expect(drawer.getByText('当前输入已变更，以下推导来自所选历史测算快照', { exact: true })).toHaveCount(0);
   await drawer.locator('.ant-drawer-close').click();
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await page.locator('.project-card').filter({ has: page.getByRole('heading', { name: '推导快照验收', exact: true }) }).getByRole('button', { name: '基准方案', exact: true }).click();
-  await expect(page.getByLabel('规模-推导问答')).toBeVisible();
+  await expect(page.getByLabel('并发会话-推导问答')).toBeVisible();
   await page.getByRole('button', { name: '测算结果', exact: true }).click();
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();
-  await expect(drawer).toContainText('200 × 0.5 × 1 ÷ 60');
+  await expect(conc()).toContainText('200');
   await expect(drawer.getByText('当前输入已变更，以下推导来自所选历史测算快照', { exact: true })).toHaveCount(0);
 });
 

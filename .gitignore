@@ -8,6 +8,7 @@ __pycache__/
 *.log
 .env
 test-results/
+test-results-*/
 playwright-report/
 *.tsbuildinfo
 .release-build/
@@ -15,3 +16,5 @@ releases/
 .workbuddy/
 .pytest-out.txt
 .vitest-out.txt
+# 演示文稿工具的本地缓存，与产物无关
+ppt/**/.slidep/

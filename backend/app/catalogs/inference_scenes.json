@@ -1,0 +1,74 @@
+[
+  {
+    "key": "long_gen",
+    "name": "长文生成",
+    "source_key": "code",
+    "prompt_len": 1024,
+    "output_len": 8196,
+    "max_ctx": 32768,
+    "concurrency": 9,
+    "ttft_ms": 1000,
+    "tpot_ms": 50,
+    "hint": "短输入、长输出。代码、文案、报告按这一档估。"
+  },
+  {
+    "key": "kb_qa",
+    "name": "知识库问答",
+    "source_key": "rag",
+    "prompt_len": 8192,
+    "output_len": 1024,
+    "max_ctx": 32768,
+    "concurrency": 9,
+    "ttft_ms": 3000,
+    "tpot_ms": 50,
+    "hint": "中输入、中输出。检索段拼入后再生成答复。"
+  },
+  {
+    "key": "deep_think",
+    "name": "深度推理",
+    "source_key": "think",
+    "prompt_len": 2048,
+    "output_len": 8192,
+    "max_ctx": 32768,
+    "concurrency": 9,
+    "ttft_ms": 8000,
+    "tpot_ms": 80,
+    "hint": "中输入、超长输出（含思维链）。逐Token时延最敏感。"
+  },
+  {
+    "key": "long_summary",
+    "name": "长文档摘要",
+    "source_key": "gen_summary",
+    "prompt_len": 32768,
+    "output_len": 1024,
+    "max_ctx": 65536,
+    "concurrency": 9,
+    "ttft_ms": 20000,
+    "tpot_ms": 80,
+    "hint": "长输入、短输出。报告或卷宗一次送入。"
+  },
+  {
+    "key": "ultra_long",
+    "name": "超长文档",
+    "source_key": "long64k",
+    "prompt_len": 65536,
+    "output_len": 2048,
+    "max_ctx": 65536,
+    "concurrency": 6,
+    "ttft_ms": 40000,
+    "tpot_ms": 90,
+    "hint": "超长输入、中长输出。输入长度决定显存与首Token。"
+  },
+  {
+    "key": "custom",
+    "name": "自定义",
+    "source_key": "custom",
+    "prompt_len": 2048,
+    "output_len": 2048,
+    "max_ctx": 4096,
+    "concurrency": 9,
+    "ttft_ms": 2000,
+    "tpot_ms": 50,
+    "hint": "自行填写输入/输出长度、时延目标与并发；并发按业务在线量估，不用示例值。"
+  }
+]

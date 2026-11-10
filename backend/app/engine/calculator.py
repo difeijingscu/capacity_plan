@@ -21,9 +21,9 @@ TEMPLATES = {
     "vision": dict(requests_per_user_min=".2", input_tokens=1024, answer_tokens=512, reasoning_tokens=0, ttft_seconds=3, output_tokens_per_second=25),
 }
 INTENSITIES = {
-    "light": dict(train_data_tokens=1_000_000, epochs=1, train_deadline_hours=24, eval_samples=200, eval_deadline_hours=8, sequence_length=2048, train_slots=1, eval_slots=1, train_eval_parallel=False),
-    "standard": dict(train_data_tokens=5_000_000, epochs=2, train_deadline_hours=12, eval_samples=1000, eval_deadline_hours=4, sequence_length=2048, train_slots=1, eval_slots=1, train_eval_parallel=True),
-    "high": dict(train_data_tokens=20_000_000, epochs=3, train_deadline_hours=8, eval_samples=5000, eval_deadline_hours=2, sequence_length=4096, train_slots=2, eval_slots=2, train_eval_parallel=True),
+    "light": dict(train_data_tokens=1_000_000, epochs=1, train_deadline_hours=24, sequence_length=2048, train_slots=1),
+    "standard": dict(train_data_tokens=5_000_000, epochs=2, train_deadline_hours=12, sequence_length=2048, train_slots=1),
+    "high": dict(train_data_tokens=20_000_000, epochs=3, train_deadline_hours=8, sequence_length=4096, train_slots=2),
 }
 
 
@@ -200,7 +200,7 @@ def compute_task(task, model, reserve=D(".15")):
     result["trace"] = {
         "formula_id": formula, "version": ENGINE_VERSION, "variables": variables,
         "formula": "λ × ((2×Np×Li×κp + Fvision)/ηp + 2×Nd×Lg×κd/ηd) / 10^15" if formula == "llm-phases-v1" else "单位/秒 × FLOP/单位 / η / 10^15",
-        "units": {"base_p": "P16", "effective_p": "PFLOPS", "memory": "GB (10^9 bytes)"},
+        "units": {"base_p": "P (BF16)", "effective_p": "P (BF16)", "memory": "GB (10^9 bytes)"},
         "model_source": model.get("source_url") if model else task.baseline_source,
         "model_revision": model.get("revision") if model else None,
         "memory_rule": "组内共享权重；每个负载档缓存分别向上取整；无缓存descriptor只提供下界",
@@ -232,20 +232,98 @@ def summarize_memory(items, reserve):
     return dict(memory_gb=total, status=status, groups=list(groups.values()))
 
 
+def cards_for_pool(pool, chip, headroom):
+    """把池的需求算力（P，BF16 基准）折算成物理卡数：算力约束与显存约束取大。
+
+    口径与业务池 `business.planned_cards` 对齐：
+    - `cards` / `cards_planned` / `servers` 与业务池同名字段，前端可直接复用；
+    - `cards_detail` 保留推导过程，供抽屉与审计；
+    - 芯片缺失或规格不全时返回 None，宁可报待补也不按默认芯片硬算。
+
+    chip: {key,label,bf16_tflops,memory_gb}，来自 catalogs/inference_chips.json。
+    """
+    if pool is None or pool.get("planned_p") is None or not chip:
+        return None
+    bf16 = D(chip.get("bf16_tflops") or 0)
+    mem = D(chip.get("memory_gb") or 0)
+    if bf16 <= 0 or mem <= 0:
+        return None
+    memory_gb = D((pool.get("memory") or {}).get("memory_gb") or 0)
+
+    def _split(amount_p, mem_gb):
+        compute = max(1, ceil(D(amount_p) * D(1000) / bf16))
+        memory = max(1, ceil(mem_gb / mem)) if mem_gb > 0 else 0
+        return compute, memory, max(compute, memory)
+
+    compute, memory, cards = _split(pool["planned_p"], memory_gb)
+    unit = 8
+    planned_p = D(pool["planned_p"]) * (D(1) + D(headroom))
+    c2, m2, _raw = _split(planned_p, memory_gb * (D(1) + D(headroom)))
+    # 池层不对齐整机：池内可混机型，按整机对齐会让「1 卡」变成「9 卡」。
+    # 只保证「按余量放大」且「至少多一张」——后者是冗余，不是扩容位。
+    cards_planned = max(cards + 1, max(c2, m2))
+    servers = max(1, ceil(cards / unit))
+    servers_planned = max(1, ceil(cards_planned / unit))
+    return dict(
+        cards=cards, cards_planned=cards_planned,
+        servers=servers, servers_planned=servers_planned,
+        capacity_p=D(cards) * bf16 / D(1000),
+        capacity_planned_p=D(cards_planned) * bf16 / D(1000),
+        cards_detail=dict(
+            chip_key=chip.get("key"), chip_label=chip.get("label"),
+            bf16_tflops=bf16, memory_gb_per_card=mem, memory_gb=memory_gb,
+            compute_cards=compute, memory_cards=memory,
+            planned_compute_cards=c2, planned_memory_cards=m2,
+            bottleneck="显存" if memory > compute else "算力" if compute > memory else "持平",
+            cards_per_server=unit,
+            rule="max(算力卡数, 显存卡数)；含余量卡数按余量放大且至少多一张，不按整机对齐",
+        ),
+    )
+
+
+def _attach_cards(pool, chip, headroom):
+    """把卡数结果平铺到池对象上，字段名与业务池一致（cards / cards_planned / servers）。
+
+    在池上直接加字段而不是嵌套一层，是因为前端与费用附录都按扁平字段读；
+    芯片缺失时显式写 None 并留 reason，避免「没有这个字段」和「算不出来」被混淆。
+    """
+    detail = cards_for_pool(pool, chip, headroom)
+    if detail is None:
+        pool.update(cards=None, cards_planned=None, servers=None,
+                    servers_planned=None, capacity_planned_p=None,
+                    cards_detail=dict(reason="未选择算力芯片或芯片规格不全，本池不出卡数"))
+        return pool
+    pool.update(detail)
+    return pool
+
+
 def pool_summary(pool_id, items, missing, plan, enabled=True, base_override=None, memory_override=None):
     computable = [x for x in items if x.get("base_p") is not None]
-    native_missing = [dict(id=x["id"], code="PRECISION_NOT_COMPARABLE", message="原生精度无参考映射，未计入P16", pool_id=pool_id) for x in items if x.get("base_p") is None]
+    native_missing = [dict(id=x["id"], code="PRECISION_NOT_COMPARABLE", message="原生精度无参考映射，未计入合计算力", pool_id=pool_id) for x in items if x.get("base_p") is None]
     missing = missing + native_missing
     status = "DISABLED" if not enabled else "PARTIAL" if missing and computable else "BLOCKED" if missing else "COMPLETE"
     base = (base_override if base_override is not None else sum((x["base_p"] for x in computable), ZERO)) if computable or not enabled or not missing else None
     return dict(id=pool_id, base_p=base, planned_p=base * (1 + plan.headroom) if base is not None else None, effective_p=sum((x.get("effective_p") or ZERO for x in computable), ZERO), completeness=status, evidence_grade="C", items=items, missing_items=missing, counted_tasks=len(computable), total_tasks=len(computable) + len(missing), memory=memory_override or summarize_memory(computable, plan.memory_reserve))
 
 
-def calculate(plan: PlanInput, models: list[dict], sensitivity=False):
+def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
+              inference_models: list[dict] | None = None,
+              inference_chips: list[dict] | None = None,
+              inference_scenes: list[dict] | None = None):
+    """三池汇总。业务池走推理引擎（A/B/C 四约束），创新与开发池沿用工作量口径。
+
+    inference_* 留空时从打包的模板表加载（确定性读取，不联网）。
+    """
+    from app.catalogs import inference_catalog
+    from app.engine import business
+
     started = perf_counter()
+    inf_models = inference_models if inference_models is not None else inference_catalog.models()
+    inf_chips = inference_chips if inference_chips is not None else inference_catalog.chips()
+    inf_scenes = inference_scenes if inference_scenes is not None else inference_catalog.scenes()
+    headroom = float(plan.headroom)
     lookup = {m["id"]: m for m in models}
-    business, missing = [], []
-    growth = (1 + plan.annual_growth) ** (D((plan.planning_end - plan.planning_start).days) / D("365.25")) if plan.input_time_basis == "current_growth" else D(1)
+    missing = []
 
     def attempt(task, name, pool_id, target, issues, scenario_id=None):
         try:
@@ -259,29 +337,48 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False):
             issues.append(dict(id=task.id, name=name, pool_id=pool_id, scenario_id=scenario_id, code=exc.code, message=exc.message))
             return None
 
+    business_items = []
+    enabled_scenarios = 0
     for scenario in plan.scenarios:
         if not scenario.enabled:
             continue
-        if not scenario.components:
-            missing.append(dict(id=scenario.id, name=scenario.name, code="MISSING_WORKLOAD", message="场景没有计算组件", pool_id="business"))
-        for component in scenario.components:
-            if not component.enabled:
-                continue
-            task = component.model_copy(deep=True)
-            for key in ("online_users", "request_rate", "streams", "images_per_second", "units_per_second", "total_units"):
-                if getattr(task, key) is not None:
-                    setattr(task, key, getattr(task, key) * growth)
-            attempt(task, scenario.name, "business", business, missing, scenario.id)
-    business_pool = pool_summary("business", business, missing, plan)
-    scenario_summaries=[]
-    for scenario in plan.scenarios:
-        if not scenario.enabled:
+        enabled_scenarios += 1
+        try:
+            resolved = business.resolve_spec(scenario, inf_models, inf_chips, inf_scenes)
+            item = business.estimate_scenario(scenario.id, scenario.name, resolved["spec"],
+                                              inf_models, inf_chips, inf_scenes)
+        except business.inference.InferenceIssue as exc:
+            missing.append(dict(id=scenario.id, name=scenario.name, pool_id="business",
+                                code=exc.code, message=exc.message))
             continue
-        entries=[i for i in business if i.get("scenario_id")==scenario.id and i.get("base_p") is not None]
-        gaps=[i for i in business_pool["missing_items"] if i.get("scenario_id")==scenario.id or i.get("id")==scenario.id]
-        value=sum((i["base_p"] for i in entries),ZERO) if entries else None
-        scenario_summaries.append(dict(id=scenario.id,name=scenario.name,base_p=value,planned_p=value*(1+plan.headroom) if value is not None else None,completeness="PARTIAL" if entries and gaps else "BLOCKED" if gaps or not entries else "COMPLETE",component_count=len(entries),missing_count=len(gaps)))
-    business_pool["scenarios"]=sorted(scenario_summaries,key=lambda x:x["base_p"] or ZERO,reverse=True)
+        per_card = item["capacity_p"] / max(1, item["cards"])
+        item["cards_planned"] = business.planned_cards(item["cards"], item["unit"], headroom)
+        item["capacity_planned"] = item["cards_planned"] * per_card
+        item["inference_spec"] = resolved["spec"]
+        item["inference_origin"] = resolved["origin"]
+        item["warnings"] = resolved["warnings"] + item["warnings"]
+        business_items.append(item)
+
+    business_pool = business.pool_summary(business_items, missing, headroom, enabled_scenarios)
+    scenario_summaries = []
+    for item in business_items:
+        scenario_summaries.append(dict(
+            id=item["id"], name=item["name"], base_p=item["base_p"],
+            planned_p=item["base_p"] * (D(1) + D(headroom)),
+            cards=item["cards"], cards_planned=item["cards_planned"],
+            chip_key=item["chip_key"], chip_label=item["chip_label"],
+            model_key=item["model_id"], model_label=item["model_label"],
+            scene_name=item["scene_name"], sla_passed=item["trace"]["variables"]["sla_passed"],
+            completeness="PARTIAL" if item["warnings"] else "COMPLETE",
+            component_count=1, missing_count=len([m for m in missing if m["id"] == item["id"]])))
+    for gap in missing:
+        if not any(s["id"] == gap["id"] for s in scenario_summaries):
+            scenario_summaries.append(dict(id=gap["id"], name=gap.get("name", gap["id"]),
+                                           base_p=None, planned_p=None, cards=None,
+                                           cards_planned=None, completeness="BLOCKED",
+                                           component_count=0, missing_count=1))
+    business_pool["scenarios"] = sorted(scenario_summaries,
+                                        key=lambda x: x["base_p"] or 0, reverse=True)
 
     innov, innov_missing = [], []
     config = plan.innovation
@@ -290,7 +387,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False):
         if config.users is None or config.quota_per_user_month is None or not config.allocations:
             innov_missing.append(dict(id="innovation", name="创新服务", pool_id="innovation", code="MISSING_WORKLOAD", message="请填写人数、月额度并选择模型分配"))
         else:
-            monthly = config.users * growth * config.quota_per_user_month * config.usage_ratio
+            monthly = config.users * config.quota_per_user_month * config.usage_ratio
             seconds = config.service_days * config.service_hours_per_day * 3600
             for allocation in config.allocations:
                 if allocation.share == 0:
@@ -307,13 +404,15 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False):
                     item["trace"]["quota"] = dict(monthly_total=monthly, model_share=allocation.share, allocated=count, service_seconds=seconds, peak_factor=config.peak_factor, input_tokens_per_second=count*allocation.input_fraction/seconds*config.peak_factor, output_tokens_per_second=count*(1-allocation.input_fraction)/seconds*config.peak_factor, reasoning_already_included=True)
     innovation_pool = pool_summary("innovation", innov, innov_missing, plan, config.enabled)
     innovation_pool["monthly_tokens"] = monthly
+    _attach_cards(innovation_pool, next((c for c in inf_chips if c.get("key") == config.chip_key), None),
+                  plan.headroom)
 
     dev, dev_missing = [], []
     dc = plan.development
     dev_base = None
     dev_memory = None
     dev_cfg = {k: getattr(dc, k) if getattr(dc, k) is not None else v for k, v in INTENSITIES[dc.intensity].items()}
-    train_caps, eval_caps, train_mems, eval_mems, eval_memory_statuses = [], [], [], [], []
+    train_caps, train_mems = [], []
     if dc.enabled:
         if not dc.models:
             dev_missing.append(dict(id="development", name="开发测试", pool_id="development", code="MISSING_WORKLOAD", message="请选择需要支持的模型"))
@@ -345,36 +444,35 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False):
                     if train_caps and len(train_caps) > len(train_mems):
                         train_caps.pop()
                     dev_missing.append(dict(id=f"train-{entry.model_id}", name=label+"微调", pool_id="development", code=exc.code, message=exc.message))
-            eval_rate=D(dev_cfg["eval_samples"])/(D(dev_cfg["eval_deadline_hours"])*3600)
-            eval_task = Task(id=f"eval-{entry.model_id}", model_id=entry.model_id, task_type=entry.eval_task_type, request_rate=eval_rate, images_per_second=eval_rate if entry.eval_task_type=="cv" else None, input_tokens=dc.eval_input_tokens, answer_tokens=dc.eval_output_tokens, reasoning_tokens=0, allow_proxy=True)
-            item = attempt(eval_task, label+" · 效果评测", "development", dev, dev_missing)
-            if item and item.get("base_p") is not None:
-                eval_caps.append(item["base_p"])
-                m = summarize_memory([item], plan.memory_reserve)
-                eval_mems.append(m["memory_gb"])
-                eval_memory_statuses.append(m["status"])
-        if train_caps or eval_caps:
-            tc = max(train_caps, default=ZERO)*dev_cfg["train_slots"]
-            ec = max(eval_caps, default=ZERO)*dev_cfg["eval_slots"]
-            tm = max(train_mems, default=ZERO)*dev_cfg["train_slots"]
-            em = max(eval_mems, default=ZERO)*dev_cfg["eval_slots"]
-            dev_base = tc+ec if dev_cfg["train_eval_parallel"] else max(tc,ec)
-            dev_memory = dict(memory_gb=tm+em if dev_cfg["train_eval_parallel"] else max(tm,em), status="PROXY" if all(s in ("COMPLETE","PROXY") for s in eval_memory_statuses) and not dev_missing else "WEIGHT_LOWER_BOUND", groups=[], train_slot_gb=tm, eval_slot_gb=em)
+        if train_caps:
+            slots = dev_cfg["train_slots"]
+            lane = max(train_mems, default=ZERO) * slots
+            dev_base = max(train_caps) * slots
+            dev_memory = dict(memory_gb=lane, status="PROXY" if not dev_missing else "WEIGHT_LOWER_BOUND", groups=[], train_slot_gb=lane)
     development_pool = pool_summary("development", dev, dev_missing, plan, dc.enabled, dev_base, dev_memory)
     development_pool["intensity_parameters"] = dev_cfg
-    development_pool["aggregation_rule"] = "微调槽位×最大单任务 + 评测槽位×最大单任务" if dev_cfg["train_eval_parallel"] else "微调与评测串行，取最大容量"
+    development_pool["aggregation_rule"] = "微调槽位数 × 最大单任务容量（只含微调，不含评测）"
+    _attach_cards(development_pool, next((c for c in inf_chips if c.get("key") == dc.chip_key), None),
+                  plan.headroom)
 
     pools = [business_pool, innovation_pool, development_pool]
     missing_items = [m for p in pools for m in p["missing_items"]]
     counted = sum(p["counted_tasks"] for p in pools)
     total = sum((p["base_p"] or ZERO for p in pools), ZERO)
     complete = "PARTIAL" if missing_items and counted else "BLOCKED" if missing_items or counted == 0 else "COMPLETE"
-    report = dict(engine_version=ENGINE_VERSION, defaults_version=plan.defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=total*(1+plan.headroom) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, growth_factor=growth, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
+    report = dict(engine_version=ENGINE_VERSION, defaults_version=plan.defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=total*(1+plan.headroom) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
     if sensitivity and counted:
         variations = []
+        scene_default = {s["key"]: s for s in inf_scenes}
         for label, scale, eta_scale, train_k in (("较低负载/较高效率",D(".8"),D("1.25"),D(3)),("较高负载/较低效率",D("1.2"),D(".75"),D(6))):
             alternate = plan.model_copy(deep=True)
             for s in alternate.scenarios:
+                spec = s.inference
+                if spec is not None:
+                    # 业务池改按并发缩放：模型与芯片不动，需求侧变
+                    base = float(spec.concurrency or 0) or float(
+                        (scene_default.get(spec.scene_key) or {}).get("concurrency") or 1)
+                    spec.concurrency = D(str(max(1.0, base * float(scale))))
                 for t in s.components:
                     for key in ("online_users","request_rate","streams","images_per_second","units_per_second","total_units"):
                         if getattr(t,key) is not None:
@@ -387,7 +485,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False):
             alternate.innovation.eta_prefill=min(D(1),alternate.innovation.eta_prefill*eta_scale)
             alternate.innovation.eta_decode=min(D(1),alternate.innovation.eta_decode*eta_scale)
             alternate.development.train_k=train_k
-            alt = calculate(alternate,models,False)
+            alt = calculate(alternate, models, False, inf_models, inf_chips, inf_scenes)
             variations.append(dict(name=label, total_planned_p=alt["total_planned_p"], changes=dict(load_scale=str(scale),efficiency_scale=str(eta_scale),train_k=str(train_k))))
         report["sensitivity"] = variations
     return clean(report)

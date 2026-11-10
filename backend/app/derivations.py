@@ -17,7 +17,7 @@ def field(label, value, unit="", note=""):
     return dict(label=label, value=None if value is None else str(value), unit=unit, note=note)
 
 
-def step(title, formula, substitution, value, unit="P16", note=""):
+def step(title, formula, substitution, value, unit="P", note=""):
     return dict(title=title, formula=formula, substitution=substitution, value=None if value is None else str(value), unit=unit, note=note)
 
 
@@ -53,13 +53,6 @@ def describe_task(item, original, models, pool):
                           f"输入 = {fmt(quota['input_tokens_per_second'])}；生成 = {fmt(quota['output_tokens_per_second'])}",
                           D(quota["input_tokens_per_second"]) + D(quota["output_tokens_per_second"]), "总Token/秒",
                           "额度中的总生成Token已包含推理Token，不再重复追加。"))
-    elif pool["id"] == "development" and not str(item["id"]).startswith("train-"):
-        config = pool.get("intensity_parameters", {})
-        if config.get("eval_samples") is not None:
-            rate = D(config["eval_samples"]) / (D(config["eval_deadline_hours"]) * 3600)
-            steps.append(step("评测样本换算请求速率", "评测请求/秒 = 样本数 ÷ (评测时限 × 3600)",
-                              f"{fmt(config['eval_samples'])} ÷ ({fmt(config['eval_deadline_hours'])} × 3600)", rate, "请求/秒",
-                              "当前每样本一次调用；CV评测按相同数值的图片/秒速率计算。"))
     elif formula == "llm-phases-v1":
         if original.get("request_rate") is None and v.get("online_users") is not None:
             steps.append(step("在线人数换算模型请求速率", "λ = U × r × 每业务请求模型调用次数 ÷ 60",
@@ -146,6 +139,56 @@ def describe_task(item, original, models, pool):
     return result
 
 
+def describe_scenario(item):
+    """业务池场景：从推理引擎快照还原 A/B/C 三维、SLA 与卡数。"""
+    v = (item.get("trace") or {}).get("variables") or {}
+    dims = v.get("dimensions") or {}
+    result = dict(id=item["id"], name=item.get("name", item["id"]),
+                  model=f"{v.get('model_key', '')} · {v.get('chip_key', '')}",
+                  revision=None, source=None, formula_id="inference-abc-v1",
+                  base_p=item.get("base_p"), inputs=[], steps=[], notes=[])
+    inputs, steps, notes = result["inputs"], result["steps"], result["notes"]
+    inputs.extend([
+        field("推理模型", v.get("model_key"), "", "模型结构取自内置清单或自定义登记。"),
+        field("算力服务器", v.get("chip_key")),
+        field("量化口径", v.get("precision")),
+        field("输入长度", v.get("prompt_len"), "Token"),
+        field("输出长度", v.get("output_len"), "Token"),
+        field("最大上下文", v.get("max_ctx"), "Token"),
+        field("并发会话", v.get("concurrency"), "路"),
+        field("首Token目标", v.get("ttft_target_ms"), "ms"),
+        field("逐Token目标", v.get("tpot_target_ms"), "ms"),
+    ])
+    steps.extend([
+        step("显存约束卡数", "权重（GiB）÷（单卡显存 × 利用率）→ 枚举 TP×PP×EP 取总卡数最小解",
+             f"推理模型 {v.get('model_key')} × 量化 {v.get('precision')}", dims.get("memory"), "张",
+             "权重看总参，KV 看并发 × 每会话分配窗口；同实例内权重共享。"),
+        step("Prefill 约束卡数", "max(吞吐约束, 首Token 时延约束)",
+             f"需求算力 {fmt(v.get('demand_tflops'))} TFLOPS ÷ 单卡有效算力", dims.get("prefill"), "张",
+             "有效算力按 roofline 取「算力×MFU」与「带宽可达」的较小值。"),
+        step("Decode 约束卡数", "max(带宽反解副本数, 吞吐约束)",
+             f"逐Token {fmt(v.get('tpot_ms'))} ms vs 目标 {fmt(v.get('tpot_target_ms'))} ms", dims.get("decode"), "张",
+             "Decode 是带宽游戏：每出一个 Token 都要重读权重，长序列下 KV 读带宽还会衰减。"),
+        step("三维取最大（不是相加）", "物理下界 = max(A, B, C)",
+             f"max({dims.get('memory')}, {dims.get('prefill')}, {dims.get('decode')})",
+             item.get("cards"), "张", f"瓶颈在 {v.get('bottleneck', '—')}；同一批卡同时承担 Prefill 与 Decode。"),
+        step("时延回验", "TTFT ≤ 目标 且 TPOT ≤ 目标；不达标逐级加 DP，仍不行则放大 TP",
+             f"TTFT {fmt(v.get('ttft_ms'))} / {fmt(v.get('ttft_target_ms'))} ms；"
+             f"TPOT {fmt(v.get('tpot_ms'))} / {fmt(v.get('tpot_target_ms'))} ms",
+             "达标" if v.get("sla_passed") else "未达标", "",
+             f"采用拓扑 {v.get('topology')}，单实例 {v.get('unit')} 卡。"),
+        step("折算参考算力", "P = 卡数 × 单卡 BF16 算力(T) ÷ 1000",
+             f"{item.get('cards')} × {fmt(v.get('bf16_tflops'))} ÷ 1000", item.get("capacity_p"), "P，BF16 基准"),
+    ])
+    notes.append("卡数为物理台数，与算力（P）不是同一量纲；需求算力以 BF16 稠密算力为基准、按所选精度折算。")
+    warnings = item.get("warnings") or []
+    if "MIGRATED_INFERENCE" in warnings:
+        notes.append("该场景没有推理配置，是按旧字段（模型、在线人数、Token 长度）推导的等价配置，请复核模型与并发。")
+    if "SCENARIO_NOT_CONFIGURED" in warnings:
+        notes.append("该场景没有任何可用配置，按默认档位估算，结果仅供参考。")
+    return result
+
+
 def build_derivation(run, scope):
     report, payload = run["result"], run["input_snapshot"]
     headroom = D(report["headroom"])
@@ -158,11 +201,9 @@ def build_derivation(run, scope):
                   planned_p=report["total_planned_p"] if scope == "total" else pool["planned_p"],
                   inputs=[], steps=[], breakdown=[], items=[], missing_items=report["missing_items"] if scope == "total" else pool["missing_items"],
                   notes=["全部数值来自该次输入、模型和计算轨迹快照，不读取当前编辑值、当前模型库或新的默认值。",
-                         "中间数值最多展示6位小数，最终容量采用快照未舍入值；P16为参考BF16稠密等效口径，效率和结构代理仍需实测校准。"])
+                         "中间数值最多展示6位小数，最终容量采用快照未舍入值；算力以 BF16 稠密算力为基准折算、单位 P / T，效率和结构代理仍需实测校准。"])
     inputs, steps = result["inputs"], result["steps"]
-    inputs.extend([field("规划开始", payload["planning_start"]), field("规划结束", payload["planning_end"]),
-                   field("规模输入口径", "期末规模" if payload["input_time_basis"] == "endpoint" else "当前规模＋年增长"),
-                   field("本次规模增长系数", report["growth_factor"]), field("容量余量", headroom * 100, "%")])
+    inputs.extend([field("容量余量", headroom * 100, "%")])
     if scope == "total":
         result["breakdown"] = [dict(id=p["id"], name=NAMES[p["id"]], base_p=p["base_p"], planned_p=p["planned_p"], completeness=p["completeness"]) for p in pools]
         steps.append(sum_step("汇总三类资源池基础容量", pools, report["total_base_p"]))
@@ -183,8 +224,8 @@ def build_derivation(run, scope):
             seconds = D(config["service_days"]) * D(config["service_hours_per_day"]) * 3600
             average = D(monthly) / seconds
             steps.extend([
-                step("得到全池实际月度Token预算", "Q月 = 支持人数 × 增长系数 × 人均月额度 × 使用率",
-                     f"{fmt(config['users'])} × {fmt(report['growth_factor'])} × {fmt(config['quota_per_user_month'])} × {fmt(config['usage_ratio'])}", monthly, "Token/月"),
+                step("得到全池实际月度Token预算", "Q月 = 支持人数 × 人均月额度 × 使用率",
+                     f"{fmt(config['users'])} × {fmt(config['quota_per_user_month'])} × {fmt(config['usage_ratio'])}", monthly, "Token/月"),
                 step("得到有效服务时间", "T = 每月服务日 × 每日小时 × 3600",
                      f"{fmt(config['service_days'])} × {fmt(config['service_hours_per_day'])} × 3600", seconds, "秒/月"),
                 step("月额度换算平均吞吐", "平均总TPS = Q月 ÷ T", f"{fmt(monthly)} ÷ {fmt(seconds)}", average, "Token/秒"),
@@ -194,29 +235,32 @@ def build_derivation(run, scope):
         result["notes"].append("多个模型分享一份总额度。展开下方模型项查看份额、输入/生成比例、阶段效率和结构修正的数值代入。")
     elif scope == "development":
         config = pool.get("intensity_parameters", {})
-        if all(key in config for key in ("train_slots", "eval_slots", "train_eval_parallel")):
-            inputs.extend([field("微调槽位", config["train_slots"], "个"), field("评测槽位", config["eval_slots"], "个"),
-                           field("微调与评测关系", "同时运行" if config["train_eval_parallel"] else "串行排队")])
-            train = [i for i in pool["items"] if i.get("trace", {}).get("formula_id") == "lora-work-v1" and i.get("base_p") is not None]
-            evaluation = [i for i in pool["items"] if str(i["id"]).startswith("eval-") and i.get("base_p") is not None]
-            tc, ec = max((D(i["base_p"]) for i in train), default=D(0)), max((D(i["base_p"]) for i in evaluation), default=D(0))
-            for title, values, maximum, slots in [("微调", train, tc, config["train_slots"]), ("评测", evaluation, ec, config["eval_slots"])]:
-                terms = ", ".join(fmt(i["base_p"]) for i in values) or "暂无已计入项，暂计0"
-                steps.append(step(title + "槽位容量", f"C{title} = max(已计入候选模型的单任务容量) × {title}槽位",
-                                  f"max({terms}) × {fmt(slots)}", maximum * D(slots),
-                                  note="未计入模型仍需补齐，暂计0不表示该模型无需资源。" if not values else
-                                  "最大单任务来源：" + max(values, key=lambda item: D(item["base_p"])).get("name", "候选任务") + "。按此能力配置每个槽位，不机械累加所有候选模型。"))
-            train_total, eval_total = tc * D(config["train_slots"]), ec * D(config["eval_slots"])
-            expression = f"{fmt(train_total)} + {fmt(eval_total)}" if config["train_eval_parallel"] else f"max({fmt(train_total)}, {fmt(eval_total)})"
-            steps.append(step("组合研发基础容量", "并行：C微调 + C评测；串行：max(C微调, C评测)", expression, pool["base_p"]))
+        if "train_slots" in config:
+            inputs.extend([field("微调槽位", config["train_slots"], "个", "开发测试只规划微调，不含效果评测。")])
+            train = [i for i in pool["items"] if i.get("base_p") is not None]
+            tc = max((D(i["base_p"]) for i in train), default=D(0))
+            terms = ", ".join(fmt(i["base_p"]) for i in train) or "暂无已计入项，暂计0"
+            steps.append(step("微调槽位容量", "C微调 = max(已计入候选模型的单任务容量) × 微调槽位数",
+                              f"max({terms}) × {fmt(config['train_slots'])}", tc * D(config["train_slots"]),
+                              note="未计入模型仍需补齐，暂计0不表示该模型无需资源。" if not train else
+                              "最大单任务来源：" + max(train, key=lambda item: D(item["base_p"])).get("name", "候选任务") + "。按此能力配置每个槽位，不机械累加所有候选模型。"))
         else:
             result["notes"].append("旧快照缺少槽位参数，不使用当前档位默认值重建研发聚合。")
     if scope != "development":
         steps.append(sum_step("汇总资源池基础容量", pool["items"], pool["base_p"]))
     steps.extend(margin_steps(pool["base_p"], pool["planned_p"], headroom))
-    originals = {t["id"]: t for s in payload["scenarios"] for t in s["components"]}
-    result["items"] = [describe_task(i, originals.get(i["id"], {}), models, pool) for i in pool["items"]]
+    originals = {t["id"]: t for s in payload["scenarios"] for t in s.get("components", [])}
     if scope == "business":
+        result["items"] = [describe_scenario(i) for i in pool["items"]]
         result["breakdown"] = pool.get("scenarios", [])
-        result["notes"].append("场景高峰按同时发生汇总。展开组件查看模型请求速率、工作量与效率换算；同一场景可以有多个组件。")
+        inputs.extend([field("业务池卡数（物理）", pool.get("cards"), "张"),
+                       field("业务池卡数（含余量）", pool.get("cards_planned"), "张"),
+                       field("等效算力（含余量）", pool.get("capacity_planned_p"), "P，BF16 基准")])
+        steps.append(step("汇总场景卡数", "业务池卡数 = Σ 各场景含余量卡数",
+                          " + ".join(str(i.get("cards_planned")) for i in pool["items"]) or "暂无可计入项",
+                          pool.get("cards_planned"), "张",
+                          "卡数已按实例对齐；余量按方案余量比例在场景层放大一次，池层不再重复。"))
+        result["notes"].append("场景高峰按同时发生汇总。展开场景查看显存/Prefill/Decode 三维约束与 SLA 回验；卡数是物理台数，算力是 BF16 基准的折算值（P / T）。")
+    else:
+        result["items"] = [describe_task(i, originals.get(i["id"], {}), models, pool) for i in pool["items"]]
     return result

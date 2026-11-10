@@ -29,15 +29,15 @@ test('概览两个说明入口平级，组织设计无需项目即可阅读并�
 test('阅读组织设计保留当前方案的未保存内容', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '载入示例项目', exact: true }).click();
-  await page.getByLabel('规模-企业知识问答').fill('456');
-  await page.getByLabel('规模-企业知识问答').blur();
+  await page.getByLabel('并发会话-企业知识问答').fill('456');
+  await page.getByLabel('并发会话-企业知识问答').blur();
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await page.getByRole('button', { name: '规划方案组织设计', exact: true }).click();
   await expect(page.locator('.heading-actions')).toHaveCount(0);
   await expect(page.locator('.plan-meta')).toHaveCount(0);
   await page.getByRole('button', { name: '返回项目概览', exact: true }).click();
   await page.getByRole('button', { name: '业务场景', exact: true }).click();
-  await expect(page.getByLabel('规模-企业知识问答')).toHaveValue('456');
+  await expect(page.getByLabel('并发会话-企业知识问答')).toHaveValue('456');
   await expect(page.getByRole('button', { name: /保存方案/ })).toBeEnabled();
 });
 

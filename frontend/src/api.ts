@@ -22,8 +22,9 @@ export async function waitJob(id: string) {
 export function capacity(value: unknown) {
   if (value === null || value === undefined) return '待补充';
   const n = Number(value);
-  if (n === 0) return '0 T16';
-  return n >= 1 ? Number(n.toPrecision(3)) + ' P16' : Number((n * 1000).toPrecision(3)) + ' T16';
+  // 单位只表达量级（P = 10^15 FLOPS，T = 10^12 FLOPS）；精度基准（BF16/FP16/FP8）由所在列或说明单独标注。
+  if (n === 0) return '0 T';
+  return n >= 1 ? Number(n.toPrecision(3)) + ' P' : Number((n * 1000).toPrecision(3)) + ' T';
 }
 export function num(value: unknown, digits = 2) {
   return value === null || value === undefined ? '—' : Number(value).toLocaleString('zh-CN', { maximumFractionDigits: digits });

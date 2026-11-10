@@ -5,12 +5,12 @@ afterEach(() => vi.restoreAllMocks());
 describe('capacity display', () => {
   it('keeps missing values distinct from zero and tiny needs', () => {
     expect(capacity(null)).toBe('待补充');
-    expect(capacity(0)).toBe('0 T16');
-    expect(capacity(.000001)).toBe('0.001 T16');
+    expect(capacity(0)).toBe('0 T');
+    expect(capacity(.000001)).toBe('0.001 T');
   });
-  it('switches T/P without losing the calculation precision label', () => {
-    expect(capacity(.1630598)).toBe('163 T16');
-    expect(capacity(1.578)).toBe('1.58 P16');
+  it('switches T/P without appending a precision suffix', () => {
+    expect(capacity(.1630598)).toBe('163 T');
+    expect(capacity(1.578)).toBe('1.58 P');
   });
 });
 describe('API errors', () => {

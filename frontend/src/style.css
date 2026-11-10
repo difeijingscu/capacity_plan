@@ -29,3 +29,42 @@
 
 @media(max-width:1250px){.sidebar{width:190px}.workspace{margin-left:190px}main{padding:26px 24px}.topbar{padding:0 24px}.page-heading{align-items:flex-start}.heading-actions{max-width:450px}.metric-grid{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:25px}.hero-art{width:210px}.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.sidebar{width:64px;padding:22px 7px}.brand{padding:0 5px 32px}.brand>span{width:32px;height:32px;font-size:22px}.brand>div,.workspace-label,nav span,nav i,.sidebar-bottom{display:none}nav button{padding:15px;justify-content:center}nav button>.anticon{font-size:18px}.workspace{margin-left:64px}.topbar{padding:0 16px;height:56px}main{padding:20px 14px}.page-heading{flex-direction:column;margin-bottom:22px}.heading-actions{justify-content:flex-start;gap:6px}.page-heading h1{font-size:24px}.hero{padding:25px;min-height:250px}.hero h1{font-size:23px;line-height:1.6}.hero-art{display:none}.hero p{line-height:1.8}.method-strip{grid-template-columns:1fr;gap:22px}.metric-grid{gap:10px}.metric{padding:17px}.metric strong,.metric.primary strong{font-size:23px}.result-grid{grid-template-columns:1fr}.result-toolbar{flex-wrap:wrap}.form-grid{grid-template-columns:1fr}.intensity-grid{grid-template-columns:1fr;gap:10px}.intensity-card{padding:15px}.intensity-card>.anticon{display:inline-block;margin:0 10px 0 0}.intensity-card p{margin-top:7px}.pool-intro .ant-card-body{padding:22px}.pool-intro h2{font-size:20px}.sensitivity-grid{grid-template-columns:1fr}.ant-card .ant-card-body{padding:16px}.ant-card-head-wrapper{flex-wrap:wrap;gap:10px;padding:12px 0}.plan-meta{gap:12px}footer{line-height:1.8;gap:15px}.hero .ant-space{flex-wrap:wrap}}
+
+/* ---------- 推理算力评估 ---------- */
+.inference-page{min-width:0}
+.inference-metrics{grid-template-columns:1.3fr repeat(3,1fr)}
+.dim-chart{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
+.dim-row{display:grid;grid-template-columns:120px 1fr 54px;align-items:center;gap:12px;min-width:0}
+.dim-name{font-size:12px;color:#6f8268;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.dim-row.is-binding .dim-name{color:#2f5941;font-weight:500}
+.dim-track{height:10px;background:#eef2e8;border-radius:5px;overflow:hidden;min-width:0}
+.dim-fill{height:100%;background:#9fbc84;border-radius:5px;transition:width .25s}
+.dim-row.is-binding .dim-fill{background:#c0563f}
+.dim-val{font-size:13px;color:#3c5843;text-align:right;font-weight:500}
+.dim-note{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#6c7d63;line-height:1.85;border-top:1px solid #eef1e8;padding-top:14px}
+.dim-note strong{color:#2f5941}
+.dim-lift{background:#fdf3e9;border:1px solid #f3dfc9;border-radius:6px;padding:10px 12px;color:#8a6134;font-size:11.5px}
+.dim-note-soft{font-size:11px;color:#8b9a80}
+.sla-ok{color:#2f7a4e;font-weight:500}
+.sla-bad{color:#c0392b;font-weight:500}
+.inference-page .basis-formula{margin:0 0 14px}
+.inference-page .basis-formula:last-child{margin-bottom:0}
+@media(max-width:1250px){.inference-metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){
+  .inference-metrics{grid-template-columns:1fr}
+  .dim-row{grid-template-columns:96px 1fr 44px;gap:8px}
+  .dim-name{font-size:11px}
+}
+
+/* 推理参数配置 */
+.param-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 20px}
+.param-field{border:1px solid transparent;border-radius:8px;padding:10px 12px;margin-bottom:10px;min-width:0}
+.param-field:hover{background:#f7f9f3;border-color:#e6ece0}
+.param-field.is-changed{background:#fdf6ea;border-color:#f0d9ae}
+.param-field>label{display:flex;gap:6px;align-items:center;font-size:12px;color:#6e806f;margin-bottom:8px}
+.param-field>label .anticon{color:#a8b6a2;font-size:11px}
+.param-field small.muted{display:block;margin-top:6px;line-height:1.6;max-width:none;white-space:normal;overflow:visible;font-size:10px}
+.param-tag{margin-inline-start:auto;font-size:10px;line-height:16px;margin-inline-end:0;padding:0 6px}
+.param-table-groups>.ant-card{margin-bottom:16px}
+@media(max-width:1250px){.param-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.param-grid{grid-template-columns:1fr}}

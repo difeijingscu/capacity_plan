@@ -20,7 +20,8 @@ def client(tmp_path):
 
 
 def make_plan(client):
-    payload=PlanInput(scenarios=[Scenario(name="知识问答",components=[Task(model_id="synthetic-dense-8b",online_users=100)])]).model_dump(mode="json")
+    # 旧口径清单，模型名要能被推理模型清单匹配（否则业务池会报 MODEL_NOT_MATCHED，不再落默认模型）。
+    payload=PlanInput(scenarios=[Scenario(name="知识问答",components=[Task(model_id="qwen3-8b",online_users=100)])]).model_dump(mode="json")
     r=client.post("/api/v1/projects",json={"name":"验收项目","payload":payload})
     assert r.status_code==200,r.text
     return r.json()["plan"]
@@ -78,7 +79,10 @@ def test_historical_snapshot_and_revision_conflict(client):
     updated=client.patch("/api/v1/plans/"+p["id"],json={"expected_revision":p["revision"],"payload":payload}).json()
     assert updated["revision"]>p["revision"]
     new=run(client,updated)
-    assert float(new["result"]["total_planned_p"])==pytest.approx(float(old["result"]["total_planned_p"])*2)
+    # 推理链路下并发翻倍不等于算力翻倍：卡数要过三维取 max 与 SLA 回验，是台阶式增长。
+    # 这里只断言"输入变了 → 结果跟着变且不减少"，倍数关系属于引擎测试的职责。
+    assert float(new["result"]["total_planned_p"])>float(old["result"]["total_planned_p"])
+    assert float(new["result"]["pools"][0]["cards"])>=float(old["result"]["pools"][0]["cards"])
     assert client.get("/api/v1/calculations/"+old["id"]).json()["input_snapshot"]["scenarios"][0]["components"][0]["online_users"]=="100"
     assert client.patch("/api/v1/plans/"+p["id"],json={"expected_revision":p["revision"],"payload":payload}).status_code==409
     assert client.post(f"/api/v1/plans/{p['id']}/calculate",json={"plan_revision":p["revision"]}).status_code==409
@@ -86,6 +90,24 @@ def test_historical_snapshot_and_revision_conflict(client):
     assert comparison["runs"][1]["parameter_changes"]
     undo=client.post(f"/api/v1/plans/{p['id']}/undo",json={"expected_revision":updated["revision"]}).json()
     assert undo["payload"]["scenarios"][0]["components"][0]["online_users"]=="100"
+
+
+def test_retired_fields_in_stored_plan_do_not_block_reading(client):
+    """历史方案里留着已下线字段时，读出来的 payload 必须能被当前版本直接使用。"""
+    p=make_plan(client)
+    store=client.app.state.store
+    record=store.get(p["id"],"plan")
+    legacy={**record["payload"],"planning_start":"2026-10-20","planning_end":"2029-10-20",
+            "input_time_basis":"endpoint","annual_growth":"0"}
+    legacy["development"]={**legacy["development"],"eval_samples":None,"eval_slots":3,"eval_task_type":"text"}
+    store.replace(p["id"],{**record,"payload":legacy},record["revision"])
+
+    opened=client.get("/api/v1/plans/"+p["id"]).json()
+    assert "planning_start" not in opened["payload"] and "annual_growth" not in opened["payload"]
+    assert "eval_samples" not in opened["payload"]["development"]
+    assert client.post("/api/v1/preview-calculation",json={"payload":opened["payload"]}).status_code==200
+    run_id=await_job(client,client.post(f"/api/v1/plans/{p['id']}/calculate",json={"plan_revision":opened["revision"]}))["run_id"]
+    assert client.get("/api/v1/calculations/"+run_id).json()["result"]["pools"][0]["completeness"]!="BLOCKED"
 
 
 def test_calculation_cache_idempotent(client):

@@ -3,13 +3,13 @@ import { ArrowLeftOutlined, ArrowRightOutlined, BookOutlined } from '@ant-design
 
 const ownershipRows = [
   { level: '项目', purpose: '管理一次独立的规划工作', contents: '项目名称、归档状态、所属方案', relationship: '一个项目可以包含多个方案；不同项目分别管理。' },
-  { level: '规划方案', purpose: '保存一套可以完整测算的规划选择', contents: '规划周期、规模口径、增长率、余量，以及三类规划', relationship: '一个方案归属一个项目；复制后各方案独立维护。' },
+  { level: '规划方案', purpose: '保存一套可以完整测算的规划选择', contents: '容量余量、显存预留，以及三类规划', relationship: '一个方案归属一个项目；复制后各方案独立维护。' },
   { level: '测算记录', purpose: '保留某次输入对应的结果和依据', contents: '方案修订、输入与模型快照、计算结果', relationship: '同一个方案可有多次测算记录，历史结果保持当时口径。' },
 ];
 const poolRows = [
   { name: '业务场景规划', question: '已经明确要建设的AI应用，需要多少算力？', inputs: '场景清单、在线人数、模型、请求与输入输出参数', structure: '多个场景；每个场景可以有多个计算组件。' },
   { name: '创新服务规划', question: '为内部人员提供灵活的模型调用，需要多大的服务池？', inputs: '支持人数、人均月Token额度、模型份额、服务窗口', structure: '一个Token服务池；多个模型按份额分享总额度。' },
-  { name: '开发测试规划', question: '为微调、新模型测试和效果评测，需要多少实验资源？', inputs: '候选模型、实验强度、任务完成窗口、并行槽位', structure: '一个开发测试池；按任务能力及允许的并行数量配置。' },
+  { name: '开发测试规划', question: '为模型微调，需要多少实验资源？', inputs: '候选模型、微调强度、单次完成窗口、并行槽位', structure: '一个开发测试池；按单任务微调能力及允许的并行数量配置。' },
 ];
 const exampleRows = [
   { name: '基准方案', business: '1.2 P', innovation: '0.3 P', development: '0.5 P', total: '2.0 P' },
@@ -57,7 +57,7 @@ export default function PlanningOrganization({ onBack, onBasis }: { onBack: () =
           { title: '保存的内容', dataIndex: 'contents' }, { title: '归属关系', dataIndex: 'relationship' },
         ]} />
         <div className="basis-example"><strong>什么时候复制方案？</strong>需要考察另一种人数规模、模型选择、Token额度或实验能力时，点击“复制方案”。新方案会复制当前三类规划及共同参数，此后独立维护，修改其中一套不会同步修改另一套。复制方案不会复制出一份新的历史测算结果，需要基于新方案计算。</div>
-        <p className="basis-caption">规划周期、规模输入口径、增长率和余量都保存在方案中。同一项目下的方案可以设置不同周期；用于比较时通常应保持周期与统计口径一致，当前未强制锁定一致。</p>
+        <p className="basis-caption">容量余量与显存预留保存在方案中，三类规划各自独立配置。方案按当前峰值规模测算，不包含规划年限与增长率这类时间外推参数。</p>
       </Card>
 
       <Card title="02 · 三类规划：并列配置，各自解决不同的问题">
@@ -67,7 +67,7 @@ export default function PlanningOrganization({ onBack, onBasis }: { onBack: () =
         ]} />
         <div className="basis-example"><strong>业务场景：组件 → 场景 → 业务池</strong>一个“视频智能告警”场景可以拆成“目标检测”和“告警文字生成”两个计算组件。先汇总组件得到场景需求，再汇总所有场景得到业务场景池需求。场景高峰默认同时发生；兼容的同模型服务可以共享基础权重，计算负载仍分别相加。</div>
         <div className="basis-example"><strong>创新服务：一份总额度 → 多个模型份额 → 服务池</strong>支持1000人，每人每月100万Token，总额度为每月10亿Token。两个模型按70%和30%分配时，分别按7亿和3亿Token估算。无需事先逐一列出所有未来创新应用。</div>
-        <div className="basis-example"><strong>开发测试：候选模型 → 单任务能力 → 并行槽位</strong>选中三个模型表示资源池需要能承接这三个模型的实验，不等于三个模型始终同时微调。系统按候选模型所需的最大单任务能力，再结合槽位数与微调、评测的串并行关系配置资源。</div>
+        <div className="basis-example"><strong>开发测试：候选模型 → 单任务微调能力 → 并行槽位</strong>选中三个模型表示资源池需要能承接这三个模型的微调，不等于三个模型始终同时训练。系统按候选模型所需的最大单任务微调能力，再结合微调槽位数配置资源；评测算力不在本池规划范围内。</div>
         <p className="below">三部分可分别填写。业务场景中选择的模型，不会自动加入创新服务或开发测试，各池需独立确认支持哪些模型。</p>
         <Alert type="info" showIcon message="普通新建项目与示例项目的区别" description="普通新建项目的业务清单为空，创新服务和开发测试默认关闭；关闭的池不计入需求。载入示例项目时会预填三类规划，便于体验完整流程。" />
       </Card>
@@ -75,7 +75,7 @@ export default function PlanningOrganization({ onBack, onBasis }: { onBack: () =
       <Card title="03 · 汇总与比较：资源池如何组合，方案如何使用">
         <div className="basis-formula"><span>同一个方案内部</span><div>方案建议总算力 = 业务场景建议算力 + 创新服务建议算力 + 开发测试建议算力</div><small>各池已经包含余量时，总计不再重复增加余量；有缺失任务时，结果只代表已计入部分。</small></div>
         <p>当前三类资源池按独立配置处理。即使业务池与创新池使用相同模型，也分别计入容量与显存，不自动跨池共享。</p>
-        <div className="organization-example-label"><Tag color="gold">纯示意数值</Tag><span>下面各池均假设已包含余量，采用相同P16参考口径。</span></div>
+        <div className="organization-example-label"><Tag color="gold">纯示意数值</Tag><span>下面各池均假设已包含余量，采用相同的 BF16 基准口径。</span></div>
         <Table rowKey="name" size="small" pagination={false} dataSource={exampleRows} scroll={{ x: 620 }} columns={[
           { title: '同一项目下的方案', dataIndex: 'name' }, { title: '业务场景', dataIndex: 'business' },
           { title: '创新服务', dataIndex: 'innovation' }, { title: '开发测试', dataIndex: 'development' },

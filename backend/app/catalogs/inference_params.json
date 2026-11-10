@@ -1,0 +1,142 @@
+{
+  "version": "inference-params-v1",
+  "updated": "2026-11-02",
+  "notes": [
+    "推理算力评估的全部经验参数。改这个文件即改默认值；运行时改动走 PUT /api/v1/inference/params 存库覆盖，不影响本文件。",
+    "物理量（每参数字节、1024³/1e9 换算、芯片算力与带宽）不在此处，见 inference_chips.json 与 engine/inference.py 顶部说明。",
+    "每个字段的取值范围与含义见 engine/params.py 的 SPEC；越界会被拒绝而不是静默截断。"
+  ],
+  "limits": {
+    "tp_intra_cap": 8,
+    "max_num_seqs": 256,
+    "chunk_auto": 4096,
+    "kv_base_seq": 4096,
+    "kv_decay_span": 12288,
+    "sla_pass_tol": 1.0,
+    "sla_stop_tol": 1.1,
+    "e2e_iterations": 8,
+    "e2e_clamp": 100.0,
+    "dp_step_limit": 12,
+    "tp_escalate_limit": 4
+  },
+  "aggregation": {
+    "margin_factor": 1.2,
+    "mixed_threshold_high": 1.03,
+    "mixed_threshold_mid": 1.05,
+    "mixed_threshold_low": 1.1,
+    "mixed_conc_high": 256,
+    "mixed_conc_mid": 16,
+    "mixed_scale_cap": 1.5,
+    "kv_cap_floor": 0.5,
+    "topo_pp_penalty": 0.06,
+    "topo_ep_penalty": 0.08,
+    "decode_dp_stop_ratio": 0.995,
+    "tp_escalate_stop_ratio": 0.995
+  },
+  "coefficients": {
+    "prefix_ffn_residual": 0.1,
+    "moe_fill_tok": 800,
+    "dense_fill_tok": 5500,
+    "moe_ffn_floor": 0.07,
+    "moe_ffn_ceil": 0.5,
+    "dense_ffn_lo": 0.42,
+    "pf_mfu_mul": 0.72,
+    "dec_mfu_mul": 1.25,
+    "moe_route_skew": 1.08,
+    "kv_slope_moe": 0.16,
+    "kv_slope_dense": 0.12,
+    "kv_floor_moe": 0.7,
+    "kv_floor_dense": 0.82,
+    "kv_walk0": 0.08,
+    "batch_congestion": 0.07,
+    "long_seq_discount": 0.12,
+    "rho_cap": 0.95
+  },
+  "timing": {
+    "prefill_engine_base_ms": 260,
+    "prefill_engine_moe_tok_ms": 140,
+    "prefill_engine_moe_act_div": 13,
+    "prefill_engine_dense_ms": 70,
+    "prefill_engine_layer_ms_moe": 3,
+    "prefill_engine_layer_ms_dense": 1.8,
+    "prefill_engine_prompt_curve": 0.85,
+    "prefill_engine_prompt_scale": 2048,
+    "prefill_engine_card_pow": 0.22,
+    "prefill_tail_moe": 1.2,
+    "prefill_tail_dense": 0.45,
+    "prefill_tail_div": 16384,
+    "prefill_tail_card_pow": 0.2,
+    "decode_fixed_base_ms": 0.6,
+    "decode_fixed_layer_ms": 0.012,
+    "decode_fixed_tail_ms": 0.75,
+    "tp_allreduce_fudge": 1.48,
+    "tp_allreduce_hop_ms": 0.02,
+    "pp_bubble_batch": 1.0,
+    "pp_bubble_step": 0.24,
+    "kv_walk_layer_div": 60,
+    "prefill_budget_cap_s": 10.0,
+    "prefill_budget_cap_long_s": 60.0,
+    "prefill_budget_long_ttft_ms": 15000
+  },
+  "chip_profiles": {
+    "910b": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.58,
+      "bw_decode": 0.62,
+      "bw_decode_moe30": 0.66,
+      "bw_prefill": 0.65,
+      "link_a2a": 0.55
+    },
+    "910c": {
+      "mfu_prefill": 0.36,
+      "mfu_decode_ratio": 0.58,
+      "bw_decode": 0.62,
+      "bw_decode_moe30": 0.66,
+      "bw_prefill": 0.65,
+      "link_a2a": 0.55
+    },
+    "950": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.66,
+      "bw_decode": 0.7,
+      "bw_decode_moe30": 0.66,
+      "bw_prefill": 0.75,
+      "link_a2a": 0.55
+    }
+  },
+  "sensitivity": {
+    "optimistic": {
+      "label": "乐观档",
+      "mfu_mul": 1.2,
+      "decode_mul": 1.1,
+      "mem_fill": 0.93,
+      "bw_mul": 1.1,
+      "kv_reserve": 1.05,
+      "roof_overlap": 0.28,
+      "decode_overlap": 0.0,
+      "kv_walk_mul": 0.7
+    },
+    "neutral": {
+      "label": "中性推荐档",
+      "mfu_mul": 1.0,
+      "decode_mul": 1.0,
+      "mem_fill": 0.9,
+      "bw_mul": 1.0,
+      "kv_reserve": 1.1,
+      "roof_overlap": 0.4,
+      "decode_overlap": 0.0,
+      "kv_walk_mul": 1.0
+    },
+    "conservative": {
+      "label": "保守档",
+      "mfu_mul": 0.82,
+      "decode_mul": 0.88,
+      "mem_fill": 0.87,
+      "bw_mul": 0.88,
+      "kv_reserve": 1.15,
+      "roof_overlap": 0.5,
+      "decode_overlap": 0.08,
+      "kv_walk_mul": 1.22
+    }
+  }
+}
