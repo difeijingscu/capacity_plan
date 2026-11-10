@@ -1,12 +1,13 @@
 {
   "config": {
     "argv": [
-      "C:\\Program Files\\nodejs\\node.exe",
-      "D:\\Coding\\算力规划智能体\\frontend\\node_modules\\@playwright\\test\\cli.js",
-      "test"
+      "C:\\Users\\difeijing\\.workbuddy\\binaries\\node\\versions\\22.22.2-6\\node.exe",
+      "D:\\10.Coding\\ComputePlanner\\frontend\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--output=test-results-v132c"
     ],
-    "configFile": "D:\\Coding\\算力规划智能体\\frontend\\playwright.config.ts",
-    "rootDir": "D:/Coding/算力规划智能体/frontend/e2e",
+    "configFile": "D:\\10.Coding\\ComputePlanner\\frontend\\playwright.config.ts",
+    "rootDir": "D:/10.Coding/ComputePlanner/frontend/e2e",
     "failOnFlakyTests": false,
     "forbidOnly": false,
     "fullyParallel": false,
@@ -22,7 +23,7 @@
     "preserveOutput": "always",
     "projects": [
       {
-        "outputDir": "D:/Coding/算力规划智能体/frontend/test-results",
+        "outputDir": "D:/10.Coding/ComputePlanner/frontend/test-results-v132c",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -30,7 +31,7 @@
         },
         "id": "",
         "name": "",
-        "testDir": "D:/Coding/算力规划智能体/frontend/e2e",
+        "testDir": "D:/10.Coding/ComputePlanner/frontend/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -42,15 +43,15 @@
       {
         "grep": {},
         "grepInvert": null,
-        "outputDir": "D:\\Coding\\算力规划智能体\\frontend\\test-results",
+        "outputDir": "D:\\10.Coding\\ComputePlanner\\frontend\\test-results-v132c",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
           "actualWorkers": 1
         },
         "name": "",
-        "testDir": "D:\\Coding\\算力规划智能体\\frontend\\e2e",
-        "snapshotDir": "D:\\Coding\\算力规划智能体\\frontend\\e2e",
+        "testDir": "D:\\10.Coding\\ComputePlanner\\frontend\\e2e",
+        "snapshotDir": "D:\\10.Coding\\ComputePlanner\\frontend\\e2e",
         "testIgnore": [],
         "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
         "timeout": 60000,
@@ -96,12 +97,12 @@
     "version": "1.64.1",
     "workers": 1,
     "webServer": {
-      "command": "\"D:\\Coding\\算力规划智能体\\.venv\\Scripts\\python.exe\" -m uvicorn app.main:app --app-dir \"D:\\Coding\\算力规划智能体\\backend\" --host 127.0.0.1 --port 8010",
+      "command": "\"D:\\10.Coding\\ComputePlanner\\.venv\\Scripts\\python.exe\" -m uvicorn app.main:app --app-dir \"D:\\10.Coding\\ComputePlanner\\backend\" --host 127.0.0.1 --port 8010",
       "url": "http://127.0.0.1:8010/api/v1/health",
       "timeout": 30000,
       "reuseExistingServer": false,
       "env": {
-        "PLANNER_DATA_DIR": "D:\\Coding\\算力规划智能体\\data\\e2e-1792577268167"
+        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794281613796"
       }
     }
   },
@@ -128,12 +129,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 6777,
+                  "duration": 5565,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:07:52.462Z",
+                  "startTime": "2026-11-10T03:33:39.740Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -162,12 +163,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 7217,
+                  "duration": 5984,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:07:59.711Z",
+                  "startTime": "2026-11-10T03:33:46.161Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -177,7 +178,7 @@
           ],
           "id": "efb813057c26d203475a-e4558c7396c5254a1d1f",
           "file": "calculation-derivation.spec.ts",
-          "line": 60,
+          "line": 67,
           "column": 1
         },
         {
@@ -196,12 +197,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3778,
+                  "duration": 3989,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:06.976Z",
+                  "startTime": "2026-11-10T03:33:52.164Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -211,19 +212,19 @@
           ],
           "id": "efb813057c26d203475a-81c152d96e634961c6d4",
           "file": "calculation-derivation.spec.ts",
-          "line": 86,
+          "line": 96,
           "column": 1
         }
       ]
     },
     {
-      "title": "parameter-defaults.spec.ts",
-      "file": "parameter-defaults.spec.ts",
+      "title": "inference-params.spec.ts",
+      "file": "inference-params.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [
         {
-          "title": "技术参数直接显示默认数值、点击感叹号说明、模板变化和人工覆盖",
+          "title": "推理参数：显示默认值、保存覆盖值并恢复默认",
           "ok": true,
           "tags": [],
           "tests": [
@@ -238,12 +239,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 6414,
+                  "duration": 2666,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:10.804Z",
+                  "startTime": "2026-11-10T03:33:56.185Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -251,9 +252,187 @@
               "status": "expected"
             }
           ],
-          "id": "1890bdb8955a9fa65111-02934a82cb5b719d4dd9",
-          "file": "parameter-defaults.spec.ts",
-          "line": 3,
+          "id": "76979da560898bca3fa7-6db0997f6cfe70711aa5",
+          "file": "inference-params.spec.ts",
+          "line": 13,
+          "column": 1
+        },
+        {
+          "title": "推理参数改动影响引擎出卡",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1772,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-10T03:33:58.868Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "76979da560898bca3fa7-63e3df3007c5121d2f4b",
+          "file": "inference-params.spec.ts",
+          "line": 52,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "inference.spec.ts",
+      "file": "inference.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "推理评估：默认场景出卡数，三维约束与拓扑可读",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1596,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-10T03:34:00.675Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-3db936e513ab9983c635",
+          "file": "inference.spec.ts",
+          "line": 25,
+          "column": 1
+        },
+        {
+          "title": "推理评估：换成大模型与弱芯片后卡数增加",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2138,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-10T03:34:02.286Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-6252dea2e5e2692d67bc",
+          "file": "inference.spec.ts",
+          "line": 51,
+          "column": 1
+        },
+        {
+          "title": "推理评估：切换场景档位后输入长度随之更新",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1486,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-10T03:34:04.438Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-3b86fb4706b398b637fe",
+          "file": "inference.spec.ts",
+          "line": 68,
+          "column": 1
+        },
+        {
+          "title": "推理评估：自定义模型可登记并参与评估",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2742,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-10T03:34:05.940Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-0c60885006509d62079d",
+          "file": "inference.spec.ts",
+          "line": 77,
           "column": 1
         }
       ]
@@ -280,12 +459,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 10304,
+                  "duration": 9510,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:17.288Z",
+                  "startTime": "2026-11-10T03:34:08.714Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -295,7 +474,7 @@
           ],
           "id": "5d42237028e62295b8dc-a0987dd79d3680379344",
           "file": "planner.spec.ts",
-          "line": 3,
+          "line": 19,
           "column": 1
         },
         {
@@ -314,12 +493,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 4402,
+                  "duration": 4650,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:27.624Z",
+                  "startTime": "2026-11-10T03:34:18.242Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -329,7 +508,7 @@
           ],
           "id": "5d42237028e62295b8dc-9f43d9346d7e5f0e1a0b",
           "file": "planner.spec.ts",
-          "line": 39,
+          "line": 66,
           "column": 1
         },
         {
@@ -348,12 +527,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1245,
+                  "duration": 729,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:32.057Z",
+                  "startTime": "2026-11-10T03:34:22.906Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -363,7 +542,7 @@
           ],
           "id": "5d42237028e62295b8dc-75c618eb593fda96b015",
           "file": "planner.spec.ts",
-          "line": 58,
+          "line": 91,
           "column": 1
         }
       ]
@@ -390,12 +569,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3110,
+                  "duration": 1596,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:33.331Z",
+                  "startTime": "2026-11-10T03:34:23.668Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -424,12 +603,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2829,
+                  "duration": 1801,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:36.460Z",
+                  "startTime": "2026-11-10T03:34:25.280Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -458,12 +637,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1933,
+                  "duration": 1213,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:39.313Z",
+                  "startTime": "2026-11-10T03:34:27.093Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -500,12 +679,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2741,
+                  "duration": 1493,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:41.287Z",
+                  "startTime": "2026-11-10T03:34:28.329Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -534,12 +713,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3146,
+                  "duration": 1779,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:44.052Z",
+                  "startTime": "2026-11-10T03:34:29.837Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -568,12 +747,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2028,
+                  "duration": 1125,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-10-21T10:08:47.220Z",
+                  "startTime": "2026-11-10T03:34:31.631Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -591,9 +770,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-10-21T10:07:48.174Z",
-    "duration": 61974.494000000006,
-    "expected": 13,
+    "startTime": "2026-11-10T03:33:33.803Z",
+    "duration": 60482.774,
+    "expected": 18,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

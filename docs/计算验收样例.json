@@ -161,19 +161,12 @@
         "train_k": 4,
         "train_eta": 0.25,
         "train_deadline_hours": 12,
-        "train_slots": 1,
-        "eval_samples": 1000,
-        "eval_input_tokens": 2048,
-        "eval_output_tokens": 512,
-        "eval_deadline_hours": 4,
-        "eval_slots": 1,
-        "train_eval_parallel": true
+        "train_slots": 1
       },
       "expected": {
         "train_base_p": 0.029629629629629627,
-        "eval_base_p": 0.011323597883597885,
-        "base_p": 0.04095322751322751,
-        "planned_p": 0.04914387301587301
+        "base_p": 0.02962962962962963,
+        "planned_p": 0.035555555555555556
       }
     },
     {
@@ -205,9 +198,9 @@
       "expected": {
         "business_planned_p": 0.16723980952380954,
         "innovation_planned_p": 0.36190476190476195,
-        "development_planned_p": 0.04914387301587301,
-        "total_base_p": 0.4819070370370371,
-        "total_planned_p": 0.5782884444444445
+        "development_planned_p": 0.035555555555555556,
+        "total_base_p": 0.47058343915343914,
+        "total_planned_p": 0.564700126984127
       }
     },
     {
