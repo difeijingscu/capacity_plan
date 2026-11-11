@@ -272,3 +272,60 @@ def test_result_is_json_serializable():
     import json
     r = run("910b", "kb_qa")
     json.dumps(r, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------- 单调性
+
+def _cards_series(model_key, chip_key, scene_key, concs, profile="neutral"):
+    return [eng.estimate(dict(model_key=model_key, chip_key=chip_key,
+                              scene_key=scene_key, concurrency=c),
+                         MODELS, CHIPS, SCENES, profile)["result"]["cards"]
+            for c in concs]
+
+
+def _assert_monotonic(model_key, chip_key, scene_key, concs, profile="neutral"):
+    cards = _cards_series(model_key, chip_key, scene_key, concs, profile)
+    for i in range(1, len(cards)):
+        assert cards[i] >= cards[i - 1], (
+            f"{model_key}@{chip_key}/{scene_key} 并发 {concs[i-1]}→{concs[i]} "
+            f"卡数 {cards[i-1]}→{cards[i]}（非单调）")
+
+
+def test_cards_monotonic_across_max_num_seqs():
+    """并发跨过 MAX_NUM_SEQS=256 前后卡数必须单调不减。
+
+    历史 bug（2026-11-08 发现）：GLM-5.2 + 950(486T) + long_gen 在
+    224→256 并发区间卡数 128→32 回落。根因是 SLA 回验的路径依赖：
+    显存枚举器在 kv_need 跨过 TP4PP3 容量档位时切换最优拓扑（12→16 卡），
+    旧拓扑上堆出的 DP 在换拓扑后不回收；修复后 SLA 段改为全拓扑
+    「最小满足 dp」搜索（inference.estimate 的 SLA 回验段）。
+    """
+    _assert_monotonic("glm5_2", "950(486T)", "long_gen",
+                      [100, 200, 224, 240, 256, 272, 300, 512, 768, 1024])
+
+
+def test_cards_monotonic_dense_small_model():
+    """小模型（单卡可容纳权重）在并发爬升时同样单调；跨 256 槽位前后重点覆盖。"""
+    _assert_monotonic("qwen3_8b", "910c", "kb_qa",
+                      [8, 32, 64, 100, 128, 240, 256, 260, 300, 512, 1024])
+
+
+def test_cards_monotonic_moe_mid_band():
+    """MoE 中等模型在枚举器切换 EP 档位的区间（200-700）保持单调。"""
+    _assert_monotonic("qwen3_235b_a22b", "910c", "kb_qa",
+                      [8, 100, 224, 256, 300, 384, 512, 640, 768, 1024])
+
+
+def test_cards_monotonic_sla_unreachable_band():
+    """SLA 不可达区间（超紧 TPOT）卡数仍单调：卡数由显存下界决定，不因
+    兜底拓扑切换而回落（曾出现 552→568 并发 48→40 卡）。"""
+    _assert_monotonic("deepseek_v4_pro", "950(425T)", "kb_qa",
+                      [400, 480, 552, 560, 568, 600, 700])
+
+
+def test_cards_monotonic_across_sensitivity_profiles():
+    """三档敏感度下都单调：乐观/保守档的系数差异不应引入非单调。"""
+    for profile in ("optimistic", "neutral", "conservative"):
+        _assert_monotonic("glm5_2", "950(486T)", "long_gen",
+                          [100, 224, 256, 300, 512, 1024], profile)
+

@@ -338,8 +338,15 @@ def _ep_candidates(model: dict) -> list[int]:
 
 def _enumerate_memory(model, weight_bytes, cm, act_gib, kv_need_gib,
                       weight_min_cards, mem_fill, batch) -> dict:
-    """枚举 EP×TP，取「总卡数×PP惩罚×EP惩罚」最小的显存方案。"""
+    """枚举 EP×TP，取「总卡数×PP惩罚×EP惩罚」最小的显存方案。
+
+    返回值额外带 `min_total`：全部可行拓扑的「总卡数最小值」（不带惩罚分）。
+    惩罚分偏好 PP 小的部署方案，但在档位边界会让 best 在两个 total 不同
+    的方案间切换（如 48 卡与 40 卡互换），把部署偏好泄漏进卡数下界会造成
+    并发-卡数非单调。下界类结论（n_memory）必须用 min_total。
+    """
     best = None
+    min_total = None
     for ep in _ep_candidates(model):
         tp = 1
         while tp <= TP_INTRA_CAP:
@@ -349,6 +356,8 @@ def _enumerate_memory(model, weight_bytes, cm, act_gib, kv_need_gib,
             if cap > KV_CAP_FLOOR:
                 inst = _ceil(kv_need_gib / cap)
                 total = inst * unit
+                if min_total is None or total < min_total:
+                    min_total = total
                 score = total * (1 + TOPO_PP_PENALTY * (pp - 2) if pp > 2 else 1.0)
                 if ep > 1:
                     score *= 1 + TOPO_EP_PENALTY * math.log2(ep)
@@ -366,7 +375,9 @@ def _enumerate_memory(model, weight_bytes, cm, act_gib, kv_need_gib,
         dp = _ceil(kv_need_gib / cap)
         best = dict(tp=tp, pp=pp, ep=1, dp=dp, unit=unit, kv_cap=cap,
                     total=dp * unit, score=0.0)
+        min_total = best["total"]
     best["weight_min_cards"] = weight_min_cards
+    best["min_total"] = min_total if min_total is not None else best["total"]
     return best
 
 
@@ -778,11 +789,19 @@ def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[
         kv_seq_len = min(kv_seq_len, model["attn_span"])
     kv_seq_len = _clamp(kv_seq_len, 1.0, float(max_ctx))
     kv_need_gib = kv_bpt * N_CONV * kv_alloc_len * conc * kv_reserve
-    eff_bsz_all = max(1.0, min(conc, conc, MAX_NUM_SEQS))
+    # 有效批（全量口径）：所有在线会话同时出字（生成占比 100%），聚合批就是
+    # 并发本身，与 kv_need_gib 的全量 conc 口径一致（min(conc, 256×⌈conc/256⌉)）。
+    # 单实例槽位上限由 _ttft 的 slot_wait 与 SLA 段的 dp 下限约束，不在批口径截断。
+    # 旧实现 min(conc, MAX_NUM_SEQS) 会在并发跨 256 后低估单步 KV 搬运与
+    # Decode 副本需求，与显存维度的全量口径相互矛盾。
+    eff_bsz_all = max(1.0, conc)
     act = _activation_gib(model, conc, prompt, prec["a_bytes"], 1)
     mem_plan = _enumerate_memory(model, prec["w_bytes"], cm, act["gib"], kv_need_gib,
                                  weight_min_cards, mem_fill, eff_bsz_all)
-    n_memory = max(weight_min_cards, mem_plan["unit"], mem_plan["total"])
+    # 卡数下界用 min_total（全部可行拓扑的最小总卡数，不带部署惩罚分）：
+    # 惩罚分只决定「选哪个拓扑部署」，档位边界会引导 best 在 total 不同的
+    # 方案间切换，若用它当下界会把部署偏好泄漏成卡数非单调。
+    n_memory = max(weight_min_cards, mem_plan["min_total"])
     tp, pp, ep = max(1, mem_plan["tp"]), max(1, mem_plan["pp"]), max(1, mem_plan["ep"])
     unit = max(1, tp * pp * ep)
     if _arch(model) == "mla":
@@ -899,48 +918,59 @@ def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[
     demand_pf = flops_per_req * qps_pf / 1e12
 
     # ---------------- SLA 回验
-    # 顺序（与源工具一致）：先加 DP 摊薄并发 → DP 无改善则放大 TP 压单步带宽 → 仍不行则如实报不可达。
-    # 关键约束：DP 只在「单步时间确有下降」且「单副本仍带得动 ≥1 路会话」时才增加，
-    # 否则纯属堆卡不解决时延。
+    # 对每个可行拓扑（TP×PP×EP）求「满足 TTFT/TPOT 的最小 dp」，再取全局卡数最小者。
+    # dp 下限是拓扑无关的卡数下界 n_memory（随并发单调不减），不由 mem_plan["dp"]
+    # 决定——显存枚举器在总卡数相同的方案间（如 TP1×dp2 与 TP2×dp1）切换时
+    # dp 会翻转，把它设为全局下限会让卡数随并发非单调。
+    # n_pf/n_dc 不进下限：n_pf 依赖 e2e_pred 自洽迭代的收敛点，档位边界有
+    # ±1 档离散噪声；吞吐不足由 SLA 时延判定兜底（ttft/tpot 达标才入选）。
+    # TTFT 机内不可达（ttft_infeasible）时 SLA 必不达标，与「全拓扑搜索无解」
+    # 走同一兜底：取各拓扑 dp 下限的最小卡方案并如实报 SLA_NOT_MET。
     ttft_infeasible = n_pf_lat > TP_INTRA_CAP
-    attempts = 0
-    dp_cap = max(1, int(math.floor(eff_bsz_all)))
-    while attempts < DP_STEP_LIMIT and not ttft_infeasible and dp < dp_cap:
-        if ttft_ms <= ttft_target * SLA_STOP_TOL and tpot_ms <= tpot_target * SLA_STOP_TOL:
-            break
-        eff_bsz_next = max(1.0, eff_bsz_all / (dp + 1))
-        step_next = _decode_step(st, tp, pp, ep, eff_bsz_next)
-        # 单步时间没有实质下降就停止加 DP
-        if step_next["ms"] >= step["ms"] * DECODE_DP_STOP_RATIO:
-            break
-        dp += 1
-        step = step_next
-        sim = _ttft(st, tp, pp, ep, dp, step["ms"], conc, e2e_pred)
-        ttft_ms, tpot_ms = sim["ms"], step["ms"]
-        attempts += 1
-
-    # DP 无改善且 TPOT 仍不达标：放大 TP 直到单步带宽预算够用或达机内上限
-    if not ttft_infeasible and tpot_ms > tpot_target * SLA_STOP_TOL:
-        for _ in range(TP_ESCALATE_LIMIT):
-            if tp >= TP_INTRA_CAP:
-                break
-            viable = [t for t in _tp_candidates(model) if t > tp]
-            if not viable:
-                break
-            tp_next = viable[0]
-            if not (_arch(model) == "mla" or (tp_next & (tp_next - 1)) == 0 or not moe):
-                break
-            pp_next = max(1, math.ceil(weight_min_cards / tp_next))
-            unit_next = tp_next * pp_next * ep
-            step_next = _decode_step(st, tp_next, pp_next, ep,
-                                     max(1.0, eff_bsz_all / max(1, dp)))
-            if step_next["floor_ms"] >= step["floor_ms"] * TP_ESCALATE_STOP_RATIO:
-                break
-            tp, pp, unit, step = tp_next, pp_next, unit_next, step_next
-            sim = _ttft(st, tp, pp, ep, dp, step["ms"], conc, e2e_pred)
-            ttft_ms, tpot_ms = sim["ms"], step["ms"]
-            if tpot_ms <= tpot_target and ttft_ms <= ttft_target:
-                break
+    if ttft_infeasible:
+        warnings.append("TTFT_NOT_REACHABLE_IN_NODE")
+    best = None  # (cards, tp, pp, ep, dp, unit, step, sim)
+    fallback = None
+    dp_cap = max(1, min(int(math.floor(eff_bsz_all)),
+                        max(1, n_memory) + DP_STEP_LIMIT * max(1, TP_ESCALATE_LIMIT)))
+    for ep_opt in (_ep_candidates(model) if moe else [1]):
+        for tp_opt in _tp_candidates(model):
+            pp_opt = max(1, math.ceil(weight_min_cards / tp_opt))
+            unit_opt = tp_opt * pp_opt * ep_opt
+            cap_opt = _kv_cap_gib(tp_opt, pp_opt, ep_opt, model, prec["w_bytes"],
+                                  0.0, st.p["mem_fill"], st.cm, eff_bsz_all)
+            if cap_opt <= KV_CAP_FLOOR:
+                continue
+            # 该拓扑的显存下限：总卡数不低于 n_memory，且 dp 个副本的
+            # 总 KV 容量装下全部并发。
+            dp_floor_opt = max(1, _ceil(n_memory / unit_opt),
+                               _ceil(kv_need_gib / cap_opt))
+            for dp_opt in range(dp_floor_opt, dp_cap + 1):
+                batch = max(1.0, eff_bsz_all / dp_opt)
+                step_opt = _decode_step(st, tp_opt, pp_opt, ep_opt, batch)
+                if step_opt["floor_ms"] > 1.001 * tpot_target:
+                    break  # 权重地板超预算，加 DP 无济于事
+                sim_opt = _ttft(st, tp_opt, pp_opt, ep_opt, dp_opt,
+                                step_opt["ms"], conc, e2e_pred)
+                cand = (unit_opt * dp_opt, tp_opt, pp_opt, ep_opt, dp_opt,
+                        unit_opt, step_opt, sim_opt)
+                if (fallback is None or cand[0] < fallback[0]
+                        or (cand[0] == fallback[0]
+                            and step_opt["ms"] < fallback[6]["ms"])):
+                    fallback = cand
+                if (not ttft_infeasible
+                        and sim_opt["ms"] <= ttft_target * SLA_STOP_TOL
+                        and step_opt["ms"] <= tpot_target * SLA_STOP_TOL):
+                    if (best is None or cand[0] < best[0]
+                            or (cand[0] == best[0]
+                                and step_opt["ms"] < best[6]["ms"])):
+                        best = cand
+                    break  # 该拓扑最小满足 dp 已找到，更大 dp 只会多卡
+    if best is None:
+        # SLA 不可达：按显存下限给最小卡方案并如实报告
+        best = fallback
+    _, tp, pp, ep, dp, unit, step, sim = best
+    ttft_ms, tpot_ms = sim["ms"], step["ms"]
 
     cards = max(1, dp * unit)
     passed = ttft_ms <= ttft_target * SLA_PASS_TOL and tpot_ms <= tpot_target * SLA_PASS_TOL
@@ -949,7 +979,11 @@ def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[
         warnings.append("TTFT_NOT_REACHABLE_IN_NODE")
     if not passed:
         warnings.append("SLA_NOT_MET")
-    if step["floor_ms"] > 1.001 * tpot_target:
+    # 带宽地板：SLA 未达标且选中方案的权重地板已吃掉绝大部分 TPOT 预算
+    # （即使机内最大 TP/EP 分摊也压不下去），说明卡数不是瓶颈、带宽才是，
+    # 加卡无效。占比判定而非超限判定：地板占预算 98% 以上时，其余固定
+    # 开销（通信、逐层固定项）必然把单步推过目标，结论同样是加卡无效。
+    if not passed and step["floor_ms"] >= 0.98 * tpot_target:
         warnings.append("BANDWIDTH_FLOOR")
     if sim["slot_wait"] > 0:
         warnings.append("SLOT_OVERSOLD")
@@ -996,7 +1030,7 @@ def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[
                        instance_tps=instance_tps,
                        eff_batch=max(1.0, eff_bsz_all / max(1, dp)),
                        weight_floor_ms=step["floor_ms"],
-                       bandwidth_floor_blocked=step["floor_ms"] > 1.001 * tpot_target),
+                       bandwidth_floor_blocked=("BANDWIDTH_FLOOR" in warnings)),
         "mixed": dict(floor=floor, mixed_floor=mixed, u_prefill=u_pf, u_decode=u_dc,
                       threshold=threshold, lifted=lifted),
         "sla": dict(ttft_ms=ttft_ms, tpot_ms=tpot_ms, ttft_target=ttft_target,
