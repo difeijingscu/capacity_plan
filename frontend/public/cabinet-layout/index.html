@@ -7,7 +7,7 @@
 <meta name="color-scheme" content="light" />
 <meta name="description" content="由算力卡数推算机柜组成、设计功率与机房面积，并给出机房平面布局与制冷方案（Card → Power）。" />
 <meta name="theme-color" content="#f5f7f4" />
-<title>机柜布局 · 算力规划工作台</title>
+<title>机柜布局 · 算力沙盘</title>
 
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -534,7 +534,7 @@ function genNote(c){ return (LANG==='en' ? (c.noteEn||c.note) : c.note) || ''; }
 function applyLang(){
   document.body.classList.toggle('lang-en',LANG==='en');
   document.documentElement.lang=LANG==='en'?'en':'zh-CN';
-  document.title='机柜布局 · 算力规划工作台';
+  document.title='机柜布局 · 算力沙盘';
   const btn=document.getElementById('langBtn'); if(btn) btn.textContent=LANG==='en'?'中文':'EN';
   const tt=document.getElementById('theme-title');
   if(tt) tt.textContent=LANG==='en'?'Room Power & Layout Reference':'机房功率与布局参考';
@@ -2230,7 +2230,7 @@ function animCDU(ctx,W,H,c){
 }
 </script>
 <script>
-/* 宿主集成：向父窗口上报内容高度（嵌入算力规划工作台时高度自适应） */
+/* 宿主集成：向父窗口上报内容高度（嵌入算力沙盘时高度自适应） */
 (function(){
   if (window.parent === window) return;
   var tick = 0;

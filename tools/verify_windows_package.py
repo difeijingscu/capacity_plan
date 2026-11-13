@@ -16,9 +16,9 @@ from pathlib import Path
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE = ROOT / "releases/算力规划智能体-Windows-x64-20261021.zip"
+ARCHIVE = ROOT / "releases/算力沙盘-Windows-x64-20261021.zip"
 DEST = ROOT / ".release-build" / ("迁移 验证-" + uuid4().hex[:8])
-APP = DEST / "ComputePlanner"
+APP = DEST / "CapacitySandbox"
 REPORT = ROOT / "releases/迁移验证结果.json"
 PORT = 8137
 ENV = dict(os.environ)

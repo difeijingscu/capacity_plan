@@ -49,5 +49,5 @@ if (-not $alreadyRunning) {
     }
     if (-not $ready) { throw '启动未成功，请查看data\server-error.log；也可换一个端口。' }
 }
-Write-Output ('算力规划工作台已启动：' + $appUrl)
+Write-Output ('算力沙盘已启动：' + $appUrl)
 if (-not $NoBrowser) { Start-Process $appUrl -WindowStyle Hidden }

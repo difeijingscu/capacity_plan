@@ -1,4 +1,4 @@
-# 算力规划智能体：项目说明与Windows部署指南
+# 算力沙盘（Capacity Sandbox）：项目说明与Windows部署指南
 
 交付版本：应用1.0.0；计算引擎engine-v1.0.0；Windows迁移包，2026-10-21。
 
@@ -69,7 +69,7 @@ Python运行环境取自Python官方的嵌入式分发包，并随应用部署�
 | 操作系统 | Windows 10/11，64位x64；本包不是ARM64或32位原生包 |
 | 浏览器 | 已安装的Microsoft Edge或Chrome |
 | PowerShell | Windows内置Windows PowerShell 5.1即可 |
-| 目录 | 本机磁盘上当前用户可读写的目录，例如D:\Apps\ComputePlanner |
+| 目录 | 本机磁盘上当前用户可读写的目录，例如D:\Apps\CapacitySandbox |
 | 网络 | 解压、启动、日常计算无需联网；查看外部资料或调用外部AI接口时才需要网络 |
 | Python、Node.js、Git | 使用此运行包时，无需另行安装 |
 | 管理员权限 | 常规本机运行不需要；组织设备策略仍由该机器管理员管理 |
@@ -80,9 +80,9 @@ Python运行环境取自Python官方的嵌入式分发包，并随应用部署�
 
 ### 第一步：复制并完整解压
 
-将Windows运行包ZIP复制到目标机器，右键选择“全部提取”。解压后进入ComputePlanner目录。请先解压，再启动程序；目录内应同时能看到启动.bat、backend、frontend和runtime。
+将Windows运行包ZIP复制到目标机器，右键选择“全部提取”。解压后进入CapacitySandbox目录。请先解压，再启动程序；目录内应同时能看到启动.bat、backend、frontend和runtime。
 
-推荐解压至较短路径，例如D:\Apps\ComputePlanner。不要只复制启动.bat，也不要直接在压缩包预览窗口内运行。
+推荐解压至较短路径，例如D:\Apps\CapacitySandbox。不要只复制启动.bat，也不要直接在压缩包预览窗口内运行。
 
 ### 第二步：检查环境
 
@@ -219,7 +219,7 @@ P/T是本产品定义的参考BF16稠密等效规划口径，效率、请求频�
 Windows运行包旁提供ZIP的SHA256校验文件；包内提供文件校验清单.json。可在PowerShell中核对：
 
 ~~~powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath '算力规划智能体-Windows-x64-20261021.zip'
+Get-FileHash -Algorithm SHA256 -LiteralPath '算力沙盘-Windows-x64-20261021.zip'
 ~~~
 
 Python许可证位于runtime/python/LICENSE.txt；第三方包的许可信息保留在各包或.dist-info目录中。计算设计、代码及业务数据按项目自身的权属管理；本包没有另行授予项目源码的开源许可证。

@@ -50,7 +50,7 @@ def create_app(data_dir=None):
         yield
         executor.shutdown(wait=True)
 
-    app = FastAPI(title="算力规划工作台",version="1.0.0",lifespan=lifespan)
+    app = FastAPI(title="算力沙盘 Capacity Sandbox",version="1.0.0",lifespan=lifespan)
     app.state.store = store
 
     @app.middleware("http")

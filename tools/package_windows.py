@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / ".release-build"
-STAGE = BUILD / "stage" / "ComputePlanner"
+STAGE = BUILD / "stage" / "CapacitySandbox"
 OUTPUT = ROOT / "releases"
 PYTHON_ZIP = BUILD / "assets" / "python-3.13.8-embed-amd64.zip"
 PYTHON_URL = "https://www.python.org/ftp/python/3.13.8/python-3.13.8-embed-amd64.zip"
@@ -77,7 +77,7 @@ def render_guide(markdown):
         index += 1
     return """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>算力规划智能体 · 项目说明与Windows部署指南</title>
+<title>算力沙盘 · 项目说明与Windows部署指南</title>
 <style>body{margin:0;background:#f3f6f1;color:#34473c;font:15px/1.9 "Microsoft YaHei",sans-serif}
 main{max-width:1020px;margin:30px auto;padding:38px 48px;background:#fff;border:1px solid #dfe6db;border-radius:12px}
 h1{font-size:28px;color:#164f3c}h2{margin-top:42px;padding-top:20px;border-top:1px solid #e2e9dc;color:#245e46;font-size:22px}h3{font-size:17px;margin-top:28px}
@@ -147,11 +147,11 @@ def archive():
     manifest = {p.relative_to(STAGE).as_posix(): sha(p) for p in sorted(STAGE.rglob("*")) if included(p)}
     (STAGE / "文件校验清单.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     OUTPUT.mkdir(exist_ok=True)
-    target = OUTPUT / "算力规划智能体-Windows-x64-20261021.zip"
+    target = OUTPUT / "算力沙盘-Windows-x64-20261021.zip"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
         for path in sorted(STAGE.rglob("*")):
             if included(path) or path.name == "文件校验清单.json":
-                bundle.write(path, "ComputePlanner/" + path.relative_to(STAGE).as_posix())
+                bundle.write(path, "CapacitySandbox/" + path.relative_to(STAGE).as_posix())
     (OUTPUT / (target.name + ".sha256")).write_text(sha(target) + "  " + target.name + "\n", encoding="utf-8")
     print(json.dumps({"archive": str(target), "bytes": target.stat().st_size, "sha256": sha(target), "files": len(manifest) + 1}, ensure_ascii=False))
 

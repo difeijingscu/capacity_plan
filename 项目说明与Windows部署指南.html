@@ -1,13 +1,13 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>算力规划智能体 · 项目说明与Windows部署指南</title>
+<title>算力沙盘 · 项目说明与Windows部署指南</title>
 <style>body{margin:0;background:#f3f6f1;color:#34473c;font:15px/1.9 "Microsoft YaHei",sans-serif}
 main{max-width:1020px;margin:30px auto;padding:38px 48px;background:#fff;border:1px solid #dfe6db;border-radius:12px}
 h1{font-size:28px;color:#164f3c}h2{margin-top:42px;padding-top:20px;border-top:1px solid #e2e9dc;color:#245e46;font-size:22px}h3{font-size:17px;margin-top:28px}
 a{color:#176658}p{overflow-wrap:anywhere}.item{margin:8px 0}pre{background:#eef4e8;border:1px solid #dce7d5;padding:18px;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
 code{font-family:Consolas,monospace}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:12px;border:1px solid #e1e7dc;text-align:left;min-width:100px}th{background:#edf3e7}
 @media(max-width:700px){main{margin:0;padding:22px;border-radius:0}h1{font-size:23px}}@media print{body{background:white}main{margin:0;border:0;padding:0;max-width:none}h2,h3{break-after:avoid}tr,pre{break-inside:avoid}}</style>
-<main><h1>算力规划智能体：项目说明与Windows部署指南</h1>
+<main><h1>算力沙盘（Capacity Sandbox）：项目说明与Windows部署指南</h1>
 <p>交付版本：应用1.0.0；计算引擎engine-v1.0.0；Windows迁移包，2026-10-21。</p>
 <h2>1. 项目用途</h2>
 <p>本项目是面向专业人员的单用户算力规划网页应用，用于根据组织规划期末的AI应用需求，估算业务场景、创新服务、开发测试三个资源池所需的计算能力，并保留计算依据。</p>
@@ -40,12 +40,12 @@ code{font-family:Consolas,monospace}.table-wrap{overflow:auto}table{width:100%;b
 <p class="item">- <a href="https://www.python.org/downloads/release/python-3138/">Python 3.13.8官方发布页</a></p>
 <p class="item">- <a href="https://docs.python.org/3.13/using/windows.html#the-embeddable-package">Python Windows嵌入式分发说明</a></p>
 <h2>4. 目标机器要求</h2>
-<div class="table-wrap"><table><tr><th>项目</th><th>要求</th></tr><tr><td>操作系统</td><td>Windows 10/11，64位x64；本包不是ARM64或32位原生包</td></tr><tr><td>浏览器</td><td>已安装的Microsoft Edge或Chrome</td></tr><tr><td>PowerShell</td><td>Windows内置Windows PowerShell 5.1即可</td></tr><tr><td>目录</td><td>本机磁盘上当前用户可读写的目录，例如D:\Apps\ComputePlanner</td></tr><tr><td>网络</td><td>解压、启动、日常计算无需联网；查看外部资料或调用外部AI接口时才需要网络</td></tr><tr><td>Python、Node.js、Git</td><td>使用此运行包时，无需另行安装</td></tr><tr><td>管理员权限</td><td>常规本机运行不需要；组织设备策略仍由该机器管理员管理</td></tr></table></div>
+<div class="table-wrap"><table><tr><th>项目</th><th>要求</th></tr><tr><td>操作系统</td><td>Windows 10/11，64位x64；本包不是ARM64或32位原生包</td></tr><tr><td>浏览器</td><td>已安装的Microsoft Edge或Chrome</td></tr><tr><td>PowerShell</td><td>Windows内置Windows PowerShell 5.1即可</td></tr><tr><td>目录</td><td>本机磁盘上当前用户可读写的目录，例如D:\Apps\CapacitySandbox</td></tr><tr><td>网络</td><td>解压、启动、日常计算无需联网；查看外部资料或调用外部AI接口时才需要网络</td></tr><tr><td>Python、Node.js、Git</td><td>使用此运行包时，无需另行安装</td></tr><tr><td>管理员权限</td><td>常规本机运行不需要；组织设备策略仍由该机器管理员管理</td></tr></table></div>
 <p>建议预留至少500MB磁盘空间用于程序、数据增长和备份。这是部署空间建议，不是容量计算参数。</p>
 <h2>5. 在另一台Windows机器上启动</h2>
 <h3>第一步：复制并完整解压</h3>
-<p>将Windows运行包ZIP复制到目标机器，右键选择“全部提取”。解压后进入ComputePlanner目录。请先解压，再启动程序；目录内应同时能看到启动.bat、backend、frontend和runtime。</p>
-<p>推荐解压至较短路径，例如D:\Apps\ComputePlanner。不要只复制启动.bat，也不要直接在压缩包预览窗口内运行。</p>
+<p>将Windows运行包ZIP复制到目标机器，右键选择“全部提取”。解压后进入CapacitySandbox目录。请先解压，再启动程序；目录内应同时能看到启动.bat、backend、frontend和runtime。</p>
+<p>推荐解压至较短路径，例如D:\Apps\CapacitySandbox。不要只复制启动.bat，也不要直接在压缩包预览窗口内运行。</p>
 <h3>第二步：检查环境</h3>
 <p>双击“检查环境.bat”。正常时会显示Python版本、64位架构、依赖检查OK及“环境检查通过”。此步骤不联网下载依赖。</p>
 <h3>第三步：启动应用</h3>
@@ -109,5 +109,5 @@ npm run test:e2e</code></pre>
 <p>当前版本为本机单用户应用，不包含部门填报、审核审批、实际资源调度、真实Token发放和模型训练执行。</p>
 <h2>12. 包完整性与许可证</h2>
 <p>Windows运行包旁提供ZIP的SHA256校验文件；包内提供文件校验清单.json。可在PowerShell中核对：</p>
-<pre><code>Get-FileHash -Algorithm SHA256 -LiteralPath &#x27;算力规划智能体-Windows-x64-20261021.zip&#x27;</code></pre>
+<pre><code>Get-FileHash -Algorithm SHA256 -LiteralPath &#x27;算力沙盘-Windows-x64-20261021.zip&#x27;</code></pre>
 <p>Python许可证位于runtime/python/LICENSE.txt；第三方包的许可信息保留在各包或.dist-info目录中。计算设计、代码及业务数据按项目自身的权属管理；本包没有另行授予项目源码的开源许可证。</p></main></html>

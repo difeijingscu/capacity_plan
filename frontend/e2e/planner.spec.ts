@@ -19,7 +19,7 @@ async function pickSelect(page: Page, name: string, keyword: string) {
 test('完整规划：示例、编辑、保存、计算、依据、费用和历史对比', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '让每一份算力，都有规划依据。' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '推演算力空间，洞见投资回报。' })).toBeVisible();
   await page.screenshot({ path: '../docs/screenshots/01-projects.png', fullPage: true });
   await page.getByRole('button', { name: '载入示例项目' }).click();
   await expect(page.getByLabel('并发会话-企业知识问答')).toBeVisible();
