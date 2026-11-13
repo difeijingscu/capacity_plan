@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" class="aidc-embed">
+<head>
+  <link rel="icon" href="data:," />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="description" content="从电网到 AI 服务器机柜的完整 3D 供电路径：降压、UPS、电池与柴油发电机。" />
+  <meta name="theme-color" content="#f5f7f4" />
+  <link rel="canonical" href="https://www.aidc2026.cn/ai-dc-power.html" />
+  <title>机房供电 · 算力规划工作台</title>
+  <script>
+    /* 本地化垫片：固定中文 + 固定浅色主题 */
+    try { localStorage.setItem('aidc-theme', 'light'); localStorage.setItem('aidc-locale', 'zh'); } catch (e) {}
+  </script>
+  <script src="js/aidc-theme.js"></script>
+  
+  <script src="js/aidc-asset-version.js"></script>
+  <script src="js/aidc-locale-bridge.js"></script>
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/embed.css" />
+  <link rel="stylesheet" href="css/ai-dc-power.css" />
+  <link rel="stylesheet" href="css/project-green.css" />
+</head>
+<body data-i18n-page="ai-dc-power">
+  
+
+  <main id="power-app" class="power-app" aria-label="3D 机房供电链路" data-i18n-aria-label="app.aria">
+    <div id="scene" aria-hidden="true"></div>
+
+    <div id="toolbar" class="glass">
+      <div class="brand">
+        <h1 data-i18n="brand.title">数据中心供电</h1>
+        <p data-i18n="brand.subtitle">从电网到 AI 服务器机柜的完整供电路径</p>
+      </div>
+      <div class="actions">
+        <button type="button" id="normal" class="active" aria-pressed="true" data-i18n="controls.normal">正常供电</button>
+        <button type="button" id="outage" class="danger" aria-pressed="false" data-i18n="controls.outage">模拟停电</button>
+        <button type="button" id="energyView" data-i18n="controls.energyView">能源区</button>
+        <button type="button" id="hallView" data-i18n="controls.hallView">机房区</button>
+        <button type="button" id="voltages" aria-pressed="false" data-i18n="controls.showVoltages">显示电压</button>
+        <button type="button" id="reset" data-i18n="controls.reset">重置视角</button>
+      </div>
+    </div>
+
+    <div class="hint" data-i18n="controls.hint">拖动旋转 · 滚轮缩放 · 点击设备查看</div>
+
+    <aside id="info" class="glass">
+      <div class="eyebrow" data-i18n="app.eyebrow">POWER DIGITAL TWIN</div>
+      <div class="info-title" id="infoTitle" data-i18n="info.title">供电系统全景</div>
+      <div class="info-copy" id="infoCopy" data-i18n="info.copy">市电与柴油发电机在 10kV 中压 ATS 联锁切换，再经变压器降至 380V，通过 UPS 为智能微模块供电。</div>
+      <div class="status"><span data-i18n="app.status">当前状态</span><span class="online" id="stateText">市电正常</span></div>
+    </aside>
+
+    <div id="legend" class="glass">
+      <span class="key"><i class="line blue"></i><span data-i18n="legend.high">500/220/10kV</span></span>
+      <span class="key"><i class="line cyan"></i><span data-i18n="legend.low">380V / UPS输出</span></span>
+      <span class="key"><i class="line orange"></i><span data-i18n="legend.battery">电池 DC</span></span>
+      <span class="key"><i class="line green"></i><span data-i18n="legend.gen">发电机 10kV</span></span>
+    </div>
+
+    <div id="progress" class="glass">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="progressText">市电 10kV → 中压 ATS → 变压器 380V → UPS → 智能微模块</span>
+    </div>
+
+    <div id="loading" class="loading-state">
+      <span class="loader" aria-hidden="true"></span>
+      <span data-i18n="app.loading">正在加载供电场景…</span>
+    </div>
+    <div id="webgl-fallback" class="webgl-fallback" hidden>
+      <strong data-i18n="fallback.title">当前浏览器无法显示 3D 场景</strong>
+      <p data-i18n="fallback.body">请启用浏览器硬件加速，或使用最新版 Chrome、Edge、Safari 浏览器。</p>
+    </div>
+  </main>
+
+  
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/room-3d/vendor/three/three.module.js",
+        "three/addons/": "/room-3d/vendor/three/addons/"
+      }
+    }
+  </script>
+  <script src="js/i18n.js"></script>
+  <script src="js/i18n-bootstrap.js"></script>
+  <script type="module" src="js/ai-dc-power.js"></script>
+</body>
+</html>

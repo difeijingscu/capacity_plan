@@ -1,0 +1,24 @@
+.venv/
+node_modules/
+frontend/dist/
+data/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log
+.env
+test-results/
+test-results-*/
+playwright-report/
+*.tsbuildinfo
+.release-build/
+releases/
+.workbuddy/
+.pytest-out.txt
+.vitest-out.txt
+# 演示文稿工具的本地缓存，与产物无关
+ppt/**/.slidep/
+# 架构设计工具的本地缓存，与项目源码无关
+.archify/
+docs/*test-results*
+docs/backend-test-results.xml

@@ -1,0 +1,103 @@
+{
+  "version": "inference-params-v2",
+  "updated": "2026-11-12",
+  "notes": [
+    "推理算力评估的全部经验参数（v2 结构，与推理评估页 inference-eval.html 口径一致）。",
+    "改这个文件即改默认值；运行时改动走 PUT /api/v1/inference/params 存库覆盖，不影响本文件。",
+    "每个字段的取值范围与含义见 engine/params.py 的 SPEC；越界会被拒绝而不是静默截断。",
+    "chip_profiles 按芯片 8 条（页面 ENG_DEFAULTS 口径，910c 取 0.26/0.80）；constants 为页面 ENG_CONST + 引擎常数；",
+    "tiers 为三档统一缩放（保守 0.8 / 均衡 1.0 / 激进 1.2），缩放指数规则见 tier_exponents：效率类（mfu_prefill/bw_decode）全额跟随，mem_util 半幅跟随（约一半是 CANN runtime/通信 buffer 的固定占用），mfu_decode_ratio 与 kv_reserve 为比值/结构性开销不缩放。",
+    "旧结构（limits/aggregation/coefficients/timing/sensitivity）已退役：启动时检测到旧覆盖层会自动迁移可映射字段并记日志，其余需在参数页重新调参。"
+  ],
+  "chip_profiles": {
+    "910b": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.58,
+      "bw_decode": 0.62,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "910b32": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.58,
+      "bw_decode": 0.62,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "910c": {
+      "mfu_prefill": 0.26,
+      "mfu_decode_ratio": 0.8,
+      "bw_decode": 0.62,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "950pr32": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.66,
+      "bw_decode": 0.7,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "950pr": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.66,
+      "bw_decode": 0.7,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "950dt36": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.66,
+      "bw_decode": 0.7,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "950dt32": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.66,
+      "bw_decode": 0.7,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    },
+    "950dt": {
+      "mfu_prefill": 0.4,
+      "mfu_decode_ratio": 0.66,
+      "bw_decode": 0.7,
+      "kv_reserve": 1.1,
+      "mem_util": 0.9
+    }
+  },
+  "constants": {
+    "prefill_budget": 0.85,
+    "decode_fixed_ms": 1.35,
+    "roofline_overlap": 0.4,
+    "queue_coef": 0.5,
+    "moe_skew": 1.08,
+    "moe_hit_inflate": 1.08,
+    "moe_fill_tok": 800,
+    "dense_fill_tok": 5500,
+    "moe_ffn_floor": 0.07,
+    "moe_ffn_ceil": 0.5,
+    "dense_ffn_lo": 0.42,
+    "rho_cap": 0.95
+  },
+  "tiers": {
+    "conservative": {
+      "label": "保守",
+      "coef": 0.8
+    },
+    "standard": {
+      "label": "均衡",
+      "coef": 1.0
+    },
+    "aggressive": {
+      "label": "激进",
+      "coef": 1.2
+    }
+  },
+  "tier_exponents": {
+    "mfu_prefill": 1.0,
+    "bw_decode": 1.0,
+    "mem_util": 0.5
+  }
+}

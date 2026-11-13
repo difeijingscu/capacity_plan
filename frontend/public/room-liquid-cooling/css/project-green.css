@@ -1,0 +1,15 @@
+/* ===== 项目墨绿风格覆盖层（算力规划工作台 · 固定浅色） ===== */
+:root{
+  --aidc-page-bg:#f5f7f4;--aidc-surface:#ffffff;--aidc-surface-muted:#f0f4ec;--aidc-surface-soft:#f6f8f2;
+  --aidc-text:#223b35;--aidc-text-strong:#123d35;--aidc-text-muted:#5f7268;--aidc-text-soft:#8b9982;
+  --aidc-border:#dce5da;--aidc-border-soft:#e8ede5;--aidc-accent:#176658;--aidc-accent-text:#176658;
+  --aidc-header-bg:rgba(255,255,255,.9);--aidc-shadow:rgba(23,61,53,.12);
+}
+/* 强制浅色：暗色变量映射为同一组浅色值 */
+html[data-theme='dark']{
+  --aidc-page-bg:#f5f7f4;--aidc-surface:#ffffff;--aidc-surface-muted:#f0f4ec;--aidc-surface-soft:#f6f8f2;
+  --aidc-text:#223b35;--aidc-text-strong:#123d35;--aidc-text-muted:#5f7268;--aidc-text-soft:#8b9982;
+  --aidc-border:#dce5da;--aidc-border-soft:#e8ede5;--aidc-accent:#176658;--aidc-accent-text:#176658;
+  --aidc-header-bg:rgba(255,255,255,.9);--aidc-shadow:rgba(23,61,53,.12);
+}
+body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif}

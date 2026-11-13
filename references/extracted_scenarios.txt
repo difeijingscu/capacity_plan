@@ -1,0 +1,39 @@
+智能客服 | in=768 out=256 ctx=8192 conc=9 ttft=500 tpot=30 | 短输入、短输出、时延高敏感。按在线会话数估并发。
+智能外呼 | in=768 out=128 ctx=4096 conc=9 ttft=500 tpot=30 | 单轮外呼话术，并发低于文本客服。
+热线工单 | in=1536 out=512 ctx=8192 conc=9 ttft=1500 tpot=45 | 来话摘要、分类和口径回复，比 FAQ 略长。
+短问答对话 | in=1024 out=512 ctx=8192 conc=9 ttft=1e3 tpot=45 | 门户/APP 通用问答，SLA 比客服略宽。
+坐席助手 | in=3072 out=512 ctx=16384 conc=9 ttft=1500 tpot=50 | 坐席 Copilot，并发按在线坐席数估。
+投顾助手 | in=2048 out=768 ctx=16384 conc=9 ttft=2e3 tpot=55 | 持仓解读与产品匹配，按投顾问席位估。
+长文生成 | in=1024 out=8196 ctx=32768 conc=9 ttft=1e3 tpot=50 | 短输入、长输出。代码、文案、报告都按这一档估。
+代码补全 | in=2048 out=128 ctx=16384 conc=9 ttft=800 tpot=30 | 中输入、短输出、时延高敏感。行内补全，只出短片段。
+实时语音 | in=640 out=100 ctx=4096 conc=9 ttft=400 tpot=30 | 短输入、短输出、时延极敏感。按同时通话路数估并发。
+知识库问答 | in=8192 out=1024 ctx=32768 conc=9 ttft=3e3 tpot=50 | 中输入、中输出。检索段拼入后再生成答复，首 Token 要求适中。
+政策制度问答 | in=4096 out=768 ctx=16384 conc=9 ttft=2e3 tpot=50 | 办事指南/法规检索，窗口期并发高于医学问答。
+医学知识问答 | in=8192 out=1280 ctx=32768 conc=9 ttft=4e3 tpot=60 | 指南与文献辅助，按科室工作站估并发。
+学科辅导 | in=2048 out=2048 ctx=16384 conc=9 ttft=2500 tpot=55 | 题目讲解，输出长于客服、并发更低。
+取数问数 | in=3072 out=384 ctx=16384 conc=9 ttft=2e3 tpot=50 | Schema + 自然语言，输出 SQL 或短解释。
+合同合规审核 | in=24576 out=1536 ctx=65536 conc=9 ttft=18e3 tpot=85 | 超长合同/授信材料，按审核岗估并发。
+审批材料审核 | in=16384 out=1024 ctx=65536 conc=9 ttft=15e3 tpot=80 | 申报材料合规审查，Prefill 为主。
+长文档摘要 | in=32768 out=1024 ctx=65536 conc=9 ttft=2e4 tpot=80 | 长输入、短输出。报告或卷宗一次送入，TTFT 随窗口变长。
+会议纪要 | in=16384 out=2048 ctx=32768 conc=9 ttft=12e3 tpot=80 | 转写稿整理成议题、决议和待办。
+信息抽取 | in=4096 out=512 ctx=16384 conc=9 ttft=4e3 tpot=60 | 单据/合同要素抽成 JSON。
+作业批改 | in=4096 out=1024 ctx=16384 conc=9 ttft=6e3 tpot=70 | 作答+评分标准，可批量、TTFT 可放宽。
+公文写作 | in=4096 out=2048 ctx=32768 conc=9 ttft=8e3 tpot=75 | 模板+要素生成通知函、对内公文。
+政务公文 | in=4096 out=3072 ctx=32768 conc=9 ttft=8e3 tpot=80 | 通知/报告套版，输出略长于企业公文。
+研报长文 | in=8192 out=6144 ctx=65536 conc=9 ttft=12e3 tpot=90 | 长素材进、长结构化报告出。
+教案方案 | in=4096 out=4096 ctx=32768 conc=9 ttft=8e3 tpot=85 | 课标到教学设计/课件大纲。
+营销内容 | in=1024 out=1536 ctx=8192 conc=9 ttft=3e3 tpot=70 | 短 briefing 生成中长文案。
+病历文书 | in=4096 out=1536 ctx=16384 conc=9 ttft=5e3 tpot=65 | 问诊记录生成 SOAP 病历，按诊间估。
+信贷辅导 | in=5120 out=1024 ctx=32768 conc=9 ttft=4e3 tpot=60 | 申贷材料核对与政策解释。
+预问诊 | in=2048 out=1024 ctx=16384 conc=9 ttft=3e3 tpot=55 | 主诉分诊，时延宽于文本客服。
+多轮会话 | in=4096 out=512 ctx=16384 conc=9 ttft=1500 tpot=50 | 带多轮历史的助手，输出仍短。
+机器翻译 | in=3072 out=3072 ctx=16384 conc=9 ttft=5e3 tpot=70 | 段/篇级互译，输入与输出长度接近。
+批量离线 | in=2048 out=1024 ctx=8192 conc=9 ttft=3e4 tpot=150 | 夜间跑批/打标，用来估离线池。
+工具调用智能体 | in=6144 out=1024 ctx=32768 conc=9 ttft=2500 tpot=50 | 多步工具调用，按同时在跑的任务数估。
+深度推理 | in=2048 out=8192 ctx=32768 conc=9 ttft=8e3 tpot=80 | 短输入、超长输出。短题目、长思维链，TTFT 可放宽。
+超长文档 | in=65536 out=2048 ctx=65536 conc=6 ttft=4e4 tpot=90 | 超长输入、少并发。年报或长合同一次送入。
+超长输入128K | in=131072 out=2048 ctx=131072 conc=4 ttft=6e4 tpot=100 | 全书/卷宗拼接，结论作量级参考。
+长上下文128K | in=4096 out=1024 ctx=131072 conc=4 ttft=4e3 tpot=50 | 短问答预留 128K 窗口；KV 按输入+输出一半的连续批均值预留，不是每路写满 128K。
+百万上下文 | in=8192 out=2048 ctx=1048576 conc=4 ttft=15e3 tpot=80 | 1M 窗口写入配方；KV 按输入+输出一半的连续批均值预留，不是每路写满 1M。
+自定义业务场景 | in=2048 out=2048 ctx=4096 conc=9 ttft=2e3 tpot=50 | 手动填写输入、输出、并发和时延目标。
+TOTAL unique: 38

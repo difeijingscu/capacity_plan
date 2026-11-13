@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="description" content="可交互的 AI 数据中心 3D 机房布局：园区、四层建筑与单层详细机房。" />
+  <title>机房立体布局 · 算力规划工作台</title>
+  <link rel="stylesheet" href="room-layout-3d.css" />
+  <script>
+    // 本项目本地化垫片：中文单语言词典 + 固定浅色主题 + 直接初始化
+    (function (global) {
+      var MESSAGES = {
+        app: { aria: '3D 数据中心布局浏览器', eyebrow: 'AIDC 数字孪生', loading: '正在加载 3D 场景…' },
+        breadcrumb: { aria: '当前位置', campus: '园区总览', building: 'A02 数据中心楼', floor: '{floor} 单层机房' },
+        campus: {
+          title: 'AIDC 园区整体布局',
+          description: '拖动旋转园区，点击高亮的 A02 数据中心楼进入建筑。',
+          info: '园区以 A02 为核心算力建筑，并配置独立变电站、变压器场及柴油发电机组，体现市电与备用电源保障关系。',
+          enter: '进入 A02 数据中心楼',
+        },
+        building: {
+          title: 'A02 · 四层数据中心示意图',
+          description: '建筑由 1F、2F、3F 数据层及 RF 屋面设备层组成；点击任意数据层查看详细机房。',
+          info: '1F–2F 层高 8.0m，2F–3F 与 3F–RF 各 7.0m；冷灰表示数据机房，青蓝表示制冷区，琥珀表示供配电，绿色表示屋面电池区。模型为功能剖视示意。',
+          selectFloor: '查看 {floor} 详细布局',
+          totalHeightLabel: '总高度',
+          totalHeightValue: '总高 22.0 m',
+        },
+        floor: {
+          title: 'A02 · {floor} 单层详细机房',
+          description: '拖动查看机房立体分区、封闭通道、架空桥架和机柜阵列；各层采用同一标准化 POD 模块。',
+          info: '单层约 133m × 92m；EHU 空调机房采用连续风墙图示，包含多风机阵列、背部过滤换热面及朝向机柜区的送风箭头；液冷水力模块间展示泵组、换热器、供回水主管和阀门。容量以 1,280 柜指标为准。',
+          selected: '当前楼层',
+          rackRows: '机柜阵列',
+          zones: '功能分区',
+        },
+        info: { live: '模型信息' },
+        overlays: { scene: '场景信息', model: '模型信息' },
+        stats: { dataFloors: '数据层', pods: 'POD', racks: '机柜' },
+        controls: { rotate: '左键拖动 · 旋转', zoom: '滚轮 · 缩放', pan: '右键拖动 · 平移', back: '返回上一级', reset: '重置视角' },
+        actions: { aria: '当前场景可选对象' },
+        fallback: { title: '当前浏览器无法显示 3D 场景', body: '请启用浏览器硬件加速，或使用最新版 Chrome、Edge、Safari 浏览器。' },
+        objects: {
+          a02: 'A02 数据中心楼', a01: 'A01 数据中心楼', office: '综合办公楼', substation: '220kV 变电站',
+          generator: '柴油发电机组', rf: 'RF 屋面设备层', ehu: 'EHU 空调机房', hall: '风冷 / 液冷机房',
+          smartModule: '智能微模块', moduleDoor: '微模块封闭门', moduleScreen: '微模块监控屏', inRowCooling: '行级液冷空调',
+          power: '低压配电', powerFunction: '配电功能区', medium: '中压室', hydraulic: '液冷水力模块间',
+          reserve: '预留空间', serviceCore: '设备核心筒', coolingRiser: '制冷竖井', powerRiser: '供配电竖井',
+          batteryBank: '电池柜组', coolingTower: '冷却塔', transformer: '主变压器及高压设备', generatorUnit: '柴油发电机单元',
+          rackPowerUnit: '列头配电柜 / RPP', hydraulicPump: '液冷循环泵组', heatExchanger: '板式换热器',
+          mvSwitchgear: '中压开关柜', lvSwitchgear: '低压开关柜', powerCabinet: 'UPS / 配电柜',
+          coolingSupplyPipe: '液冷供水管', coolingReturnPipe: '液冷回水管', coolingValve: '液冷管路阀门',
+        },
+      };
+
+      function resolve(obj, key) {
+        var cur = obj;
+        var parts = key.split('.');
+        for (var i = 0; i < parts.length; i += 1) {
+          cur = cur ? cur[parts[i]] : undefined;
+        }
+        return cur;
+      }
+
+      global.AidcI18n = {
+        getLocale: function () { return 'zh'; },
+        t: function (key, params) {
+          var raw = resolve(MESSAGES, key);
+          if (raw == null || typeof raw !== 'string') return key;
+          if (!params) return raw;
+          return raw.replace(/\{(\w+)\}/g, function (_, name) {
+            return Object.prototype.hasOwnProperty.call(params, name) ? String(params[name] == null ? '' : params[name]) : '{' + name + '}';
+          });
+        },
+      };
+      global.AidcTheme = { getTheme: function () { return 'light'; } };
+      global.AidcI18nBootstrap = {
+        bootstrap: function (_pageId, options) {
+          if (options && typeof options.onReady === 'function') options.onReady();
+        },
+      };
+    })(window);
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <main id="three-app" class="three-app" aria-label="3D 数据中心布局浏览器">
+    <div id="scene-host" class="scene-host" aria-hidden="true"></div>
+
+    <div id="scene-panel" class="top-hud glass-panel hud-collapsible is-collapsed">
+      <button type="button" class="overlay-toggle" aria-expanded="false" aria-controls="scene-panel-content" aria-label="场景信息">
+        <span aria-hidden="true">▣</span>
+        <em>场景信息</em>
+      </button>
+      <div id="scene-panel-content" class="overlay-panel-content">
+        <div class="eyebrow">AIDC 数字孪生</div>
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="当前位置">
+          <button type="button" data-view="campus" aria-current="page">园区总览</button>
+          <span aria-hidden="true">/</span>
+          <button type="button" data-view="building" disabled>A02 数据中心楼</button>
+          <span aria-hidden="true">/</span>
+          <button type="button" data-view="floor" disabled id="floor-crumb">1F 单层机房</button>
+        </nav>
+        <h1 id="view-title">AIDC 园区整体布局</h1>
+        <p id="view-description">拖动旋转园区，点击高亮的 A02 数据中心楼进入建筑。</p>
+      </div>
+    </div>
+
+    <aside id="model-panel" class="info-panel glass-panel hud-collapsible is-collapsed" aria-live="polite">
+      <button type="button" class="overlay-toggle" aria-expanded="false" aria-controls="model-panel-content" aria-label="模型信息">
+        <span aria-hidden="true">ⓘ</span>
+        <em>模型信息</em>
+      </button>
+      <div id="model-panel-content" class="overlay-panel-content">
+        <div class="info-head">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span>模型信息</span>
+        </div>
+        <strong id="info-title">A02 数据中心楼</strong>
+        <p id="info-body">园区核心算力建筑，共三层数据机房及一层屋面设备层。</p>
+        <div id="info-stats" class="info-stats">
+          <span><b>3</b><small>数据层</small></span>
+          <span><b>12</b><small>POD</small></span>
+          <span><b>3,840</b><small>机柜</small></span>
+        </div>
+      </div>
+    </aside>
+
+    <div id="scene-actions" class="scene-actions glass-panel" aria-label="当前场景可选对象"></div>
+
+    <div class="controls-hud glass-panel">
+      <div class="control-help">
+        <span><i class="mouse-icon drag-icon" aria-hidden="true"></i><em>左键拖动 · 旋转</em></span>
+        <span><i class="mouse-icon zoom-icon" aria-hidden="true"></i><em>滚轮 · 缩放</em></span>
+        <span><i class="mouse-icon pan-icon" aria-hidden="true"></i><em>右键拖动 · 平移</em></span>
+      </div>
+      <div class="control-buttons">
+        <button type="button" id="back-button" class="hud-button" hidden>返回上一级</button>
+        <button type="button" id="reset-button" class="hud-button primary">重置视角</button>
+      </div>
+    </div>
+
+    <div id="tooltip" class="scene-tooltip" role="status" hidden></div>
+    <div id="loading" class="loading-state">
+      <span class="loader" aria-hidden="true"></span>
+      <span>正在加载 3D 场景…</span>
+    </div>
+    <div id="webgl-fallback" class="webgl-fallback" hidden>
+      <strong>当前浏览器无法显示 3D 场景</strong>
+      <p>请启用浏览器硬件加速，或使用最新版 Chrome、Edge、Safari 浏览器。</p>
+    </div>
+  </main>
+
+  <script type="module" src="room-layout-3d.js"></script>
+</body>
+</html>

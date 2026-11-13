@@ -1,0 +1,88 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px', background: '#FFFFFF', fontFamily: '"Microsoft YaHei", Arial, sans-serif' }}>
+  <Box style={{ flexDirection: 'column', width: '100%', height: '100%', gap: 24 }}>
+
+    <Box style={{ flexDirection: 'column', gap: 12 }}>
+      <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E293B', lineHeight: 1.2 }}>
+        两个不同层级的方法，不是替代关系
+      </Text>
+      <Box style={{ width: '100%', height: 2, background: '#2563EB' }} />
+    </Box>
+
+    <Box style={{ flexDirection: 'row', width: '100%', gap: 0 }}>
+
+      <Box style={{ flexDirection: 'column', width: 630, gap: 12, paddingRight: 26 }}>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#2563EB' }}>AIDC2026　一级匡算</Text>
+        <Text style={{ fontSize: 16, color: '#64748B', lineHeight: 1.5 }}>
+          自上而下：给定用户规模与用量，回答要准备多少卡、多少电、多少钱
+        </Text>
+
+        <Box style={{ flexDirection: 'column', background: '#F1F5F9', borderRadius: 8, padding: '16px 18px', gap: 10 }}>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>业务量　</span>DAU、渗透率、人均日均 Token
+          </Text>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>单次前向　</span>F、激活参数、峰值倍数、综合利用率
+          </Text>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>卡数　</span>除以单卡算力乘冗余，与显存下限取大
+          </Text>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>下游　</span>机柜、功率、PUE、面积、投资回报
+          </Text>
+        </Box>
+
+        <Box style={{ flexDirection: 'column', gap: 4 }}>
+          <Text style={{ fontSize: 16, color: '#1E293B', lineHeight: 1.55 }}>
+            <span style={{ fontWeight: 'bold', color: '#2563EB' }}>强在　</span>业务建模、多年增长、设施与经济层
+          </Text>
+          <Text style={{ fontSize: 16, color: '#B45309', lineHeight: 1.55 }}>
+            <span style={{ fontWeight: 'bold' }}>弱在　</span>不分 Prefill 与 Decode、无并发、无时延 SLO
+          </Text>
+        </Box>
+      </Box>
+
+      <Box style={{ width: 1, background: '#E2E8F0', marginTop: 2, marginBottom: 2 }} />
+
+      <Box style={{ flexDirection: 'column', width: 500, gap: 12, paddingLeft: 28 }}>
+        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#B45309' }}>本项目　二级容量规划</Text>
+        <Text style={{ fontSize: 16, color: '#64748B', lineHeight: 1.5 }}>
+          自下而上：给定场景与 SLA，回答这一个场景要几张卡、卡在哪、能否达标
+        </Text>
+
+        <Box style={{ flexDirection: 'column', background: '#F1F5F9', borderRadius: 8, padding: '16px 18px', gap: 10 }}>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>场景　</span>模型、W/A/C 精度、IO 长度、并发、SLA
+          </Text>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>三维约束　</span>显存、Prefill、Decode 三者取最大
+          </Text>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>回验　</span>混部利用率抬升，SLA 不达标逐级加 DP
+          </Text>
+          <Text style={{ fontSize: 17, color: '#1E293B', lineHeight: 1.45 }}>
+            <span style={{ fontWeight: 'bold' }}>汇总　</span>三池独立，卡数与 P16 双轨，快照可回溯
+          </Text>
+        </Box>
+
+        <Box style={{ flexDirection: 'column', gap: 4 }}>
+          <Text style={{ fontSize: 16, color: '#1E293B', lineHeight: 1.55 }}>
+            <span style={{ fontWeight: 'bold', color: '#B45309' }}>强在　</span>单场景容量精度、拓扑择优、可审计
+          </Text>
+          <Text style={{ fontSize: 16, color: '#B45309', lineHeight: 1.55 }}>
+            <span style={{ fontWeight: 'bold' }}>弱在　</span>无增长外推、无机柜电力面积、仅卡购置成本
+          </Text>
+        </Box>
+      </Box>
+
+    </Box>
+
+    <Box style={{ flexDirection: 'column', background: '#1E293B', borderRadius: 8, padding: '14px 22px' }}>
+      <Text style={{ fontSize: 18, color: '#FFFFFF', lineHeight: 1.55 }}>
+        AIDC 强在业务建模、增长规划与设施经济层，本项目强在单场景容量计算与可审计，两者是互补关系
+      </Text>
+    </Box>
+
+    <Text style={{ fontSize: 14, color: '#94A3B8' }}>AIDC2026 vs ComputePlanner　口径对比</Text>
+
+  </Box>
+</Slide>

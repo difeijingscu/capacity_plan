@@ -1,0 +1,28 @@
+/* ===== 项目墨绿风格覆盖层（算力规划工作台 · 固定浅色） ===== */
+:root{
+  --aidc-page-bg:#f5f7f4;--aidc-surface:#ffffff;--aidc-surface-muted:#f0f4ec;--aidc-surface-soft:#f6f8f2;
+  --aidc-text:#223b35;--aidc-text-strong:#123d35;--aidc-text-muted:#5f7268;--aidc-text-soft:#8b9982;
+  --aidc-border:#dce5da;--aidc-border-soft:#e8ede5;--aidc-accent:#176658;--aidc-accent-text:#176658;
+  --aidc-header-bg:rgba(255,255,255,.9);--aidc-shadow:rgba(23,61,53,.12);
+}
+/* 强制浅色：暗色变量映射为同一组浅色值 */
+html[data-theme='dark']{
+  --aidc-page-bg:#f5f7f4;--aidc-surface:#ffffff;--aidc-surface-muted:#f0f4ec;--aidc-surface-soft:#f6f8f2;
+  --aidc-text:#223b35;--aidc-text-strong:#123d35;--aidc-text-muted:#5f7268;--aidc-text-soft:#8b9982;
+  --aidc-border:#dce5da;--aidc-border-soft:#e8ede5;--aidc-accent:#176658;--aidc-accent-text:#176658;
+  --aidc-header-bg:rgba(255,255,255,.9);--aidc-shadow:rgba(23,61,53,.12);
+}
+body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif}
+
+/* ROI 页 tailwind 蓝色工具类 → 项目绿 */
+html.aidc-embed body{background:#f5f7f4!important;color:#223b35!important}
+html.aidc-embed .text-blue-600,html.aidc-embed .text-blue-700{color:#176658!important}
+html.aidc-embed .text-blue-300{color:#b1c8ad!important}
+html.aidc-embed .bg-blue-600{background-color:#176658!important}
+html.aidc-embed .peer-checked\:bg-blue-600:checked{background-color:#176658!important}
+html.aidc-embed .hover\:bg-blue-700:hover{background-color:#123d35!important}
+html.aidc-embed .focus\:border-blue-500:focus{border-color:#176658!important}
+html.aidc-embed .focus\:ring-blue-100:focus{--tw-ring-color:#e0ecdf!important}
+html.aidc-embed .from-blue-400{--tw-gradient-from:#2c7a63 var(--tw-gradient-from-position)!important}
+html.aidc-embed .to-blue-600{--tw-gradient-to:#176658 var(--tw-gradient-to-position)!important}
+html.aidc-embed .bg-slate-50{background-color:#f5f7f4!important}

@@ -1,0 +1,163 @@
+推理算力评估工具
+企业计算张绍友 · 2609V8
+秋
+基于理论模型估算（非 POC 实测），供容量规划参考，不作为验收依据
+① 选择大模型
+DeepSeek-V4-Pro 1.6T (MoE, A49B, 1M ctx)
+DeepSeek-V4-Flash 284B (MoE, A13B, 1M ctx)
+DeepSeek-V3 671B (MoE, A37B)
+DeepSeek-R1 671B (MoE, A37B)
+Qwen3.8-2.4T-A95B (MoE, 262K ctx)
+Qwen3.8-27B (Dense, 262K ctx)
+Qwen3.6-27B (Dense, 262K ctx)
+Qwen3.6-35B-A3B (MoE, 262K ctx)
+Qwen3.5-397B-A17B (MoE)
+Qwen3.5-122B-A10B (MoE)
+Qwen3.5-35B-A3B (MoE)
+Qwen3.5-27B (Dense)
+Qwen3-235B-A22B (MoE)
+Qwen2.5-72B (Dense)
+Qwen2.5-32B (Dense)
+Qwen3-32B (Dense)
+Qwen3-14B (Dense)
+Qwen3-8B (Dense)
+Qwen3-4B (Dense)
+GLM-5.3 744B (MoE, A40B, 1M ctx，结构同 5.2)
+GLM-5.3-Flash 320B (MoE, A18B, 1M ctx)
+GLM-5.2 744B (MoE, A40B, 1M ctx)
+GLM-4-9B (Dense)
+Kimi K3 2.78T (MoE, A104B, 1M ctx)
+Kimi K2.7 1.04T (MoE, A32.6B, 256K ctx)
+Kimi K2.6 1.04T (MoE, A32.6B, 256K ctx)
+Kimi K2.5 1.04T (MoE, A32.6B, 262K ctx)
+Kimi K2 Thinking 1.04T (MoE, A32.6B, 262K ctx)
+Kimi K2 1.04T (MoE, A32.6B)
+MiniMax-M2.7 230B (MoE, A10B)
+MiniMax-M2.5 230B (MoE, A10B)
+MiniMax-M2 230B (MoE, A10B)
+自定义大模型
+模型参数详情（高级，可选） （官方已验证）
+▼
+② 推理量化精度
+W8A8C8
+▼
+③ 选择业务场景
+智能客服（短输入、短输出、时延敏感）
+代码补全（中输入、短输出、时延敏感）
+知识库问答（中输入、中输出、首 Token 要求适中）
+长文生成（短输入、长输出）
+深度推理（短输入、超长输出、首 Token 可放宽）
+长文档摘要（长输入、短输出）
+超长文档（超长输入、低并发）
+自定义业务场景
+MoE 大模型已隐藏智能客服、代码补全：低时延档建议用稠密小模型。
+输入序列长度
+100～1M tok
+tok
+输出序列长度
+100～128K tok
+tok
+并发会话数
+1～9999
+路
+TTFT 目标
+首 Token 时延 · 50～120,000 ms
+ms
+TPOT 目标
+逐 Token 时延 · 1～500 ms
+ms
+高级参数 Prefix · 上下文 · KV · 分块
+▼
+④ 选择服务器
+昇腾 950(486T) · 96GB · INT8 919T
+昇腾 950(547T) · 144GB · INT8 1034T
+昇腾 950(547T) · 96GB · INT8 1034T
+昇腾 950(425T) · 96GB · INT8 804T
+昇腾 910C · 128GB合封 · INT8 1120T
+昇腾 910B · 64GB · INT8 560T
+服务器参数详情
+▼
+⑤ 工程开销
+高级，可选
+▼
+启动推理算力评估
+修改参数后将自动重算
+综合推荐卡数
+SLA 达标推荐
+40
+张 NPU/GPU
+昇腾910C
+📥
+导出评估摘要
+导出为 Excel
+卡数约束分解
+各维度卡数（张）
+显存装载
+8
+Prefill 算力 ★
+25
+Decode 算力/带宽
+16
+并行策略
+40
+综合推荐
+40
+物理下界 40 张
+达标推荐40 张
+扩容余量 +20% 48 张
+瓶颈 · Prefill · 混部 · 为TTFT、并发 +1
+SLA 未达标：并发、TTFT
+可支撑 1 / 需求 50 路 · TTFT 7283 / 5000 ms · §三 SLA 明细
+手动指定 混部
+一、卡数评估分解
+专家参考
+物理下界 + SLA
+▶
+二、并行部署策略
+推荐：混部 · TP8×DP5 = 40张
+▼
+当前落地配置 SLA 未达标，详见「三、SLA 达标评估」
+采用方案
+推荐 · 工程推荐
+服务形态
+混部
+综合推荐 40 张
+采用中
+服务形态
+PD 分离
+对照下界 ≈48 张
+选择此项对照并重算卡数与 SLA
+服务形态改回自动
+PD 形态判定规则 · 最终采用 = 混部（当前为手动指定 混部，本表仅供对照） · 点开核对每条规则
+TP
+1 · 省通信
+2 · 省通信
+4 · 省通信
+8 · 推荐
+机内切模型，压 TTFT
+PP
+1 · 推荐
+2 · 扩KV
+4 · 扩KV
+单段流水
+EP
+1 · 推荐
+2
+4
+8 · 宽EP
+16 · 宽EP
+小EP，吞吐靠 DP；加大 EP 会加卡，不保证压 TTFT
+DP
+1 · 单实例
+2 · 可HA
+4 · 扩吞吐
+5 · 推荐
+8 · 扩吞吐
+复制实例。手动指定 DP 后，下方三个模块按指定实例数验收，不再自动加卡
+综合推荐 40 张 · 单实例 8 卡 · 权重约 78.1 GB/卡 · 每 rank 专家 256。TP / PP / EP / DP 各自独立点选，总卡数 = TP×PP×EP×DP。加大 EP 会按倍数加卡，不保证压低 TTFT。
+修改 DP 后，下方三个模块停止自动加实例，以您指定的实例数验收 SLA。
+说明与评估过程
+▶
+三、SLA 达标评估
+未达标 · 混部 · 40张 · TTFT 未达标 · 并发50/1
+▼

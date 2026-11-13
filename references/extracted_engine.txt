@@ -1,0 +1,8 @@
+=== runBtn wiring at 96694 ===
+ize:10px;color:var(--ts);line-height:1.5;"></div></div></div></div><div><button class="run-btn" id="runBtn" onclick="runEval()">启动推理算力评估</button><div style="text-align:center;font-size:10px;color:var(--tt);margin-top:5px;">修改参数后将自动重算</div><div id="inputWarnings" style="margin-top:6px;font-size:10.5px;color:var(--er);line-height:1.5;"></div></div></div><div class="rp"><div style="display:flex;flex-direction:column;gap:8px;"><div class="hero-module"><div class="hero-layout"><div class="hero-col-le
+
+=== function eval context ===
+}}}const jm=Math.max(1,dm),zm=Math.max(1,dm*(ue?mm:1)),Xm=Rc,Ym=Math.max(1,dm*Math.max(1,cm));let Jm=kt/Math.max(1,Qm);function evalSlaAtDp(n,o,i,l,r=0){const p=null!=i&&isFinite(i)&&i>0?i:kt,c=p*St/Math.max(1,n),m=Math.max(1,l&&l.tp||dm||1),h=Math.max(1,l&&l.pp||cm||1),u=Math.max(1,ue&&(l&&l.ep||mm)||1),M=m,x=m*(ue?u:1),$=m*h,b=Math.max(1,o||m*h*u),w=b,y=Math.max(1,p*St),T=Math.max(1,Math.min(c,y*Ha)),F=Ho(e,a,Ee,ue,Ye,Hr,Math.max(1,T)),P=Co(Aa,ue,a),k=Wr*T/$,_=So({bwGBs:wa,tier:P,tp:m,pp:h,ep:u,isMoE:ue,wInfo:F,wTotalGB:F.gb,kvGBPerStepShard:k,kvSeqLen:jr}),C=So({bwGBs:wa,tier:P,tp:m,pp:h,ep:u,isMoE:ue,wInfo:F,wTotalGB:F.gb,kvGBPerStepShard:0,kvSeqLen:jr}),D=k/Math.max(1e-9,wa*P.uKv*ko(jr,
+
+SCRIPT TAG at 103000: <script>
+SCRIPT TAG at 393727: <script>

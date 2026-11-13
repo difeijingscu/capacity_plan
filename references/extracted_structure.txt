@@ -1,0 +1,12 @@
+IDS(170): presetModel, presetTrust, mpSum, mpTrustTag, mpChev, mpBody, totalP, activeP, numLay, hidDim, numHeads, kvHeads, headDim, attnSpan, mpMixCell, gqaKvFracPct, mpArchSel, mpArchInfer, mpKVRatioTag, ffnMulSel, ffnGated, ffnMulHint, mpMoeBlock, moeExperts, moeTopK, mpCprBlock, kvHeadDim, latentDim, ropeDim, qkHeadDim, vHeadDim, mpImportHint, mpImportFile, precSummary, chev-prec, body-prec, precSel, precHint, computePrecSel, computePrecHint, precSchemeLine, precChipCapNote, kvPrecSel, kvPrecHint, sceneSelect, sceneHint, promptLen, outputLen, concurrency, batchSize, ttftTarget, tpotTarget, sceneAdvChev, sceneAdvBody, prefixHitR, prefixHitV, prefixHitHint, maxCtx, kvAllocSeg, kvAllocHint, chunkPrefillIn, chunkPrefillHint, maxBatchedTok, batchedTokHint, chipSel, chev-srvhw, body-srvhw, chipFlops, chipMem, chipBW, chipLinkBW, chev-coef, body-coef, mfuR, mfuV, mfuDecodeRatioHint, mfuDecodeRatioR, mfuDecodeRatioV, bwUtilPrefillHint, bwUtilPrefillR, bwUtilPrefillV, bwUtilHint, bwUtilR, bwUtilV, kvReserveR, kvReserveV, memFillR, memFillV, cSched, cCM, cRT, ohBandOpt, ohPresetAscend, ohBandCons, coefFormula, coefTotal, effBreakdown, runBtn, inputWarnings, heroRecK, heroNum, heroUnitRec, heroPhysNote, heroPhysBig, heroChip, heroFormHint, heroBandCap, heroSoftRangeNote, heroPdSplit, heroCalibNote, heroServers, heroDeployDisclaimer, heroChart, heroBand, heroFloor, heroRecBandK, heroRec, heroMargin, heroBottleneck, heroChartCaption, heroDeriveLine, heroTuneNote, heroMetricsLine, heroWhyPlain, heroSlaStrip, panelLinkBar, capModeTag, chev-anal-cap, analBodyCap, db-wrap-k, dbr-k, dbc-k, dbb-k, db-wrap-p, dbr-p, dbc-p, dbb-p, db-wrap-d, dbr-d, dbc-d, dbb-d, db-wrap-s, dbr-s, dbc-s, dbb-s, capFloorNote, depSummary, chev-dep, body-dep, deployHealthBar, depCombo, depFormulaWrap, depFormChev, depFormula, perfGrid, perfDetail, slaSummary, umetricSummary, chev-umetric, body-umetric, slaWarnBody, umFullBody, assumpBody, rId${a+1}, ${m}, depComboTotal, depSummaryTotal, depSummaryDP, assumpE2eIter, evalConfetti
+
+HEADINGS(0):
+
+
+PAT 'function compute' -> 0 hits, first at -1
+PAT 'function eval' -> 1 hits, first at 328019
+PAT 'function calc' -> 0 hits, first at -1
+PAT 'calcAll' -> 0 hits, first at -1
+PAT 'recompute' -> 0 hits, first at -1
+PAT 'render(' -> 0 hits, first at -1
+PAT 'function r(' -> 0 hits, first at -1

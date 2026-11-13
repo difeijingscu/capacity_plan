@@ -1,0 +1,179 @@
+推理算力评估工具
+企业计算张绍友 · 2609V8
+秋
+基于理论模型估算（非 POC 实测），供容量规划参考，不作为验收依据
+① 选择大模型
+DeepSeek-V4-Pro 1.6T (MoE, A49B, 1M ctx)
+DeepSeek-V4-Flash 284B (MoE, A13B, 1M ctx)
+DeepSeek-V3 671B (MoE, A37B)
+DeepSeek-R1 671B (MoE, A37B)
+Qwen3.8-2.4T-A95B (MoE, 262K ctx)
+Qwen3.8-27B (Dense, 262K ctx)
+Qwen3.6-27B (Dense, 262K ctx)
+Qwen3.6-35B-A3B (MoE, 262K ctx)
+Qwen3.5-397B-A17B (MoE)
+Qwen3.5-122B-A10B (MoE)
+Qwen3.5-35B-A3B (MoE)
+Qwen3.5-27B (Dense)
+Qwen3-235B-A22B (MoE)
+Qwen2.5-72B (Dense)
+Qwen2.5-32B (Dense)
+Qwen3-32B (Dense)
+Qwen3-14B (Dense)
+Qwen3-8B (Dense)
+Qwen3-4B (Dense)
+GLM-5.3 744B (MoE, A40B, 1M ctx，结构同 5.2)
+GLM-5.3-Flash 320B (MoE, A18B, 1M ctx)
+GLM-5.2 744B (MoE, A40B, 1M ctx)
+GLM-4-9B (Dense)
+Kimi K3 2.78T (MoE, A104B, 1M ctx)
+Kimi K2.7 1.04T (MoE, A32.6B, 256K ctx)
+Kimi K2.6 1.04T (MoE, A32.6B, 256K ctx)
+Kimi K2.5 1.04T (MoE, A32.6B, 262K ctx)
+Kimi K2 Thinking 1.04T (MoE, A32.6B, 262K ctx)
+Kimi K2 1.04T (MoE, A32.6B)
+MiniMax-M2.7 230B (MoE, A10B)
+MiniMax-M2.5 230B (MoE, A10B)
+MiniMax-M2 230B (MoE, A10B)
+自定义大模型
+模型参数详情（高级，可选） （官方已验证）
+▼
+
+卡数主要看总参/激活参、层数、隐层、头数与 FFN。MoE、MLA/压缩 KV 只在对应架构显示。
+
+基础规模
+总参数量
+B
+激活参数量
+B
+模型层数
+L
+隐层维度
+d
+注意力 / FFN
+Query 头数（Q）
+H
+KV 头数
+KV
+每头维度（官方 head_dim）
+dim
+有效注意力跨度（0＝全量注意力）
+tok
+注意力类型
+自动推断（由 MLA低秩维 / GQA 结构推断）
+MHA（标准多头）
+GQA（分组查询）
+MLA（多头潜在/压缩KV）
+推断：MLA/压缩KV · KV 等效比 1.8%（MLA vs MHA）
+FFN 中间维倍数 HF intermediate / 隐层
+×H
+SwiGLU 门控（激活峰值含 gate+up）
+峰值 FFN = ×2.571429 隐层（≈中间维 18432）；可改
+MoE
+MoE专家总数
+个
+MoE Top-K 每 Token 激活专家数
+个
+MLA / 压缩 KV
+KV 缓存头维度（留空则与每头维度相同）
+dim
+MLA低秩维度（官方 kv_lora_rank，仅MLA）
+dim
+旋转位置编码维（官方 qk_rope_head_dim，仅MLA）
+dim
+QK头维（MLA：常≈每头维度+旋转位置编码维）
+dim
+V头维（MLA：常≈每头维度）
+dim
+下载参数模板
+导入自定义模型参数
+② 推理量化精度
+W8A8C8
+▼
+③ 选择业务场景
+智能客服（短输入、短输出、时延敏感）
+代码补全（中输入、短输出、时延敏感）
+知识库问答（中输入、中输出、首 Token 要求适中）
+长文生成（短输入、长输出）
+深度推理（短输入、超长输出、首 Token 可放宽）
+长文档摘要（长输入、短输出）
+超长文档（超长输入、低并发）
+自定义业务场景
+MoE 大模型已隐藏智能客服、代码补全：低时延档建议用稠密小模型。
+输入序列长度
+100～1M tok
+tok
+输出序列长度
+100～128K tok
+tok
+并发会话数
+1～9999
+路
+TTFT 目标
+首 Token 时延 · 50～120,000 ms
+ms
+TPOT 目标
+逐 Token 时延 · 1～500 ms
+ms
+高级参数 Prefix · 上下文 · KV · 分块
+▼
+④ 选择服务器
+昇腾 950(486T) · 96GB · INT8 919T
+昇腾 950(547T) · 144GB · INT8 1034T
+昇腾 950(547T) · 96GB · INT8 1034T
+昇腾 950(425T) · 96GB · INT8 804T
+昇腾 910C · 128GB合封 · INT8 1120T
+昇腾 910B · 64GB · INT8 560T
+服务器参数详情
+▼
+单卡算力
+TFLOPS（随激活精度 A）
+单卡显存容量
+GB
+单卡显存带宽
+TB/s · 标称峰值
+卡间互联带宽
+GB/s
+GB/s
+⑤ 工程开销
+高级，可选
+▼
+启动推理算力评估
+修改参数后将自动重算
+综合推荐卡数
+SLA 达标推荐
+40
+张 NPU/GPU
+昇腾910C
+📥
+导出评估摘要
+导出为 Excel
+卡数约束分解
+各维度卡数（张）
+显存装载
+8
+Prefill 算力 ★
+25
+Decode 算力/带宽
+16
+并行策略
+40
+综合推荐
+40
+物理下界 40 张
+达标推荐40 张
+扩容余量 +20% 48 张
+瓶颈 · Prefill · 混部 · 为TTFT、并发 +1
+SLA 未达标：并发、TTFT
+可支撑 1 / 需求 50 路 · TTFT 7283 / 5000 ms · §三 SLA 明细
+手动指定 混部
+一、卡数评估分解
+专家参考
+物理下界 + SLA
+▶
+二、并行部署策略
+推荐：混部 · TP8×DP5 = 40张
+▼
+三、SLA 达标评估
+未达标 · 混部 · 40张 · TTFT 未达标 · 并发50/1
+▼

@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "title": "Agentic 推理 · AI Data Center",
+    "description": "Agentic 推理：HBM 估算、容量规划维度与说明文档（计算口径、模型占用与柱状图含义）。"
+  },
+  "nav": {
+    "aria": "主导航",
+    "homeAria": "AIDC 2026 · 首页",
+    "inference": "Agentic推理",
+    "postTraining": "后训练",
+    "aiDcLayout": "AI DC规划",
+    "whitePaper": "Topic",
+    "aboutUs": "About US",
+    "menu": {
+      "open": "打开导航菜单",
+      "close": "关闭导航菜单",
+      "roomPlanning": "机房规划",
+      "computePlanning": "算力规划",
+      "cases": "风冷案例",
+      "value": "效益评估",
+      "roomLayout": "机房布局",
+      "roomLayout3d": "机房布局（立体）",
+      "power": "机房供电",
+      "liquidRack": "机房液冷（立体）",
+      "liquidRequirements": "机房液冷层高承重",
+      "tokenCardPower": "Token->Card->Power",
+      "computeEstimate": "算力估算",
+      "rackPlanning": "机柜规划",
+      "productSynergy": "产品协同",
+      "caseA": "案例A（风冷）",
+      "caseB": "案例B（风冷）",
+      "scheduleBudget": "机房工期和造价",
+      "roi": "Investment ROI",
+      "inferenceMechanism": "推理机制",
+      "deploymentCapacity": "部署与容量",
+      "principles": "推理原理",
+      "dataflow": "推理服务数据流",
+      "mixed": "PD混部",
+      "separated": "PD分离",
+      "kvCache": "KV Cache计算"
+    }
+  },
+  "footer": {
+    "miit": "工信部备案号：",
+    "publicSecurity": "公安备案号："
+  },
+  "lang": {
+    "switchAria": "语言",
+    "zh": "中文",
+    "en": "EN"
+  },
+  "theme": {
+    "switchAria": "显示模式",
+    "light": "Light",
+    "dark": "Dark"
+  }
+}

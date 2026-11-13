@@ -1,0 +1,200 @@
+html.aidc-embed,
+html.aidc-embed body {
+  height: 100%;
+  margin: 0;
+  min-height: 0;
+}
+
+html.aidc-embed header,
+html.aidc-embed footer,
+html.aidc-embed .aidc-chrome {
+  display: none !important;
+}
+
+html.aidc-embed .page-hdr {
+  display: none !important;
+}
+
+html.aidc-embed .page {
+  padding-top: 0;
+}
+
+html.aidc-embed body.flex.min-h-screen {
+  min-height: 0;
+}
+
+html.aidc-embed .building-stage {
+  flex: 1;
+  min-height: 18rem;
+  height: 100%;
+}
+
+html.aidc-embed .floor-detail-intro {
+  display: none;
+}
+
+html.aidc-embed body.min-h-screen {
+  display: flex;
+  flex-direction: column;
+}
+
+html.aidc-embed .floor-detail-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  max-width: none;
+  width: 100%;
+  overflow: hidden;
+}
+
+html.aidc-embed .floor-detail-main > section.floor-plan-section {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: hidden;
+}
+
+html.aidc-embed .floor-plan-svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto;
+  align-self: stretch;
+}
+
+html.aidc-embed .pod-notes {
+  flex: 0 0 auto;
+  margin-top: 0.25rem !important;
+  padding: 0.375rem 0.5rem !important;
+  border-radius: 0.625rem;
+  box-shadow: none;
+}
+
+html.aidc-embed .pod-notes h2 {
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+
+html.aidc-embed .pod-notes ol {
+  margin-top: 0.25rem !important;
+  padding-left: 1rem !important;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
+html.aidc-embed .pod-notes ol > li + li {
+  margin-top: 0.125rem;
+}
+
+html.aidc-embed .pod-notes p {
+  margin-top: 0.25rem !important;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
+html.aidc-embed .room-layout-main {
+  padding: 0.5rem;
+  gap: 0.75rem;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1024px) and (orientation: landscape) {
+  .room-layout-main {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  html.aidc-embed .room-layout-main {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  html.aidc-embed .room-layout-card iframe,
+  html.aidc-embed .room-layout-iframe {
+    min-height: 0;
+  }
+}
+
+html.aidc-embed .room-layout-card {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+html.aidc-embed .room-layout-card iframe,
+html.aidc-embed .room-layout-iframe {
+  flex: 1;
+  min-height: 16rem;
+  height: auto !important;
+}
+
+/* 3D 设计器 iframe：保留视角 / Cooling 工具条，隐藏站点级 chrome */
+html.aidc-embed #topbar {
+  height: 36px;
+  padding: 0 8px;
+  gap: 4px;
+}
+
+html.aidc-embed #topbar .logo,
+html.aidc-embed #lang-switch-root,
+html.aidc-embed #theme-switch-root {
+  display: none !important;
+}
+
+html.aidc-embed #sidebar-toggle {
+  margin-left: auto;
+}
+
+html.aidc-embed #sidebar {
+  top: 36px;
+}
+
+html.aidc-embed #container3d {
+  top: 36px;
+}
+
+/* aidc-layout-Card2Power / 机柜规划 iframe */
+html.aidc-embed .hdr {
+  display: none !important;
+}
+
+html.aidc-embed .wrap {
+  max-width: none;
+  padding: 0.5rem 0.75rem 1rem;
+}
+
+/* 算力估算 iframe */
+html.aidc-embed .compute-est-main {
+  max-width: none;
+  padding: 0.75rem;
+}
+
+/* TCP 总览 iframe */
+html.aidc-embed .tcp-main {
+  max-width: none;
+  padding: 0.75rem 0.75rem 1rem;
+}
+
+/* ROI iframe：收紧顶栏留白（header 由页内 aidc-embed 规则隐藏） */
+html.aidc-embed #site-header,
+html.aidc-embed #site-footer {
+  display: none !important;
+}
+
+html.aidc-embed main.min-h-screen {
+  padding-top: 0.75rem !important;
+}

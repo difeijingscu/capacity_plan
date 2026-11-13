@@ -1,0 +1,32 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px', background: '#FFFFFF', fontFamily: '"Microsoft YaHei", Arial, sans-serif' }}>
+  <Box style={{ flexDirection: 'column', width: '100%', height: '100%', justifyContent: 'center', gap: 32 }}>
+
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <Box style={{ width: 48, height: 4, background: '#2563EB', borderRadius: 2 }} />
+      <Text style={{ fontSize: 18, color: '#64748B', letterSpacing: 2 }}>算力规划方法对标</Text>
+    </Box>
+
+    <Text style={{ fontSize: 68, fontWeight: 'bold', color: '#1E293B', lineHeight: 1.18 }}>
+      AIDC2026 算力规划方法
+      <br />
+      与本项目的对比
+    </Text>
+
+    <Box style={{ width: '100%', height: 2, background: '#2563EB' }} />
+
+    <Text style={{ fontSize: 26, color: '#334155', lineHeight: 1.5 }}>
+      整体层级对位 · 创新服务池专项口径 · 三条补强方向
+    </Text>
+
+    <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.7 }}>
+      方法：抓取目标站源码逐条还原公式，用本项目引擎在同模型、同芯片、同精度下做对照算例与逐项对齐验证
+    </Text>
+
+    <Box style={{ flexDirection: 'row', gap: 28, marginTop: 12 }}>
+      <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-08</Text>
+      <Text style={{ fontSize: 14, color: '#94A3B8' }}>ComputePlanner · 内部技术评审</Text>
+      <Text style={{ fontSize: 14, color: '#94A3B8' }}>对标对象 aidc2026.cn / computeEst</Text>
+    </Box>
+
+  </Box>
+</Slide>

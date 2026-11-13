@@ -1,0 +1,310 @@
+[
+  {
+    "id": "qwen3-8b",
+    "display_name": "Qwen3-8B",
+    "publisher": "Qwen",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "source_url": "https://huggingface.co/Qwen/Qwen3-8B/tree/b968826d9c46dd6066d109eabc6255188de91218",
+    "checked_at": "2026-10-20",
+    "license": "Apache-2.0",
+    "modalities": [
+      "text"
+    ],
+    "tasks": [
+      "text"
+    ],
+    "architecture": "Dense",
+    "resident_parameters": 8190735360,
+    "active_parameters_prefill": 8190735360,
+    "active_parameters_decode": 8190735360,
+    "context_limit": 40960,
+    "cache": {
+      "type": "standard_gqa",
+      "layers": 36,
+      "kv_heads": 8,
+      "head_dim": 128,
+      "linear_layers": 0
+    },
+    "flop_per_unit": null,
+    "input_size": null,
+    "eligible_training_methods": [
+      "lora",
+      "qlora"
+    ],
+    "evidence_grade": "C",
+    "notes": "历史稳定文本参照。参数个数为官方HF API的BF16张量统计；Dense激活参数采用全参数近似，2N工作量和效率均非实测。context_limit取固定revision配置的max_position_embeddings，不能据此保证长上下文性能；超过32768须匹配基线或明确代理。LoRA/QLoRA仅表示本工具允许的估算方法，未验证实际训练框架。"
+  },
+  {
+    "id": "qwen3.6-35b-a3b",
+    "display_name": "Qwen3.6-35B-A3B",
+    "publisher": "Qwen",
+    "revision": "995ad96eacd98c81ed38be0c5b274b04031597b0",
+    "source_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B/tree/995ad96eacd98c81ed38be0c5b274b04031597b0",
+    "checked_at": "2026-10-20",
+    "license": "Apache-2.0",
+    "modalities": [
+      "text",
+      "vision"
+    ],
+    "tasks": [
+      "text",
+      "vlm"
+    ],
+    "architecture": "MoE",
+    "resident_parameters": 35951822704,
+    "active_parameters_prefill": 3000000000,
+    "active_parameters_decode": 3000000000,
+    "context_limit": 262144,
+    "cache": {
+      "type": "hybrid",
+      "layers": 10,
+      "kv_heads": 2,
+      "head_dim": 256,
+      "linear_layers": 30
+    },
+    "flop_per_unit": null,
+    "input_size": null,
+    "eligible_training_methods": [
+      "lora",
+      "qlora"
+    ],
+    "evidence_grade": "C",
+    "notes": "均衡候选。35B总量/3B激活是官方语言部分的标称值；resident_parameters为整个BF16权重包的官方张量统计，包含视觉等模块。prefill/decode均采用3B语言激活量近似，不含图像编码FLOP。图文任务必须另计视觉编码与视觉Token；缺基线时只能使用显式C级代理或PARTIAL。cache.layers仅为10层full_attention，另有30层Gated DeltaNet状态，不能将40层都按GQA计算；缺专用缓存预算时仅权重下界。未实测吞吐或SLA。"
+  },
+  {
+    "id": "qwen3.6-27b",
+    "display_name": "Qwen3.6-27B",
+    "publisher": "Qwen",
+    "revision": "6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+    "source_url": "https://huggingface.co/Qwen/Qwen3.6-27B/tree/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9",
+    "checked_at": "2026-10-20",
+    "license": "Apache-2.0",
+    "modalities": [
+      "text",
+      "vision"
+    ],
+    "tasks": [
+      "text",
+      "vlm"
+    ],
+    "architecture": "Dense",
+    "resident_parameters": 27781427952,
+    "active_parameters_prefill": 27000000000,
+    "active_parameters_decode": 27000000000,
+    "context_limit": 262144,
+    "cache": {
+      "type": "hybrid",
+      "layers": 16,
+      "kv_heads": 4,
+      "head_dim": 256,
+      "linear_layers": 48
+    },
+    "flop_per_unit": null,
+    "input_size": null,
+    "eligible_training_methods": [
+      "lora",
+      "qlora"
+    ],
+    "evidence_grade": "C",
+    "notes": "图文分析候选。27B是官方语言主干标称量；resident_parameters为整个BF16权重包官方张量统计，语言激活量暂按27B近似。图像编码工作量不在2N语言公式内，必须另计视觉编码与视觉Token；无实测，代理只能C级。cache.layers仅16层full_attention，另有48层linear_attention状态；未建立完整混合缓存适配时不得显示完整显存。"
+  },
+  {
+    "id": "deepseek-r1",
+    "display_name": "DeepSeek-R1（原版参照）",
+    "publisher": "DeepSeek",
+    "revision": "56d4cbbb4d29f4355bab4b9a39ccb717a14ad5ad",
+    "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-R1/tree/56d4cbbb4d29f4355bab4b9a39ccb717a14ad5ad",
+    "checked_at": "2026-10-20",
+    "license": "MIT",
+    "modalities": [
+      "text"
+    ],
+    "tasks": [
+      "text"
+    ],
+    "architecture": "MoE",
+    "resident_parameters": 671000000000,
+    "active_parameters_prefill": 37000000000,
+    "active_parameters_decode": 37000000000,
+    "context_limit": 131072,
+    "cache": {
+      "type": "unknown",
+      "layers": 61,
+      "kv_heads": null,
+      "head_dim": null,
+      "linear_layers": null
+    },
+    "flop_per_unit": null,
+    "input_size": null,
+    "eligible_training_methods": [
+      "lora",
+      "qlora"
+    ],
+    "evidence_grade": "C",
+    "notes": "固定原版仓库，不等于R1-0528。671B驻留/37B激活为官方标称的主干近似；BF16估算是本工具参考视图，发布包实际含FP8专家、BF16及量化辅助/MTP张量，不能把HF safetensors.total直接当BF16参数量或把下载文件字节数当BF16显存。模型卡上下文128K，配置max_position_embeddings为163840，本目录保守采用131072。实际采用MLA，cache.type=unknown表示本工具未适配，不可套普通GQA；需要缓存代理或仅显示权重下界。未验证轻量微调部署可行性。"
+  },
+  {
+    "id": "deepseek-v4-flash",
+    "display_name": "DeepSeek-V4-Flash（前沿候选）",
+    "publisher": "DeepSeek",
+    "revision": "60d8d70770c6776ff598c94bb586a859a38244f1",
+    "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/tree/60d8d70770c6776ff598c94bb586a859a38244f1",
+    "checked_at": "2026-10-20",
+    "license": "MIT",
+    "modalities": [
+      "text"
+    ],
+    "tasks": [
+      "text"
+    ],
+    "architecture": "MoE",
+    "resident_parameters": 284000000000,
+    "active_parameters_prefill": 13000000000,
+    "active_parameters_decode": 13000000000,
+    "context_limit": 1048576,
+    "cache": {
+      "type": "unknown",
+      "layers": 43,
+      "kv_heads": null,
+      "head_dim": null,
+      "linear_layers": null
+    },
+    "flop_per_unit": null,
+    "input_size": null,
+    "eligible_training_methods": [],
+    "evidence_grade": "C",
+    "notes": "官方preview模型，284B/13B为标称主干/激活参数近似，仅允许C级早期分析，非实测。官方发布混合FP4+FP8权重，不可将量化张量计数当未量化参数。采用CSA/HCA混合压缩注意力，未建立专用工作量与缓存适配；长上下文不能无提示沿用普通2N/GQA。BF16驻留为参考反量化视图，非声明存在该格式部署包。无研发任务基线，选择研发时应明确待校准。",
+    "requires_proxy": true
+  },
+  {
+    "id": "deepseek-v4.1-flash",
+    "display_name": "DeepSeek-V4.1-Flash（待校准）",
+    "publisher": "DeepSeek",
+    "revision": "314113f8a7dadb388215396ba5fbee2c610a04d6",
+    "source_url": "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/tree/314113f8a7dadb388215396ba5fbee2c610a04d6",
+    "checked_at": "2026-10-20",
+    "license": "MIT",
+    "modalities": [
+      "text",
+      "vision"
+    ],
+    "tasks": [
+      "text",
+      "vlm"
+    ],
+    "architecture": "MoE",
+    "resident_parameters": null,
+    "active_parameters_prefill": 8000000000,
+    "active_parameters_decode": 16000000000,
+    "context_limit": 1048576,
+    "cache": {
+      "type": "unknown",
+      "layers": 40,
+      "kv_heads": null,
+      "head_dim": null,
+      "linear_layers": null
+    },
+    "flop_per_unit": null,
+    "input_size": null,
+    "eligible_training_methods": [],
+    "evidence_grade": "C",
+    "notes": "官方确认为原生图文MoE，不是纯文本模型。552B主干另有196B Engram稀疏条件记忆、视觉/草稿等模块；未完成各部分CPU/GPU驻留策略与完整参数核算，resident_parameters=null而非0。8B prefill/16B decode来自官方CED架构说明，阶段不可合并；不代表普通2N已完整覆盖CED/Engram/DSpark。CSA2、FP4主缓存及SWA bounded replay需专用适配，官方890 byte/token仅特定全局缓存口径，不等于全部运行显存。本目录只保留待校准候选，不应作为通用默认或伪装完整建设建议。",
+    "requires_proxy": true
+  },
+  {
+    "id": "yolo26n",
+    "display_name": "YOLO26n（目标检测 640）",
+    "publisher": "Ultralytics",
+    "revision": "1da023f708beb274db82c2c04b034c1859ab3fba",
+    "source_url": "https://github.com/ultralytics/ultralytics/blob/1da023f708beb274db82c2c04b034c1859ab3fba/docs/en/models/yolo26.md",
+    "checked_at": "2026-10-20",
+    "license": "AGPL-3.0 / Enterprise",
+    "modalities": [
+      "cv"
+    ],
+    "tasks": [
+      "cv"
+    ],
+    "architecture": "CV",
+    "resident_parameters": 2400000,
+    "active_parameters_prefill": null,
+    "active_parameters_decode": null,
+    "context_limit": null,
+    "cache": {
+      "type": "unknown",
+      "layers": null,
+      "kv_heads": null,
+      "head_dim": null,
+      "linear_layers": null
+    },
+    "flop_per_unit": 5500000000,
+    "input_size": 640,
+    "eligible_training_methods": [],
+    "evidence_grade": "C",
+    "notes": "官方COCO目标检测表，640输入，fused inference模型约2.4M参数、5.5 GFLOP/帧；不是所有CV任务基线。参数与工作量指Conv/BN融合、移除未使用检测分支后结构；完整训练checkpoint可更大。运行显存/激活预算未实测，效率为本工具C级默认。revision固定官方源码和文档，不代表下载了或校验了权重文件SHA。"
+  },
+  {
+    "id": "yolo26s",
+    "display_name": "YOLO26s（目标检测 640）",
+    "publisher": "Ultralytics",
+    "revision": "1da023f708beb274db82c2c04b034c1859ab3fba",
+    "source_url": "https://github.com/ultralytics/ultralytics/blob/1da023f708beb274db82c2c04b034c1859ab3fba/docs/en/models/yolo26.md",
+    "checked_at": "2026-10-20",
+    "license": "AGPL-3.0 / Enterprise",
+    "modalities": [
+      "cv"
+    ],
+    "tasks": [
+      "cv"
+    ],
+    "architecture": "CV",
+    "resident_parameters": 9500000,
+    "active_parameters_prefill": null,
+    "active_parameters_decode": null,
+    "context_limit": null,
+    "cache": {
+      "type": "unknown",
+      "layers": null,
+      "kv_heads": null,
+      "head_dim": null,
+      "linear_layers": null
+    },
+    "flop_per_unit": 20900000000,
+    "input_size": 640,
+    "eligible_training_methods": [],
+    "evidence_grade": "C",
+    "notes": "官方COCO目标检测表，640输入，fused inference模型约9.5M参数、20.9 GFLOP/帧；仅适用该检测形状。参数/工作量为融合与分支精简后值，完整训练checkpoint可更大；无本工具实测吞吐或激活显存。revision固定官方源码/文档，不是权重文件哈希。"
+  },
+  {
+    "id": "yolo26m",
+    "display_name": "YOLO26m（目标检测 640）",
+    "publisher": "Ultralytics",
+    "revision": "1da023f708beb274db82c2c04b034c1859ab3fba",
+    "source_url": "https://github.com/ultralytics/ultralytics/blob/1da023f708beb274db82c2c04b034c1859ab3fba/docs/en/models/yolo26.md",
+    "checked_at": "2026-10-20",
+    "license": "AGPL-3.0 / Enterprise",
+    "modalities": [
+      "cv"
+    ],
+    "tasks": [
+      "cv"
+    ],
+    "architecture": "CV",
+    "resident_parameters": 20400000,
+    "active_parameters_prefill": null,
+    "active_parameters_decode": null,
+    "context_limit": null,
+    "cache": {
+      "type": "unknown",
+      "layers": null,
+      "kv_heads": null,
+      "head_dim": null,
+      "linear_layers": null
+    },
+    "flop_per_unit": 68400000000,
+    "input_size": 640,
+    "eligible_training_methods": [],
+    "evidence_grade": "C",
+    "notes": "官方COCO目标检测表，640输入，fused inference模型约20.4M参数、68.4 GFLOP/帧；仅适用该检测形状。参数/工作量为融合与分支精简后值，完整训练checkpoint可更大；无本工具实测吞吐或激活显存。revision固定官方源码/文档，不是权重文件哈希。"
+  }
+]

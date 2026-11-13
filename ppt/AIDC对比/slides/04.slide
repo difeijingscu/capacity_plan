@@ -1,0 +1,103 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px', background: '#FFFFFF', fontFamily: '"Microsoft YaHei", Arial, sans-serif' }}>
+  <Box style={{ flexDirection: 'column', width: '100%', height: '100%', gap: 22 }}>
+
+    <Box style={{ flexDirection: 'column', gap: 12 }}>
+      <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E293B', lineHeight: 1.2 }}>
+        三条结论，一项已落地与两项待办
+      </Text>
+      <Box style={{ width: '100%', height: 2, background: '#2563EB' }} />
+    </Box>
+
+    <Box style={{ flexDirection: 'row', width: '100%', gap: 32, flex: 1 }}>
+
+      <Box style={{ flexDirection: 'column', width: 340, background: '#1E293B', borderRadius: 8, padding: '26px 24px', gap: 18 }}>
+        <Text style={{ fontSize: 15, color: '#94A3B8', letterSpacing: 1 }}>三条结论</Text>
+
+        <Box style={{ flexDirection: 'column', gap: 6 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.4 }}>层级不同</Text>
+          <Text style={{ fontSize: 16, color: '#CBD5E1', lineHeight: 1.55 }}>
+            AIDC 是自上而下匡算，本项目是自下而上交付规划，互补而非替代
+          </Text>
+        </Box>
+
+        <Box style={{ width: '100%', height: 1, background: '#334155' }} />
+
+        <Box style={{ flexDirection: 'column', gap: 6 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.4 }}>数学同构</Text>
+          <Text style={{ fontSize: 16, color: '#CBD5E1', lineHeight: 1.55 }}>
+            创新池与 AIDC 是同一个结构，8 倍差距是口径选择而非方法对错
+          </Text>
+        </Box>
+
+        <Box style={{ width: '100%', height: 1, background: '#334155' }} />
+
+        <Box style={{ flexDirection: 'column', gap: 6 }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.4 }}>业务池是核心竞争力</Text>
+          <Text style={{ fontSize: 16, color: '#CBD5E1', lineHeight: 1.55 }}>
+            唯一同时具备三维约束、并发时延回验与卡数输出的方法
+          </Text>
+        </Box>
+      </Box>
+
+      <Box style={{ flexDirection: 'column', flex: 1, gap: 16 }}>
+
+        <Box style={{ flexDirection: 'row', width: '100%', gap: 14, alignItems: 'stretch' }}>
+          <Box style={{ flexDirection: 'column', width: 62, background: '#B45309', borderRadius: 8, justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>P0</Text>
+          </Box>
+          <Box style={{ flexDirection: 'column', flex: 1, gap: 6 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1E293B', lineHeight: 1.35 }}>
+              创新池补主链路卡数　已完成
+            </Text>
+            <Text style={{ fontSize: 16, color: '#475569', lineHeight: 1.55 }}>
+              三池现在都直接给卡数：卡数取算力与显存两者较大值，芯片与业务池共用，实测 300 人 1 卡、3000 人 2 卡、3 万人 8 卡。
+            </Text>
+          </Box>
+        </Box>
+
+        <Box style={{ width: '100%', height: 1, background: '#E2E8F0' }} />
+
+        <Box style={{ flexDirection: 'row', width: '100%', gap: 14, alignItems: 'stretch' }}>
+          <Box style={{ flexDirection: 'column', width: 62, background: '#334155', borderRadius: 8, justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>P1</Text>
+          </Box>
+          <Box style={{ flexDirection: 'column', flex: 1, gap: 6 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1E293B', lineHeight: 1.35 }}>
+              统一两池的显存口径
+            </Text>
+            <Text style={{ fontSize: 16, color: '#475569', lineHeight: 1.55 }}>
+              业务池枚举拓扑、反解 KV 容量，创新池直接相除。同一方案里两套算法会被质疑，需要统一到业务池口径。
+            </Text>
+          </Box>
+        </Box>
+
+        <Box style={{ width: '100%', height: 1, background: '#E2E8F0' }} />
+
+        <Box style={{ flexDirection: 'row', width: '100%', gap: 14, alignItems: 'stretch' }}>
+          <Box style={{ flexDirection: 'column', width: 62, background: '#334155', borderRadius: 8, justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>P2</Text>
+          </Box>
+          <Box style={{ flexDirection: 'column', flex: 1, gap: 6 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1E293B', lineHeight: 1.35 }}>
+              修业务池并发超过 256 后的非单调
+            </Text>
+            <Text style={{ fontSize: 16, color: '#475569', lineHeight: 1.55 }}>
+              224 并发算出 128 卡并达标，256 并发反而只算 32 卡且不达标。有效批封顶与 KV 全量并发计法不一致所致。
+            </Text>
+          </Box>
+        </Box>
+
+        <Box style={{ flexDirection: 'column', background: '#FEF3C7', borderRadius: 8, padding: '12px 18px', marginTop: 2 }}>
+          <Text style={{ fontSize: 16, color: '#92400E', lineHeight: 1.55 }}>
+            <span style={{ fontWeight: 'bold' }}>对外汇报纪律：</span>绝不能直接摆「1024 卡 vs 16 卡」，两边负载量纲差两个数量级，直接对比会误导
+          </Text>
+        </Box>
+
+      </Box>
+
+    </Box>
+
+    <Text style={{ fontSize: 14, color: '#94A3B8' }}>AIDC2026 vs ComputePlanner　口径对比</Text>
+
+  </Box>
+</Slide>
