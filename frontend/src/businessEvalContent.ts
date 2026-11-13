@@ -3,6 +3,10 @@
  * 逐字移植自推理评估集成页（frontend/public/inference-eval.html）的对应区块，
  * 保持公式、文献与数据来源表述一致；以 HTML 字符串渲染（内容为静态常量，无用户输入）。
  * 页面文案同步修改时，两边要一起改。
+ *
+ * 结构差异：业务场景页用原生 <details>/<summary> 做「整块 → 步骤/小节」的逐层展开，
+ * 推理评估集成页用 .sec-fold / .mstep / .bsec 的 class 开关实现同样的信息层级。
+ * 两块静态说明默认全部收起，用户点开整块后仍只看到目录标题，再按需点开某一步/某一节。
  */
 
 export const METHOD_HTML = `
@@ -17,8 +21,9 @@ export const METHOD_HTML = `
 </div>
 
 <div class="msteps">
-  <div class="mstep"><div class="no">1</div><div>
-    <h4>输入与全局配置：把业务描述折算成计算参数</h4>
+  <details class="mstep">
+    <summary><span class="no">1</span><span class="st">输入与全局配置：把业务描述折算成计算参数</span></summary>
+    <div class="mstep-body">
     <p>选场景类型会带出该场景的<b>输入长度、输出长度、并发数、TTFT/TPOT 目标</b>（也可点「调整参数」手动改）。全局三项配置决定硬件与效率口径：算力卡给出峰值算力、单卡显存与 HBM 带宽；<b>W/A/C 三轴量化分离</b>——权重精度定显存装载量、激活精度定峰值算力档位、KV 精度（自动跟随）定并发容量；工程开销档位只缩放「效率类」系数（Prefill MFU、Decode 带宽利用率全额，单卡显存利用率半幅；保守 ×0.8 / 均衡 ×1 / 激进 ×1.2），结构性开销与口径常数不受档位影响，可展开看各项生效值。若预设型号不适用，可登记「自定义算力卡」按厂商规格填写峰值算力、显存、带宽、互联与功耗，计算链路完全一致。</p>
     <p class="ref"><b>理论依据</b>：MFU（算力利用率）的度量口径见 PaLM（<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener">arXiv:2204.02311</a>）；显存利用率与 KV 预留沿用 vLLM / PagedAttention 的可用显存划分方式（<a href="https://arxiv.org/abs/2309.06180" target="_blank" rel="noopener">arXiv:2309.06180</a>）；W / A / C 三轴量化档位为工程实践归纳，非单一文献结论。详见下方「估算依据与口径」。</p>
     <div class="fx-block"><div class="fx-t">有效单卡资源</div>
@@ -26,10 +31,12 @@ export const METHOD_HTML = `
       <div class="fx-line"><div class="k"><b>可用显存</b></div><div><div class="f">单卡显存 × 显存利用率（默认 90%）</div><div class="s">预留系统/框架开销，不按标称容量写满</div></div></div>
       <div class="fx-line"><div class="k"><b>权重字节/参数</b></div><div><div class="f">BF16 = 2B　W8A8 = 1B　W4A8 = 0.5B</div><div class="s">W4A8 仅在芯片具备 INT4 峰值时可选（950 系列或填写了 INT4 峰值的自定义卡）</div></div></div>
     </div>
-  </div></div>
+    </div>
+  </details>
 
-  <div class="mstep"><div class="no">2</div><div>
-    <h4>A · 显存约束：模型装得下，KV 放得开</h4>
+  <details class="mstep">
+    <summary><span class="no">2</span><span class="st">A · 显存约束：模型装得下，KV 放得开</span></summary>
+    <div class="mstep-body">
     <p><b>显存看总参、算力看激活参</b>：MoE 模型推理要把全部专家装进显存（按 1.08 偏斜系数放大），计算时只激活少量专家。权重装载宽度按 2 的幂取 TP（机内上限 8 卡），权重超单机则按 8 的倍数跨机对齐（EP/PP）。KV Cache 按<b>连续批均值</b>预留，不是每路写满上下文窗口：每 token KV 由注意力结构决定（GQA 按 KV 头数折算、MLA 按低秩 latent，可压缩约一个量级）。若权重恰好装满导致 KV 房间为 0，自动提升装载宽度。</p>
     <p class="ref"><b>理论依据</b>：显存构成（权重 + KV + 激活峰值）与 KV 分块管理见 vLLM / PagedAttention（<a href="https://arxiv.org/abs/2309.06180" target="_blank" rel="noopener">arXiv:2309.06180</a>）；KV 每 token 的 GQA 折算见 <a href="https://arxiv.org/abs/2305.13245" target="_blank" rel="noopener">arXiv:2305.13245</a>，MLA 低秩折算见 DeepSeek-V3 技术报告（<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener">arXiv:2412.19437</a>）；1.08 专家偏斜系数与 90% 显存利用率为工程经验值。</p>
     <div class="fx-block"><div class="fx-t">A · 显存约束</div>
@@ -38,10 +45,12 @@ export const METHOD_HTML = `
       <div class="fx-line"><div class="k"><b>KV 需求</b></div><div><div class="f">KV/token × (输入 + 输出/2) × 并发 × 1.1 预留</div></div></div>
       <div class="fx-line"><div class="k"><b>副本数与 A</b></div><div><div class="f">房间 = 装载卡数 × 可用显存 − 权重</div><div class="f">副本数 = ceil(KV 需求 ÷ 房间)；A = 装载卡数 × 副本数</div></div></div>
     </div>
-  </div></div>
+    </div>
+  </details>
 
-  <div class="mstep"><div class="no">3</div><div>
-    <h4>B · Prefill 约束：首 Token 时延（TTFT）达标</h4>
+  <details class="mstep">
+    <summary><span class="no">3</span><span class="st">B · Prefill 约束：首 Token 时延（TTFT）达标</span></summary>
+    <div class="mstep-body">
     <p>按稳态到达率 <b>λ = 并发 ÷ 单请求时长</b>（请求时长 = TTFT + 输出 × TPOT）估吞吐，每请求 Prefill FLOPs = GEMM（2 × 激活参 × 输入 <b>÷ FFN 有效利用率</b>）＋ 注意力项（4 × 层数 × 注意力宽 × 输入 × 有效跨度，<b>MLA 按 QK/V 完整头维计，低秩压缩只省 KV 缓存不省计算</b>）。FFN 有效利用率随 token 规模爬升：MoE 看「每专家平均分到的 token 数」，Dense 看 prompt 长度——短 prompt 的矩阵乘填不满，只跑出四到五成效率。<b>吞吐与排队双约束</b>：吞吐给出持续处理能力下限 N1；再逐卡数枚举服务时间＋M/G/1 排队等待，找到 TTFT ≤ 目标的最小卡数 N2（利用率 ρ ≥ 1 判为饱和、需加卡）。<b>排队不能忽略</b>，高并发下 TTFT 主要由等待时间主导。</p>
     <p class="ref"><b>理论依据</b>：连续批处理下的到达率与服务时间模型见 Orca（<a href="https://www.usenix.org/conference/osdi22/presentation/yu" target="_blank" rel="noopener">OSDI 2022</a>）与 Sarathi-Serve（<a href="https://arxiv.org/abs/2403.02310" target="_blank" rel="noopener">arXiv:2403.02310</a>）；排队等待按 M/G/1 近似（Kleinrock《Queueing Systems, Vol.1》）；每 token FLOPs ≈ 2 × 参数量 的算法见 kipp.ly（<a href="https://kipp.ly/transformer-inference-arithmetic/" target="_blank" rel="noopener">Transformer Inference Arithmetic</a>）。</p>
     <div class="fx-block"><div class="fx-t">B · Prefill 约束</div>
@@ -50,10 +59,12 @@ export const METHOD_HTML = `
       <div class="fx-line"><div class="k"><b>时延下限 N2</b></div><div><div class="f">TTFT(N) = 服务时间(N) + 排队等待(ρ)</div><div class="f">枚举 N，取 TTFT(N) ≤ 目标 的最小值</div></div></div>
       <div class="fx-line"><div class="k"><b>结果</b></div><div><div class="f">B = max(N1, N2)</div></div></div>
     </div>
-  </div></div>
+    </div>
+  </details>
 
-  <div class="mstep"><div class="no">4</div><div>
-    <h4>C · Decode 约束：逐 Token 时延（TPOT）达标</h4>
+  <details class="mstep">
+    <summary><span class="no">4</span><span class="st">C · Decode 约束：逐 Token 时延（TPOT）达标</span></summary>
+    <div class="mstep-body">
     <p><b>Decode 是带宽游戏</b>：每生成一个 token 都要把激活权重从显存读一遍，单步耗时取「计算时间」与「权重读取时间」的较大者；MoE 只读取命中的专家权重。枚举「TP 分片宽度 × 副本数」组合，取满足 TPOT 目标的最小总卡数。若目标严于<b>理论下限</b>（权重读取 ÷ HBM 带宽 + 固定开销），页面会给出「加卡无效」告警——此时应换更高带宽的卡或放宽时延目标，而不是继续加卡。</p>
     <p class="ref"><b>理论依据</b>：Decode 每步需读取激活权重、TPOT 受显存带宽约束的推导见 kipp.ly（<a href="https://kipp.ly/transformer-inference-arithmetic/" target="_blank" rel="noopener">Transformer Inference Arithmetic</a>）；混合批中 Prefill 抢占导致的 Decode 时延抖动见 Sarathi-Serve（<a href="https://arxiv.org/abs/2403.02310" target="_blank" rel="noopener">arXiv:2403.02310</a>）对 chunked-prefill 的动机分析；0.4 重叠惩罚与 1.35ms 调度开销为工程经验系数。</p>
     <div class="fx-block"><div class="fx-t">C · Decode 约束</div>
@@ -61,10 +72,12 @@ export const METHOD_HTML = `
       <div class="fx-line"><div class="k"><b>理论下限</b></div><div><div class="f">权重字节 ÷ (带宽 × 利用率) + 固定开销；目标更严 → 告警</div></div></div>
       <div class="fx-line"><div class="k"><b>结果</b></div><div><div class="f">C = 满足 TPOT 目标的最小「分片宽度 × 副本数」</div></div></div>
     </div>
-  </div></div>
+    </div>
+  </details>
 
-  <div class="mstep"><div class="no">5</div><div>
-    <h4>合成与汇总：取最大、对齐、求和</h4>
+  <details class="mstep">
+    <summary><span class="no">5</span><span class="st">合成与汇总：取最大、对齐、求和</span></summary>
+    <div class="mstep-body">
     <p><b>当前按「混部」方式估算</b>：Prefill 与 Decode 共用同一批卡，因此单场景卡数取 <b>max(A, B, C)</b>——同一批卡同时要装下权重与并发 KV、要满足 TTFT、要满足 TPOT，三者取最紧的一条。若实际采用 <b>PD 分离</b>（Prefill 池与 Decode 池各自独立、卡数相加，两池各装一份完整权重），总卡数会高于这里的混部口径；本工具暂不区分这两种部署方式，混部口径也未单独计入 Prefill 尖峰对 TPOT 的干扰（该影响已折入 B 的计算预算占比与 C 的重叠惩罚两项系数）。单场景卡数还要奇数补偶，跨机按 8 的倍数对齐；页面行内标注最大者对应的<b>主导因素</b>（显存 / Prefill / Decode）。多场景按芯片型号分组求和（不同芯片不混算），算力汇总区给出总卡数与服务器台数（功耗不在页面汇总，单卡功耗仅在算力卡信息中展示）。<b>场景层只输出算力需求量</b>：故障冗余、业务突发等采购侧预留<b>不在场景层计算</b>，由池层「算力余量」统一加成（顶栏可调，余量只在池层乘一次）。每个场景行点「▸ 计算过程」可看到 A/B/C 三块公式代入当前具体数字的结果，逐步可复算。</p>
     <p class="ref"><b>理论依据</b>：三条约束取最大值是混部部署（同一批卡同时承担 Prefill 与 Decode）的容量口径，无公开标准，属工程口径；服务器台数按 8 卡/台折算（不同芯片不混机）；算力需求量为「恰好满足 SLA 的最小卡数」，不含故障冗余与业务突发——容量规划惯例中的 N+1 / 百分比冗余属采购口径，在需求量之外另行叠加，本工作台在池层以「算力余量」统一表达。</p>
     <div class="fx-block"><div class="fx-t">单场景 → 算力汇总</div>
@@ -72,12 +85,15 @@ export const METHOD_HTML = `
       <div class="fx-line"><div class="k"><b>单场景</b></div><div><div class="f">cards = align( max(A, B, C) )　主导因素 = argmax(A, B, C)</div></div></div>
       <div class="fx-line"><div class="k"><b>算力汇总</b></div><div><div class="f">总卡数 = Σ 各场景卡数；含余量卡数 = 池层按余量比例放大并对齐 8 卡/台</div></div></div>
     </div>
-  </div></div>
+    </div>
+  </details>
 </div>
 `;
 
 export const BASIS_HTML = `
-<h3 id="basis">估算依据：公开文献与理论出处</h3>
+<details class="bsec">
+  <summary id="basis">估算依据：公开文献与理论出处</summary>
+  <div class="bsec-body">
 <ul>
   <li><b>显存装载与 KV Cache 容量</b>：vLLM / PagedAttention（SOSP 2023，<a href="https://arxiv.org/abs/2309.06180" target="_blank" rel="noopener">arXiv:2309.06180</a>）。</li>
   <li><b>Decode 带宽下限</b>：kipp.ly《Transformer Inference Arithmetic》（<a href="https://kipp.ly/transformer-inference-arithmetic/" target="_blank" rel="noopener">kipp.ly/transformer-inference-arithmetic</a>）。</li>
@@ -86,8 +102,12 @@ export const BASIS_HTML = `
   <li><b>MFU（算力利用率）度量口径</b>：PaLM 论文（<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener">arXiv:2204.02311</a>）。</li>
   <li><b>排队时延近似</b>：M/G/1 排队模型（Kleinrock《Queueing Systems, Vol.1》）。</li>
 </ul>
+  </div>
+</details>
 
-<h3>预设数据来源</h3>
+<details class="bsec">
+  <summary>预设数据来源</summary>
+  <div class="bsec-body">
 <ul class="quota">
   <li>① <b>场景库 · 29 个预设</b>：按计算形态归类。参数与形态雷同的行业实例已合并到通用项（如政策 / 医学知识问答并入「知识库 / 领域问答」，政务公文 / 教案 / 病历文书并入「公文 / 结构化文书」）；跨行业通用场景统一放在「通用 · …」分组，仅保留带行业特有口径的场景在「行业专属」。每项含输入长度、输出长度、TTFT / TPOT 目标与默认并发；「长任务 Agent 对话」按累积上下文峰值与同时在跑的会话数估算。</li>
   <li>② <b>模型库 · 32 个预设</b>：总参 / 激活参、层数、注意力结构（MHA / GQA / MLA、KV 头数与头维）等字段，按各厂商公开资料整理。</li>
@@ -96,8 +116,12 @@ export const BASIS_HTML = `
   <li>⑤ <b>场景参数性质</b>：TTFT / TPOT 目标、并发数、输入输出长度均为工程经验默认值，<b>不是公开标准</b>，应按现场业务在「调整参数」中改写。</li>
   <li>⑥ <b>自定义算力卡</b>：规格由使用者按厂商资料填写，<b>不属于预设数据</b>；工程系数沿用通用经验值（Prefill MFU 0.38、Decode 带宽利用率 0.66、KV 预留 1.10）。自定义规格未经现场压测校准，误差可能放大。</li>
 </ul>
+  </div>
+</details>
 
-<h3>预设芯片：官方数据来源（逐档）</h3>
+<details class="bsec">
+  <summary>预设芯片：官方数据来源（逐档）</summary>
+  <div class="bsec-body">
 <p class="src"><b>昇腾 910 家族：2 款芯片（910B / 910C）。910B 芯片层有 4 个型号，Cube 核数分 24（B1/B2）与 20（B3/B4）两档</b>，
 但官方只按整机 / 标卡公布标称算力、未逐型号公开，因此本工具按<b>可交付配置</b>拆卡（与 950 的档位拆法一致）：</p>
 <div class="tbl-wrap"><table class="dt chip-tbl">
@@ -136,7 +160,13 @@ export const BASIS_HTML = `
   <li>⑦ <b>选卡建议</b>：950PR 偏 Prefill（1.6TB/s、128GB，算力密度最高），950DT 是<b>「以带宽换容量」</b>（4.0TB/s、96/144GB），Decode 带宽下限与 TPOT 敏感场景更占优；长上下文、大权重这类显存主导场景仍可能更吃卡，选档时优先看显存而不是标称算力。</li>
   <li>⑧ <b>910 家族与 950 的差异</b>：950 官方逐档给规格，故 5 档全列；910B 官方只给整机 / 标卡标称（Atlas 800T A2 整机 2.24 PFLOPS ÷ 8 = 280T/卡），4 个型号中只有 20 Cube 档有公开标称，<b>24 Cube 的 B1/B2 未逐型号公开算力</b>（第三方测算 376 / 414T，主要用于液冷 Atlas 900T A2），故未写进预设、需要时走自定义卡，避免把未核验数字当成官方规格。910C 为单款单档：本工具取<b>推理整机口径 560T</b>（Atlas 800I A3 整机 4.48 PFLOPS ÷ 8 颗 NPU），显存 128GB、带宽 3.2TB/s、D2D 784GB/s 双向均取自该页技术规格表；官网另有超节点整机 6.0 PFLOPS ÷ 8 = 750T 与芯片标称 800T，属不同交付形态 / 统计口径，按那一口径估算时在自定义卡填 750 / 800 重算即可，勿与预设值混用。</li>
 </ul>
+  </div>
+</details>
 
-<h3>免责声明</h3>
+<details class="bsec">
+  <summary>免责声明</summary>
+  <div class="bsec-body">
 <p class="src">本工具基于理论模型与工程经验估算，<b>非实测数据</b>；长输入（&gt;64K）与长输出（&gt;16K）档估算误差放大，结论仅作量级参考；验收与投资决策以现场压测为准。数据更新时间：2026-11。</p>
+  </div>
+</details>
 `;

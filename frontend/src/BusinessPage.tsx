@@ -18,6 +18,7 @@ import './business-eval.css';
 /**
  * 业务场景池：分区结构与交互完全对齐「推理评估 For 产品组合」集成页——
  * 全局硬件配置 → 场景清单 → 算力汇总 → 估算方法说明 → 估算依据与口径。
+ * 工程系数与两块静态说明默认收起，展开后仍按步骤/小节逐层点开，首屏只留目录。
  * 与推理评估页的差异仅在数据联动：场景读写当前规划方案的 payload.scenarios，
  * 计算走后端引擎（与页面公式同口径），结果随预览下发并进入测算快照。
  */
@@ -127,7 +128,8 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   const chips: Obj[] = [...(catalog?.chips ?? []), ...(catalog?.custom_chips ?? [])];
   const customChips = chips.filter(c => c.custom);
   const scenes: Obj[] = catalog?.scenes ?? [];
-  const pool = preview?.pools?.[0];
+  /** 预览结果按池 id 定位业务池，不依赖 pools 的返回顺序。 */
+  const pool = preview?.pools?.find((p: Obj) => p.id === 'business') ?? preview?.pools?.[0];
 
   /** 全局硬件：以 business_defaults 为准；老方案没有该字段时从已配置场景推导。 */
   const configured = payload.scenarios.filter((s: Obj) => s.inference);
@@ -235,7 +237,14 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   const sceneOf = (spec: Obj) => scenes.find(s => s.key === spec.scene_key) || {};
   const chipOf = (spec: Obj) => chips.find(c => c.key === spec.chip_key) || {};
   const modelOf = (spec: Obj) => models.find(m => m.key === spec.model_key) || {};
-  const rating = (id: string) => pool?.scenarios?.find((x: Obj) => x.id === id);
+  /**
+   * 场景行必须读 pool.items：那里才是逐场景的完整结果，带 trace.detail.tree（杜邦树）、
+   * warnings、bottleneck、latency_status。pool.scenarios 只是结果页用的概览摘要，
+   * 只有卡数/算力/模型等少量字段，从摘要取数会让「计算过程」按钮永远 disabled。
+   * 旧版响应没有 items 时退回摘要，至少保住卡数与状态显示。
+   */
+  const sceneItems: Obj[] = pool?.items?.length ? pool.items : (pool?.scenarios ?? []);
+  const rating = (id: string) => sceneItems.find((x: Obj) => x.id === id);
 
   /** 只补空字段：已填的并发与长度是业务输入，不能被档位默认值覆盖。 */
   function applySceneDefaults(ids: string[]) {
@@ -302,7 +311,11 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
     }
     const row = rating(s.id);
     if (!row) return <Tag>待估算</Tag>;
-    return row.completeness === 'COMPLETE'
+    // pool.items 不带 completeness；按与后端摘要同一口径用 warnings 推导。
+    const complete = row.completeness
+      ? row.completeness === 'COMPLETE'
+      : !(row.warnings || []).length;
+    return complete
       ? <Tag color="green">已估算</Tag>
       : <Tag color="orange">需复核</Tag>;
   }
@@ -370,7 +383,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
             {row?.cards_planned != null
               ? <>
                   <span className="cards">{num(row.cards_planned, 0)}<small>张</small></span>
-                  <small className="muted">物理 {num(row.cards, 0)} 张 · {capacity(row.base_p)}{row.sla_passed === false ? ' · 时延未达标' : ''}</small>
+                  <small className="muted">物理 {num(row.cards, 0)} 张 · {capacity(row.base_p)}{row.sla_passed === false || row.latency_status === 'NOT_MET' ? ' · 时延未达标' : ''}</small>
                 </>
               : <span className="pending">{off ? '不适用' : '待补充'}</span>}
             {stateTag(s)}
@@ -393,8 +406,13 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
           </Checkbox>
           <Button size="small" type={fold === 'adv' ? 'primary' : 'default'} ghost={fold === 'adv'}
             onClick={() => toggleFold(s.id, 'adv')}>调整参数</Button>
-          <Button size="small" type={fold === 'fx' ? 'primary' : 'default'} ghost={fold === 'fx'}
-            disabled={!tree} onClick={() => toggleFold(s.id, 'fx')}>计算过程</Button>
+          <Tooltip title={!tree ? '该场景还没有估算结果：确认模型、场景类型与并发后会自动重算，随后可展开计算过程' : '杜邦式逐层拆解，可展开到原始参数'}>
+            {/* 包一层 span：disabled 按钮本身不触发鼠标事件，否则提示不会出现 */}
+            <span style={{ display: 'inline-block' }}>
+              <Button size="small" type={fold === 'fx' ? 'primary' : 'default'} ghost={fold === 'fx'}
+                disabled={!tree} onClick={() => toggleFold(s.id, 'fx')}>计算过程</Button>
+            </span>
+          </Tooltip>
           <span className="right">
             <small className="muted">{chip.label ? `${chip.label.split(' · ')[0]}` : ''}</small>
             <Popconfirm title="移除此场景？保存后仍可撤销。"
@@ -450,10 +468,10 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
     );
   }
 
-  const byModel = pool?.scenarios?.length ? summarizeByModel(pool.scenarios) : [];
+  const byModel = sceneItems.length ? summarizeByModel(sceneItems) : [];
   const headroomPct = num(Number(preview?.headroom ?? payload.headroom ?? 0) * 100, 0);
   const missingCount = pool?.missing_items?.length ?? 0;
-  const estimatedCount = (pool?.scenarios ?? []).filter((x: Obj) => x.cards != null).length;
+  const estimatedCount = sceneItems.filter((x: Obj) => x.cards != null).length;
 
   return (
     <div className="main-panel business-eval">
@@ -501,14 +519,18 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
             </div>
           </div>
         </div>
-        <div>
-          <div className="be-sec-h" style={{ marginBottom: 10 }}>
-            <h2 style={{ fontSize: 14 }}>当前生效的工程系数（可调）</h2>
-            <span>基准值 × 档位系数（{TIER_COEF[globalTier] || '×1'}）= 生效值；改动写入参数覆盖层长期生效</span>
+        {/* 工程系数：默认收起，用户需要时再展开（与推理评估集成页同一交互层级） */}
+        <details className="be-fold be-fold-sub">
+          <summary>
+            <span className="be-fold-t">当前生效的工程系数（可调）</span>
+            <span className="be-fold-hint">基准值 × 档位系数（{TIER_COEF[globalTier] || '×1'}）= 生效值；改动写入参数覆盖层长期生效</span>
+            <span className="be-fold-btn" aria-hidden="true"><i /></span>
+          </summary>
+          <div className="be-fold-body">
+            <CoefPanel chipKey={globalChip} tier={globalTier} chipLabel={globalChipInfo.label}
+              onChanged={() => edit(() => { /* 系数已写入参数覆盖层；触发一次预览重算 */ })} />
           </div>
-          <CoefPanel chipKey={globalChip} tier={globalTier} chipLabel={globalChipInfo.label}
-            onChanged={() => edit(() => { /* 系数已写入参数覆盖层；触发一次预览重算 */ })} />
-        </div>
+        </details>
       </Card>
 
       {/* ============ ② 场景清单 ============ */}
@@ -596,48 +618,60 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
         )}
       </Card>
 
-      {/* ============ ④ 估算方法说明 ============ */}
-      <Card>
-        <div className="be-sec-h">
-          <h2>估算方法说明</h2>
-          <span>三维约束取最大 · 杜邦式逐层拆解</span>
-        </div>
-        <div className="be-doc" dangerouslySetInnerHTML={{ __html: METHOD_HTML }} />
+      {/* ============ ④ 估算方法说明：整块默认收起，展开后 5 个步骤仍逐条点开 ============ */}
+      <Card className="be-fold-card">
+        <details className="be-fold">
+          <summary>
+            <span className="be-fold-t">估算方法说明</span>
+            <span className="be-fold-hint">三维约束取最大 · 杜邦式逐层拆解（5 步，按需点开）</span>
+            <span className="be-fold-btn" aria-hidden="true"><i /></span>
+          </summary>
+          <div className="be-fold-body">
+            <div className="be-doc" dangerouslySetInnerHTML={{ __html: METHOD_HTML }} />
+          </div>
+        </details>
       </Card>
 
-      {/* ============ ⑤ 估算依据与口径 ============ */}
-      <Card>
-        <div className="be-sec-h">
-          <h2>估算依据与口径</h2>
-          <span>公开文献 · 官方数据来源 · 免责声明</span>
-        </div>
-        <div className="be-doc">
-          <div dangerouslySetInnerHTML={{ __html: BASIS_HTML }} />
-          {customChips.length > 0 && (
-            <>
-              <h3>已登记的自定义算力卡（{customChips.length} 张）</h3>
-              <div className="tbl-wrap"><table className="dt">
-                <thead><tr><th>名称</th><th>BF16</th><th>INT8</th><th>INT4</th><th>显存</th><th>HBM 带宽</th><th>互联</th><th>功耗</th><th>原生 INT4</th></tr></thead>
-                <tbody>
-                  {customChips.map(c => (
-                    <tr key={c.key}>
-                      <td>{c.label}</td>
-                      <td>{c.bf16_tflops}T</td>
-                      <td>{c.int8_tflops ? c.int8_tflops + 'T' : '—'}</td>
-                      <td>{c.int4_tflops ? c.int4_tflops + 'T' : '—'}</td>
-                      <td>{c.memory_gb}GB</td>
-                      <td>{c.hbm_tbs}TB/s</td>
-                      <td>{c.link_gbs ? c.link_gbs + 'GB/s' : '—'}</td>
-                      <td>{c.power_kw ? c.power_kw + 'kW' : '—'}</td>
-                      <td>{c.native_int4 ? '是' : '否'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table></div>
-              <p className="src">自定义算力卡规格由使用者按厂商资料填写，工程系数沿用通用经验值（见「当前生效的工程系数」面板说明），未经现场压测校准，误差可能放大。</p>
-            </>
-          )}
-        </div>
+      {/* ============ ⑤ 估算依据与口径：整块默认收起，展开后按小节点开；免责声明为最内一层 ============ */}
+      <Card className="be-fold-card">
+        <details className="be-fold">
+          <summary>
+            <span className="be-fold-t">估算依据与口径</span>
+            <span className="be-fold-hint">公开文献 · 官方数据来源 · 免责声明（按需逐层展开）</span>
+            <span className="be-fold-btn" aria-hidden="true"><i /></span>
+          </summary>
+          <div className="be-fold-body">
+            <div className="be-doc">
+              <div dangerouslySetInnerHTML={{ __html: BASIS_HTML }} />
+              {customChips.length > 0 && (
+                <details className="bsec">
+                  <summary>已登记的自定义算力卡（{customChips.length} 张）</summary>
+                  <div className="bsec-body">
+                    <div className="tbl-wrap"><table className="dt">
+                      <thead><tr><th>名称</th><th>BF16</th><th>INT8</th><th>INT4</th><th>显存</th><th>HBM 带宽</th><th>互联</th><th>功耗</th><th>原生 INT4</th></tr></thead>
+                      <tbody>
+                        {customChips.map(c => (
+                          <tr key={c.key}>
+                            <td>{c.label}</td>
+                            <td>{c.bf16_tflops}T</td>
+                            <td>{c.int8_tflops ? c.int8_tflops + 'T' : '—'}</td>
+                            <td>{c.int4_tflops ? c.int4_tflops + 'T' : '—'}</td>
+                            <td>{c.memory_gb}GB</td>
+                            <td>{c.hbm_tbs}TB/s</td>
+                            <td>{c.link_gbs ? c.link_gbs + 'GB/s' : '—'}</td>
+                            <td>{c.power_kw ? c.power_kw + 'kW' : '—'}</td>
+                            <td>{c.native_int4 ? '是' : '否'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table></div>
+                    <p className="src">自定义算力卡规格由使用者按厂商资料填写，工程系数沿用通用经验值（见「当前生效的工程系数」面板说明），未经现场压测校准，误差可能放大。</p>
+                  </div>
+                </details>
+              )}
+            </div>
+          </div>
+        </details>
       </Card>
 
       <CustomModelModal open={modelModal} onClose={() => setModelModal(false)} onSaved={refreshCatalog} />

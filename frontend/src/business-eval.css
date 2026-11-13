@@ -126,10 +126,30 @@
 .be-doc .mflow .n{border:1px solid #d5dfcd;border-radius:6px;padding:5px 10px;background:#fff;color:#4d6852}
 .be-doc .mflow .n.hl{border-color:#176658;color:#176658;font-weight:600}
 .be-doc .mflow .a{color:#98a88d}
-.be-doc .msteps{display:grid;gap:14px}
-.be-doc .mstep{display:grid;grid-template-columns:34px 1fr;gap:12px;border:1px solid #e5ebdf;border-radius:10px;padding:16px 18px;background:#fff}
-.be-doc .mstep .no{width:28px;height:28px;border-radius:50%;background:#176658;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
-.be-doc .mstep h4{font-size:14px;color:#2f5941;margin:4px 0 10px}
+.be-doc .msteps{display:grid;gap:10px}
+/* 方法步骤：收起时是一行目录，点标题才展开该步正文（不会一次摊开 5 步） */
+.be-doc .mstep{border:1px solid #e5ebdf;border-radius:10px;background:#fff;overflow:hidden}
+.be-doc .mstep>summary{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;list-style:none;user-select:none;font-size:13.5px;font-weight:600;color:#2f5941}
+.be-doc .mstep>summary::marker{content:''}
+.be-doc .mstep>summary::-webkit-details-marker{display:none}
+.be-doc .mstep>summary .no{width:24px;height:24px;flex:none;border-radius:50%;background:#176658;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:600}
+.be-doc .mstep>summary .st{flex:1;min-width:0}
+.be-doc .mstep>summary::after{content:'▸';color:#a8b6a2;font-size:11px;flex:none}
+.be-doc .mstep[open]>summary::after{content:'▾'}
+.be-doc .mstep>summary:hover{background:#f7faf3}
+.be-doc .mstep[open]>summary{background:#f4f8ef;border-bottom:1px dashed #e3ead9}
+.be-doc .mstep-body{padding:14px 16px}
+/* 依据区小节：h3 已改为 details；免责声明是其中最后一节，属最内一层 */
+.be-doc .bsec{border:1px solid #e5ebdf;border-radius:8px;background:#fff;margin:10px 0;overflow:hidden}
+.be-doc .bsec:first-child{margin-top:0}
+.be-doc .bsec>summary{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#f7faf3;cursor:pointer;list-style:none;user-select:none;font-size:13.5px;font-weight:600;color:#2f5941}
+.be-doc .bsec>summary::marker{content:''}
+.be-doc .bsec>summary::-webkit-details-marker{display:none}
+.be-doc .bsec>summary::before{content:'▸';color:#a8b6a2;font-size:11px;flex:none}
+.be-doc .bsec[open]>summary::before{content:'▾'}
+.be-doc .bsec>summary:hover{background:#f0f5ea}
+.be-doc .bsec[open]>summary{background:#eef6e8;border-bottom:1px solid #dfe8d7;color:#176658}
+.be-doc .bsec-body{padding:12px 16px}
 .be-doc .ref{font-size:11.5px;color:#8b9a80;background:#fafbf6;border-radius:6px;padding:10px 12px}
 .be-doc .fx-block{margin-top:10px}
 .be-doc .fx-block .fx-t{margin-bottom:8px}
@@ -138,8 +158,6 @@
 .be-doc .fx-line .k{color:#3c5843}
 .be-doc .fx-line .f{font-family:Consolas,'Microsoft YaHei',monospace;font-size:11.5px;color:#426446;line-height:1.8}
 .be-doc .fx-line .s{font-size:11px;color:#98a88d;margin-top:2px}
-.be-doc h3{font-size:14px;color:#2f5941;margin:22px 0 10px;padding-left:10px;border-left:3px solid #82a16a}
-.be-doc h3:first-child{margin-top:4px}
 .be-doc ul{padding-left:20px;font-size:12.5px;line-height:2;color:#64765e}
 .be-doc .quota li{margin-bottom:8px}
 .be-doc .src{font-size:12px;color:#64765e}
@@ -149,3 +167,30 @@
 .be-doc .dt td{padding:7px 10px;border:1px solid #e8eee0;color:#55695c;line-height:1.7}
 .be-doc .dt .dim{color:#98a88d}
 .be-doc a{color:#176658}
+
+/* ---------- 渐进展开：整块默认收起，用户按需逐层点开 ----------
+   交互层级与推理评估集成页一致：整块开关 → 方法步骤 / 依据小节 → 正文。
+   用原生 <details> 实现，不依赖脚本；收起态只留标题条与一枚开关。 */
+.be-fold>summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;cursor:pointer;list-style:none;user-select:none;padding:11px 15px;border:1px solid #e3ead9;border-radius:8px;background:#f7faf3;transition:background .15s,border-color .15s}
+.be-fold>summary::marker{content:''}
+.be-fold>summary::-webkit-details-marker{display:none}
+.be-fold>summary:hover{background:#f0f5ea;border-color:#cfe0c6}
+.be-fold-t{font-size:16px;font-weight:600;color:#2f5941}
+.be-fold-hint{flex:1;min-width:180px;font-size:12px;color:#7d8f74}
+.be-fold-btn{display:inline-flex;align-items:center;gap:7px;flex:none;margin-left:auto;height:28px;padding:0 12px;border:1px solid #cfe0c6;border-radius:999px;background:#eef6e8;color:#2f5941;font-size:12px;font-weight:600;white-space:nowrap}
+.be-fold-btn::after{content:'展开'}
+.be-fold[open]>summary .be-fold-btn::after{content:'收起'}
+.be-fold-btn i{width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:5.5px solid currentColor;transition:transform .18s}
+.be-fold[open]>summary .be-fold-btn i{transform:rotate(180deg)}
+.be-fold[open]>summary{background:transparent;border-color:transparent;border-bottom:1px solid #e3ead9;border-radius:0;padding:0 0 11px;margin-bottom:14px}
+.be-fold-body{animation:be-fold-in .16s ease-out}
+@keyframes be-fold-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.be-fold-card .ant-card-body{padding-top:14px;padding-bottom:14px}
+.be-fold-sub{margin-top:2px}
+.be-fold-sub>summary .be-fold-t{font-size:13.5px}
+.be-fold-sub[open]>summary{margin-bottom:12px}
+@media(max-width:760px){
+  .be-fold>summary{padding-right:12px}
+  .be-fold-hint{flex-basis:100%;min-width:0;order:3}
+  .be-fold-btn{margin-left:auto}
+}
