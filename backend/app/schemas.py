@@ -147,13 +147,22 @@ class Development(StrictModel):
     chip_key: str | None = "910c"
 
 
-class BusinessDefaults(StrictModel):
-    """业务池全局硬件默认：算力卡与工程档位对全部场景统一生效。
+# v2.0.0 精度档收敛为 bf16 / w8a8 / w4a8（auto=按默认 bf16）。
+# 旧值（fp16/fp8/int8/int4）仅为兼容读保留：resolve 层映射迁移并打 MIGRATED_PRECISION 告警，
+# 收紧 Literal 会让旧方案 PATCH 直接 422，故不能删。
+Precision = Literal["auto", "bf16", "w8a8", "w4a8", "fp16", "fp8", "int8", "int4"]
 
-    已配置场景以各自 inference 里的值为准（页面在改动全局配置时会同步改写），
-    未配置的旧字段场景与新场景跟随这里的全局默认。
+
+class BusinessDefaults(StrictModel):
+    """业务池全局硬件默认：算力卡、量化精度与工程档位。
+
+    量化精度是纯方案级设置：页面已取消逐场景精度选择，全局值对全部场景生效。
+    `None` 表示「本方案还没设定过」——老方案都属于这种，继续沿用各场景自身的历史值，
+    避免升级后结果漂移；显式写入（含 "auto"）才覆盖场景值。
+    算力卡与工程档位由页面在改全局值时同步写入各场景，旧字段场景推导时也以这里兜底。
     """
     chip_key: str = "910c"
+    weight_precision: Precision | None = None
     profile: str = "neutral"
 
 
@@ -190,11 +199,8 @@ class PlanInput(StrictModel):
 
 # ---------------------------------------------------------------- 推理算力评估（v2.0.0 页面口径）
 # 引擎实现在 engine/inference.py（A/B/C 三维约束，移植自推理评估页）
+# 精度枚举 Precision 定义在上方（BusinessDefaults 之前），业务池全局默认与单场景共用同一套取值。
 
-# v2.0.0 精度档收敛为 bf16 / w8a8 / w4a8（auto=按默认 bf16）。
-# 旧值（fp16/fp8/int8/int4）仅为兼容读保留：resolve 层映射迁移并打 MIGRATED_PRECISION 告警，
-# 收紧 Literal 会让旧方案 PATCH 直接 422，故不能删。
-Precision = Literal["auto", "bf16", "w8a8", "w4a8", "fp16", "fp8", "int8", "int4"]
 Sensitivity = Literal["optimistic", "neutral", "conservative"]
 DeploymentMode = Literal["mixed", "split"]
 

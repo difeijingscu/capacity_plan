@@ -9,7 +9,8 @@
 口径约定（v2.0.0，与推理评估页一致）：
 - 场景层输出「恰好满足 SLA 的最小卡数」，不含任何余量；
 - base_p（等效算力）= 卡数 × chip.bf16_tflops ÷ 1000（BF16 基准）；
-- 余量只在池层乘一次（plan.headroom），planned_cards 按 headroom 放大 + 8 卡/台对齐；
+- 余量只在池层乘一次（plan.headroom），planned_cards 按 headroom 放大后向上对齐到
+  最小部署粒度（8 卡/台），且不少于一个部署单元；
 - 卡数（物理台数）与算力（P）不同量纲，不能相加比较。
 """
 from __future__ import annotations
@@ -122,9 +123,13 @@ def resolve_spec(scenario, models: list[dict], chips: list[dict], scenes: list[d
                  defaults: dict | None = None) -> dict:
     """把场景翻成引擎入参，返回 {spec, origin, warnings}。
 
-    origin: "configured" 用户配置 / "migrated" 由旧字段推导 / "default" 什么也没有。
-    defaults：方案级全局硬件默认（business_defaults），只作用于未配置场景推导时的
-    芯片与工程档位，不影响已配置场景。
+    origin: "configured" 用户配置 / "migrated" 由旧字段推导。
+    空场景与「组件全部停用」不再返回 origin="default" 的默认口径，而是抛
+    InferenceIssue 进入 missing_items；后者会让结果看起来成立、实际换了模型。
+    defaults：方案级全局硬件默认（business_defaults）。量化精度是纯方案级设置，
+    已配置场景也不再按自身历史值计算——页面已取消逐场景精度选择，若这里仍取
+    场景值，同一方案会并存两套精度口径。算力卡与工程档位由前端在改全局值时
+    同步写入各场景，推导旧场景时才需要这里的兜底。
     """
     warnings: list[str] = []
     configured = getattr(scenario, "inference", None)
@@ -132,18 +137,35 @@ def resolve_spec(scenario, models: list[dict], chips: list[dict], scenes: list[d
         spec = configured.to_engine()
         spec["scene_key"] = configured.scene_key
         warnings.extend(_migrate_spec(spec))
+        # 全局精度优先于场景里的历史值；旧别名（int8/fp8 等）先归一再写入。
+        if defaults and defaults.get("weight_precision"):
+            precision = str(defaults["weight_precision"])
+            spec["weight_precision"] = PRECISION_ALIASES.get(precision, precision)
         return dict(spec=spec, origin="configured", warnings=warnings)
 
     spec = dict(DEFAULT_SPEC)
     if defaults:
-        for key in ("chip_key", "profile"):
+        # 全局硬件默认：算力卡、量化精度与工程档位；旧字段场景与新场景都跟随这里。
+        for key in ("chip_key", "profile", "weight_precision"):
             if defaults.get(key):
                 spec[key] = defaults[key]
     components = list(getattr(scenario, "components", []) or [])
-    component = next((c for c in components if c.enabled), None) or (components[0] if components else None)
-    if component is None:
-        warnings.append("SCENARIO_NOT_CONFIGURED")
-        return dict(spec=spec, origin="default", warnings=warnings)
+    enabled = [c for c in components if c.enabled]
+    if not components:
+        # 空场景曾按 DEFAULT_SPEC 出卡数并只留一条告警，那会给出一个看起来成立、
+        # 实际等于换了模型与芯片的结果。宁可报待补，让用户回页面显式选择。
+        raise inference.InferenceIssue(
+            "MISSING_MODEL",
+            "该场景没有推理配置，也没有可迁移的旧组件；请在业务场景页选择模型与算力服务器")
+    if not enabled:
+        raise inference.InferenceIssue(
+            "SCENARIO_DISABLED_COMPONENTS",
+            "该场景的组件均已停用，但场景本身仍启用；请启用至少一个组件或停用该场景")
+    component = enabled[0]
+    if len(enabled) > 1:
+        # 多组件只按首个启用项折算，其余组件不参与计算。显式告警，
+        # 避免“看起来算了全部任务”的误解；逐组件展开需要单独的产品口径。
+        warnings.append("COMPONENTS_PARTIALLY_IGNORED")
 
     if component.task_type in ("cv", "unit", "native"):
         raise inference.InferenceIssue(
@@ -186,9 +208,13 @@ def resolve_spec(scenario, models: list[dict], chips: list[dict], scenes: list[d
 
 
 def estimate_scenario(scenario_id: str, name: str, spec: dict, models: list[dict],
-                      chips: list[dict], scenes: list[dict]) -> dict:
-    """单场景：跑引擎并把结果折成业务池口径（最小卡数，不含余量）。"""
-    result = inference.estimate(spec, models, chips, scenes, spec.get("profile") or "neutral")
+                      chips: list[dict], scenes: list[dict], params: dict | None = None) -> dict:
+    """单场景：跑引擎并把结果折成业务池口径（最小卡数，不含余量）。
+
+    params：生效工程参数快照；None 时引擎回退到当前全局参数。
+    """
+    result = inference.estimate(spec, models, chips, scenes, spec.get("profile") or "neutral",
+                                params=params)
     chip = next(c for c in chips if c["key"] == result["chipKey"])
     bf16 = D(chip["bf16_tflops"])
     cards = int(result["cards"])
@@ -261,10 +287,16 @@ def estimate_scenario(scenario_id: str, name: str, spec: dict, models: list[dict
 
 
 def planned_cards(cards: int, unit: int, headroom: float) -> int:
-    """含余量卡数：按 headroom 放大后对齐到整实例，且至少多一个实例。"""
+    """含余量卡数：按 headroom 放大后向上对齐到部署粒度，且不少于一个部署单元。
+
+    口径（2026-11-15 确认）：`unit`（8 卡）是最小部署粒度，不是"至少多一台实例"。
+    - h=0 时 8 卡场景仍为 8 卡，不再强制增加一台；
+    - 不足 8 卡的场景一律补到 8 卡（1 卡需求也规划 8 卡），这是粒度规则的必然结果；
+    - 用 Decimal 计算，避免 40×1.2=48.00000000000001 这类浮点误差多进一个部署单元。
+    """
     unit = max(1, unit)
-    scaled = math.ceil(max(1, cards) * (1 + headroom) / unit) * unit
-    return max(cards + unit, scaled)
+    scaled = math.ceil(D(max(1, cards)) * (1 + D(headroom)) / D(unit)) * unit
+    return max(unit, scaled)
 
 
 def pool_summary(scenario_items: list[dict], missing: list[dict], headroom: float,

@@ -172,10 +172,6 @@ def create_app(data_dir=None):
         payload = PlanInput(is_demo=True,scenarios=[
             Scenario(name="企业知识问答",description="查询内部制度与知识并回答",
                      inference=InferenceRequest(model_key="glm5_3_flash",chip_key="950dt36",scene_key="rag")),
-            Scenario(name="技术文档摘要",description="长文档一次送入，输出结构化摘要",
-                     inference=InferenceRequest(model_key="glm5_3_flash",chip_key="910c",scene_key="gen_summary")),
-            Scenario(name="深度推理",description="短输入、长思维链，TTFT 可放宽",
-                     inference=InferenceRequest(model_key="deepseek_r1",chip_key="950dt36",scene_key="think")),
         ])
         if text_task.model_id:
             payload.innovation.enabled=True
@@ -231,7 +227,8 @@ def create_app(data_dir=None):
             raise RevisionConflict(plan_id)
         report=calculate(PlanInput.model_validate(record["payload"]),models(),
                          custom_inference_models=custom_inference_models(),
-                         custom_inference_chips=custom_inference_chips())
+                         custom_inference_chips=custom_inference_chips(),
+                         params=inference_params.current())
         return {"errors":report["missing_items"],"warnings":report["warnings"],"readiness":report["completeness"],"counted_tasks":report["counted_tasks"]}
 
     @app.post("/api/v1/plans/{plan_id}/calculate")
@@ -242,19 +239,23 @@ def create_app(data_dir=None):
         catalog=models()
         custom_models=custom_inference_models()
         custom_chips=custom_inference_chips()
+        # 参数在提交时取一次快照：指纹、计算执行与结果快照必须来自同一份参数。
+        # 否则排队期间调参会得到“指纹用旧参数、结果用新参数”的不可复现记录。
+        params_snapshot=inference_params.current()
         # input_hash 同时覆盖 catalog、自定义模型/算力卡与当前生效的引擎参数：调参或改登记后缓存自动失效
         canonical=json.dumps({"payload":record["payload"],"catalog":catalog,"engine":ENGINE_VERSION,
                               "custom_models":custom_models,"custom_chips":custom_chips,
-                              "params":inference_params.current()},sort_keys=True,ensure_ascii=False)
+                              "params":params_snapshot},sort_keys=True,ensure_ascii=False)
         fingerprint=hashlib.sha256(canonical.encode()).hexdigest()
         cached=next((r for r in store.list("calculation") if r.get("input_hash")==fingerprint and r["plan_id"]==plan_id and r["plan_revision"]==record["revision"]),None)
         if cached:
             return {"run_id":cached["id"],"status":"SUCCEEDED"}
         def work():
             report=calculate(PlanInput.model_validate(readable_payload(record["payload"])),catalog,True,
-                             custom_inference_models=custom_models,custom_inference_chips=custom_chips)
+                             custom_inference_models=custom_models,custom_inference_chips=custom_chips,
+                             params=params_snapshot)
             # v2.0.0：快照含新目录与生效参数（新口径可复现）；旧快照结构不动
-            calculation=store.insert("calculation",{"plan_id":plan_id,"project_id":record["project_id"],"plan_revision":record["revision"],"input_hash":fingerprint,"input_snapshot":record["payload"],"catalog_snapshot":{"inference_models":inference_catalog.models(),"inference_chips":inference_catalog.chips(),"inference_scenes":inference_catalog.scenes(),"custom_models":custom_models,"custom_chips":custom_chips,"params_effective":inference_params.current()},"result":report,"status":"SUCCEEDED"})
+            calculation=store.insert("calculation",{"plan_id":plan_id,"project_id":record["project_id"],"plan_revision":record["revision"],"input_hash":fingerprint,"input_snapshot":record["payload"],"catalog_snapshot":{"inference_models":inference_catalog.models(),"inference_chips":inference_catalog.chips(),"inference_scenes":inference_catalog.scenes(),"custom_models":custom_models,"custom_chips":custom_chips,"params_effective":params_snapshot},"result":report,"status":"SUCCEEDED"})
             return {"run_id":calculation["id"]}
         with calculation_lock:
             existing_run=next((r for r in store.list("calculation") if r.get("input_hash")==fingerprint and r["plan_id"]==plan_id and r["plan_revision"]==record["revision"]),None)
@@ -270,7 +271,8 @@ def create_app(data_dir=None):
     def preview_calculation(body:dict):
         return calculate(PlanInput.model_validate(body["payload"]),models(),
                          custom_inference_models=custom_inference_models(),
-                         custom_inference_chips=custom_inference_chips())
+                         custom_inference_chips=custom_inference_chips(),
+                         params=inference_params.current())
 
     @app.get("/api/v1/jobs/{job_id}")
     def get_job(job_id:str):
@@ -303,6 +305,8 @@ def create_app(data_dir=None):
         if not 2<=len(ids)<=3:
             raise ValueError("请选择2至3个计算版本")
         runs=[need(key,"calculation") for key in ids]
+        if len({r.get("project_id") for r in runs})>1:
+            raise ValueError("只能对比同一项目内的测算记录")
         base=runs[0]
         def differences(a,b,path=""):
             changes=[]
@@ -315,7 +319,44 @@ def create_app(data_dir=None):
             elif a!=b:
                 changes.append({"field":path,"before":a,"after":b})
             return changes
-        return {"runs":[{"id":r["id"],"plan_id":r["plan_id"],"plan_revision":r["plan_revision"],"result":r["result"],"parameter_changes":[] if r==base else differences(base["input_snapshot"],r["input_snapshot"]),"delta_p":None if r["result"]["total_planned_p"] is None or base["result"]["total_planned_p"] is None else str(Decimal(r["result"]["total_planned_p"])-Decimal(base["result"]["total_planned_p"]))} for r in runs]}
+
+        def digest(value):
+            """参数/目录的短指纹：用来一眼看出两次测算是否同一口径。"""
+            return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,default=str).encode()).hexdigest()[:12]
+
+        snapshot_of=lambda r:r.get("catalog_snapshot") or {}
+        base_snapshot=snapshot_of(base)
+        base_params=base_snapshot.get("params_effective") or {}
+        base_engine=base["result"].get("engine_version")
+        catalog_keys=("inference_models","inference_chips","inference_scenes","custom_models","custom_chips")
+
+        def engine_part(r):
+            """参数与目录的差异：input_snapshot 不含这些，必须单独对比才看得见。"""
+            snapshot=snapshot_of(r)
+            params=snapshot.get("params_effective") or {}
+            has_snapshot=bool(snapshot)
+            if r is base:
+                return {"params_fingerprint":digest(params) if params else None,
+                        "params_changes":[],"catalog_changes":[],
+                        "engine_changes":[],"snapshot_complete":has_snapshot}
+            return {
+                "params_fingerprint":digest(params) if params else None,
+                "params_changes":differences(base_params,params) if has_snapshot and base_snapshot else [],
+                "catalog_changes":[key for key in catalog_keys
+                                   if digest(snapshot.get(key))!=digest(base_snapshot.get(key))],
+                "engine_changes":[] if r["result"].get("engine_version")==base_engine
+                                  else [{"field":"engine_version","before":base_engine,"after":r["result"].get("engine_version")}],
+                "snapshot_complete":has_snapshot,
+            }
+
+        output=[]
+        for r in runs:
+            entry={"id":r["id"],"plan_id":r["plan_id"],"plan_revision":r["plan_revision"],"result":r["result"],
+                   "parameter_changes":[] if r==base else differences(base["input_snapshot"],r["input_snapshot"]),
+                   "delta_p":None if r["result"]["total_planned_p"] is None or base["result"]["total_planned_p"] is None else str(Decimal(r["result"]["total_planned_p"])-Decimal(base["result"]["total_planned_p"]))}
+            entry.update(engine_part(r))
+            output.append(entry)
+        return {"runs":output}
 
     @app.post("/api/v1/imports/preview")
     async def import_preview(file:UploadFile|None=File(default=None),text:str|None=Form(default=None),sheet:str|None=Form(default=None),header_row:int=Form(default=1),column_mapping:str=Form(default="{}"),confirm_online_semantics:bool=Form(default=False)):

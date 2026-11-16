@@ -282,3 +282,63 @@ def test_custom_chip_estimate_and_plan_calculation(client):
     # 业务池结果带杜邦树（trace.detail.tree）
     tree=pool["items"][0]["trace"]["detail"]["tree"]
     assert tree["label"]=="所需算力卡 N" and len(tree["children"])==3
+
+
+def test_compare_surfaces_parameter_changes_outside_input_snapshot(client):
+    """工程参数不在 input_snapshot 内：只改参数时，对比必须单独列出它的变化。
+
+    这是 A1 的回归：过去 parameter_changes 恒为空，等于宣称「参数变了但两次测算一样」。
+    """
+    plan=make_plan(client)
+    first=run(client,plan)
+    try:
+        r=client.put("/api/v1/inference/params",
+                     json={"overrides":{"chip_profiles":{"910c":{"mfu_prefill":0.2}}}})
+        assert r.status_code==200,r.text
+        second=run(client,plan)
+        # 输入完全没变，只有参数变了
+        cmp=client.post("/api/v1/calculations/compare",
+                        json={"run_ids":[first["id"],second["id"]]})
+        assert cmp.status_code==200,cmp.text
+        base,other=cmp.json()["runs"]
+        assert other["parameter_changes"]==[]
+        assert other["params_changes"],"参数变化必须出现在对比结果里"
+        assert any("mfu_prefill" in c["field"] for c in other["params_changes"])
+        assert other["params_fingerprint"]!=base["params_fingerprint"]
+        assert other["catalog_changes"]==[]
+        assert other["engine_changes"]==[]
+        assert other["snapshot_complete"] is True
+    finally:
+        client.post("/api/v1/inference/params/reset")
+
+
+def test_compare_rejects_runs_from_different_projects(client):
+    """跨项目对比没有共同基线，必须拒绝而不是给出无意义的差额。"""
+    left=make_plan(client)
+    right=make_plan(client)
+    left_run=run(client,left)
+    right_run=run(client,right)
+    r=client.post("/api/v1/calculations/compare",
+                  json={"run_ids":[left_run["id"],right_run["id"]]})
+    assert r.status_code==422,r.text
+    assert "同一项目" in r.json()["message"]
+
+
+def test_plan_calculation_uses_parameter_snapshot_from_submission(client):
+    """快照里记录的生效参数必须与本次计算实际使用的一致（A2）。
+
+    这里不制造并发，只验证快照、指纹与结果来自同一份参数对象：
+    调参后重新计算的记录，其 params_effective 必须等于调参后的值。
+    """
+    plan=make_plan(client)
+    run(client,plan)
+    try:
+        assert client.put("/api/v1/inference/params",
+                          json={"overrides":{"chip_profiles":{"910c":{"mfu_prefill":0.2}}}}).status_code==200
+        record=run(client,plan)
+        snapshot=record["catalog_snapshot"]["params_effective"]
+        assert snapshot["chip_profiles"]["910c"]["mfu_prefill"]==0.2
+        effective=client.get("/api/v1/inference/params").json()["effective"]
+        assert effective["chip_profiles"]["910c"]["mfu_prefill"]==0.2
+    finally:
+        client.post("/api/v1/inference/params/reset")

@@ -11,7 +11,7 @@ D = lambda value: Decimal(str(value))
 ZERO = D(0)
 PETA = D("1e15")
 GIGA = D("1e9")
-ENGINE_VERSION = "engine-v2.0.0"
+ENGINE_VERSION = "engine-v2.0.4"
 REFERENCE = "BF16_DENSE_EQUIVALENT"
 # QLoRA 权重量化元数据开销的全局默认（4-bit 权重 + 量化参数的工程经验值）。
 # v2.0.0 起模型清单不再逐模型登记该字段，统一取此常量。
@@ -145,7 +145,7 @@ def memory_for(task, model, rate, li, lg, reserve):
     if model.get("layers") and (model.get("latent_dim") or model.get("kv_heads") or model.get("heads")):
         layers = D(model["layers"])
         if model.get("latent_dim"):
-            bpt = layers * D(model["latent_dim"]) * D(model.get("rope_dim") or 64) * task.kv_bytes
+            bpt = layers * (D(model["latent_dim"]) + D(model.get("rope_dim") or 64)) * task.kv_bytes
         else:
             head_dim = model.get("kv_head_dim") or model.get("head_dim") or 0
             bpt = 2 * layers * D(model.get("kv_heads") or model.get("heads")) * D(head_dim) * task.kv_bytes
@@ -269,10 +269,11 @@ def cards_for_pool(pool, chip, headroom):
 
     compute, memory, cards = _split(pool["planned_p"], memory_gb)
     unit = 8
-    planned_p = D(pool["planned_p"]) * (D(1) + D(headroom))
-    c2, m2, _raw = _split(planned_p, memory_gb * (D(1) + D(headroom)))
+    # pool_summary 已在 planned_p 中应用一次容量余量，这里不得再次按比例放大。
+    # 显存尚未应用容量余量，因此只在显存规划约束上补充一次。
+    c2, m2, _raw = _split(pool["planned_p"], memory_gb * (D(1) + D(headroom)))
     # 池层不对齐整机：池内可混机型，按整机对齐会让「1 卡」变成「9 卡」。
-    # 只保证「按余量放大」且「至少多一张」——后者是冗余，不是扩容位。
+    # 「至少多一张」是独立的故障冗余规则，不属于比例容量余量。
     cards_planned = max(cards + 1, max(c2, m2))
     servers = max(1, ceil(cards / unit))
     servers_planned = max(1, ceil(cards_planned / unit))
@@ -287,8 +288,9 @@ def cards_for_pool(pool, chip, headroom):
             compute_cards=compute, memory_cards=memory,
             planned_compute_cards=c2, planned_memory_cards=m2,
             bottleneck="显存" if memory > compute else "算力" if compute > memory else "持平",
-            cards_per_server=unit,
-            rule="max(算力卡数, 显存卡数)；含余量卡数按余量放大且至少多一张，不按整机对齐",
+            cards_per_server=unit, headroom=D(headroom), headroom_applications=1,
+            redundancy_cards=1,
+            rule="planned_p 已含一次比例余量；规划卡数 = max(cards+1, 一次余量算力卡数, 一次余量显存卡数)，不按整机对齐",
         ),
     )
 
@@ -298,7 +300,15 @@ def _attach_cards(pool, chip, headroom):
 
     在池上直接加字段而不是嵌套一层，是因为前端与费用附录都按扁平字段读；
     芯片缺失时显式写 None 并留 reason，避免「没有这个字段」和「算不出来」被混淆。
+    禁用池不需要芯片，也不应用余量或冗余，所有资源配置均为零。
     """
+    if pool.get("completeness") == "DISABLED":
+        pool.update(cards=0, cards_planned=0, servers=0, servers_planned=0,
+                    capacity_p=ZERO, capacity_planned_p=ZERO,
+                    cards_detail=dict(reason="本池已禁用，不配置算力资源",
+                                      headroom_applications=0, redundancy_cards=0,
+                                      rule="禁用池为零资源"))
+        return pool
     detail = cards_for_pool(pool, chip, headroom)
     if detail is None:
         pool.update(cards=None, cards_planned=None, servers=None,
@@ -323,21 +333,25 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
               inference_chips: list[dict] | None = None,
               inference_scenes: list[dict] | None = None,
               custom_inference_models: list[dict] | None = None,
-              custom_inference_chips: list[dict] | None = None):
+              custom_inference_chips: list[dict] | None = None,
+              params: dict | None = None):
     """三池汇总。业务池走推理评估页引擎（A/B/C 三维约束），创新与开发池沿用工作量口径。
 
     v2.0.0：创新/研发池的模型 lookup 切到推理模型清单（32 条 LLM + 自定义模型），
     `models`（旧训练模型库）仅保留给模型基线库页，三池不再消费。
     custom_inference_models / custom_inference_chips：store 里登记的自定义
     推理模型（kind=inference-model）与自定义算力卡（kind=inference-chip）。
+
+    params：生效工程参数快照。调用方应在提交计算时取一次并全程复用，使缓存指纹、
+    计算结果与快照三者来自同一份参数；为 None 时回退到当前全局参数（兼容旧调用）。
     """
     from app.catalogs import inference_catalog
     from app.engine import business
 
     started = perf_counter()
     inf_models = inference_models if inference_models is not None else inference_catalog.models()
-    inf_chips = list(inference_chips if inference_chips is not None else inference_catalog.chips())
-    inf_chips += list(custom_inference_chips or [])
+    base_inf_chips = list(inference_chips if inference_chips is not None else inference_catalog.chips())
+    inf_chips = base_inf_chips + list(custom_inference_chips or [])
     inf_scenes = inference_scenes if inference_scenes is not None else inference_catalog.scenes()
     headroom = float(plan.headroom)
     all_inf_models = list(inf_models) + list(custom_inference_models or [])
@@ -375,16 +389,29 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
 
     business_items = []
     enabled_scenarios = 0
+    resolved_specs = {}
     for scenario in plan.scenarios:
         if not scenario.enabled:
+            # 停用场景不参与计算，但仍解析一份配置回显：前端据此展示，不再自行复刻迁移规则。
+            try:
+                skipped = business.resolve_spec(scenario, all_inf_models, inf_chips, inf_scenes,
+                                                defaults=plan.business_defaults.model_dump())
+                resolved_specs[scenario.id] = {"spec": skipped["spec"], "origin": skipped["origin"],
+                                               "warnings": skipped["warnings"], "enabled": False}
+            except business.inference.InferenceIssue as exc:
+                resolved_specs[scenario.id] = {"error": exc.code, "message": exc.message, "enabled": False}
             continue
         enabled_scenarios += 1
         try:
-            resolved = business.resolve_spec(scenario, inf_models, inf_chips, inf_scenes,
+            resolved = business.resolve_spec(scenario, all_inf_models, inf_chips, inf_scenes,
                                              defaults=plan.business_defaults.model_dump())
+            resolved_specs[scenario.id] = {"spec": resolved["spec"], "origin": resolved["origin"],
+                                           "warnings": resolved["warnings"], "enabled": True}
             item = business.estimate_scenario(scenario.id, scenario.name, resolved["spec"],
-                                              inf_models, inf_chips, inf_scenes)
+                                              all_inf_models, inf_chips, inf_scenes,
+                                              params=params)
         except business.inference.InferenceIssue as exc:
+            resolved_specs[scenario.id] = {"error": exc.code, "message": exc.message, "enabled": True}
             missing.append(dict(id=scenario.id, name=scenario.name, pool_id="business",
                                 code=exc.code, message=exc.message))
             continue
@@ -397,6 +424,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
         business_items.append(item)
 
     business_pool = business.pool_summary(business_items, missing, headroom, enabled_scenarios)
+    business_pool["resolved_specs"] = resolved_specs
     scenario_summaries = []
     for item in business_items:
         scenario_summaries.append(dict(
@@ -524,7 +552,9 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
             alternate.innovation.eta_prefill=min(D(1),alternate.innovation.eta_prefill*eta_scale)
             alternate.innovation.eta_decode=min(D(1),alternate.innovation.eta_decode*eta_scale)
             alternate.development.train_k=train_k
-            alt = calculate(alternate, models, False, inf_models, inf_chips, inf_scenes)
+            alt = calculate(alternate, models, False, inf_models, base_inf_chips, inf_scenes,
+                            custom_inference_models=custom_inference_models,
+                            custom_inference_chips=custom_inference_chips, params=params)
             variations.append(dict(name=label, total_planned_p=alt["total_planned_p"], changes=dict(load_scale=str(scale),efficiency_scale=str(eta_scale),train_k=str(train_k))))
         report["sensitivity"] = variations
     return clean(report)

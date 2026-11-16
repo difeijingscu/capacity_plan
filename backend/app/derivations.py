@@ -33,6 +33,162 @@ def sum_step(title, rows, value):
                 note="按未舍入的快照值汇总；展示的中间数值保留最多6位小数。")
 
 
+def tree_value(value, unit=""):
+    if value is None:
+        return "待补充"
+    try:
+        text = fmt(value)
+    except Exception:
+        text = str(value)
+    return text + (" " + unit if unit else "")
+
+
+def tree_node(label, relation="", expr="", value="", note="", children=None, tag=""):
+    return dict(label=label, relation=relation, expr=expr, value=value,
+                note=note or "本次测算保存的输入、目录与引擎轨迹", tag=tag,
+                children=children or [])
+
+
+def tree_steps(rows):
+    return [tree_node(r["title"], r.get("formula", ""), r.get("substitution", ""),
+                      tree_value(r.get("value"), r.get("unit", "")), r.get("note", ""))
+            for r in rows]
+
+
+def memory_tree(scope, pool, reserve, slots=1):
+    memory = pool.get("memory") or {}
+    total = memory.get("memory_gb")
+    if scope == "innovation":
+        groups = memory.get("groups") or []
+        children = []
+        for group in groups:
+            weight = group.get("weight_gb")
+            cache = group.get("cache_gb")
+            runtime = group.get("runtime_gb")
+            children.append(tree_node(
+                group.get("model_id") or group.get("id") or "共享部署组",
+                "组显存 = (权重 + KV cache + runtime) ÷ (1 - 显存预留)",
+                f"({fmt(weight)} + {fmt(cache)} + {fmt(runtime)}) ÷ (1 - {fmt(reserve)})",
+                tree_value(group.get("memory_gb"), "GB"),
+                "同组兼容任务的权重和 runtime 取最大，KV cache 相加；数值来自 memory_for 与 summarize_memory。",
+                [
+                    tree_node("模型权重", "同部署组取最大权重", "驻留参数 × 权重位宽 ÷ 8 × 副本及量化元数据",
+                              tree_value(weight, "GB"), "模型目录中的驻留参数与本次权重精度。"),
+                    tree_node("KV cache", "Σ 序列数 × (输入 + 生成 Token) × 每 Token KV ÷ 10⁹",
+                              f"本组各任务 KV 需求求和", tree_value(cache, "GB"),
+                              "来自本次模型结构、KV 精度、请求速率、输入/输出长度和分配序列数。"),
+                    tree_node("运行时开销", "同部署组取最大 runtime", "max(2 GB, 单副本权重 × 10%) × 副本数",
+                              tree_value(runtime, "GB"), "引擎运行开销经验口径，不是实测值。"),
+                ]))
+        return tree_node("显存需求", "池显存 = Σ 各共享部署组显存",
+                         " + ".join(fmt(g.get("memory_gb")) for g in groups) if groups else "暂无可计入部署组",
+                         tree_value(total, "GB"),
+                         f"显存预留 {fmt(reserve * 100)}% 已在各组应用一次；同池共享，三池之间不共享。", children)
+
+    rows = [i for i in pool.get("items", []) if (i.get("memory") or {}).get("memory_gb") is not None]
+    children = []
+    for item in rows:
+        v = (item.get("trace") or {}).get("variables") or {}
+        children.append(tree_node(
+            item.get("name", item["id"]),
+            "单任务显存 = (基座权重 + adapter + activation + workspace) ÷ (1 - 显存预留)",
+            f"({fmt(v.get('base_weight_gb'))} + {fmt(v.get('adapter_state_gb'))} + "
+            f"{fmt(v.get('activation_gb'))} + {fmt(v.get('workspace_gb'))}) ÷ (1 - {fmt(reserve)})",
+            tree_value((item.get("memory") or {}).get("memory_gb"), "GB"),
+            "训练显存为经验代理；不含效果评测。", [
+                tree_node("基座权重", "LoRA 按16位；QLoRA 按量化权重及元数据", "模型驻留参数与微调方法",
+                          tree_value(v.get("base_weight_gb"), "GB")),
+                tree_node("Adapter 状态", "驻留参数 × adapter 比例 × 16 bit ÷ 10⁹", "本次方案 adapter_fraction",
+                          tree_value(v.get("adapter_state_gb"), "GB")),
+                tree_node("Activation", "max(8 GB, 基座权重 × 20%) × 序列长度 ÷ 2048 × micro batch",
+                          f"序列长度 {fmt(v.get('sequence_length'))}；micro batch {fmt(v.get('micro_batch'))}",
+                          tree_value(v.get("activation_gb"), "GB")),
+                tree_node("Workspace", "max(2 GB, 基座权重 × 10%)", "训练工作区经验预留",
+                          tree_value(v.get("workspace_gb"), "GB")),
+            ]))
+    expression = f"max({', '.join(fmt((i.get('memory') or {}).get('memory_gb')) for i in rows)}) × {fmt(slots)}" if rows else "暂无可计入任务"
+    return tree_node("训练显存需求", "池显存 = max(候选单任务显存) × 并行槽位",
+                     expression, tree_value(total, "GB"),
+                     "每个槽位按最大候选任务配置显存，不累加全部候选模型。", children)
+
+
+def cards_tree(pool, headroom):
+    detail = pool.get("cards_detail") or {}
+    if detail.get("planned_compute_cards") is None:
+        return tree_node("余量与物理卡数", "选择规格完整的芯片后折算物理卡数", "",
+                         tree_value(pool.get("cards_planned"), "张"),
+                         detail.get("reason") or "本次快照没有可用的卡数明细。")
+    bf16 = D(detail["bf16_tflops"])
+    per_card_mem = D(detail["memory_gb_per_card"])
+    memory_gb = D(detail.get("memory_gb") or 0)
+    compute = detail.get("planned_compute_cards")
+    memory = detail.get("planned_memory_cards")
+    cards = pool.get("cards")
+    legacy_double_margin = detail.get("headroom_applications") != 1
+    compute_relation = ("历史引擎：planned_p 在卡数阶段再次乘 (1 + h)" if legacy_double_margin else
+                        "planned_p 已含一次余量，此处不重复相乘")
+    compute_expression = (f"{fmt(pool.get('planned_p'))} × (1 + {fmt(headroom)}) × 1000 ÷ {fmt(bf16)}"
+                          if legacy_double_margin else f"{fmt(pool.get('planned_p'))} × 1000 ÷ {fmt(bf16)}")
+    children = [
+        tree_node("基础卡数与一次余量", "cards = max(一次余量算力卡数, 基础显存卡数)",
+                  f"max({detail.get('compute_cards')}, {detail.get('memory_cards')})",
+                  tree_value(cards, "张"), "cards 的算力部分已经包含一次方案余量。"),
+        tree_node("算力约束卡数", compute_relation,
+                  f"ceil({compute_expression})", tree_value(compute, "张"),
+                  "旧快照保留当时的重复余量口径；新快照只应用一次。" if legacy_double_margin else
+                  "直接读取本次 cards_detail，不再把 planned_p 乘第二次余量。"),
+        tree_node("显存约束卡数", "ceil(池显存 × (1 + h) ÷ 单卡显存)",
+                  f"ceil({fmt(memory_gb)} × (1 + {fmt(headroom)}) ÷ {fmt(per_card_mem)})",
+                  tree_value(memory, "张"), "显存路径只在规划约束中应用一次比例余量。"),
+        tree_node("独立故障冗余", "基础卡数 + 1 张",
+                  f"{fmt(cards)} + 1", tree_value(None if cards is None else D(cards) + 1, "张"),
+                  "这是当前引擎保留的独立冗余规则，不属于比例余量；即使 h=0 也存在。"),
+        tree_node("最终规划卡数", "max(基础卡数 + 1, 算力约束, 显存约束)",
+                  f"max({fmt(cards)} + 1, {fmt(compute)}, {fmt(memory)})",
+                  tree_value(pool.get("cards_planned"), "张"), "池层不按8卡整机对齐，避免混机型池被强制扩成整台。"),
+        tree_node("规划服务器数", "ceil(规划卡数 ÷ 8)",
+                  f"ceil({fmt(pool.get('cards_planned'))} ÷ {fmt(detail.get('cards_per_server') or 8)})",
+                  tree_value(pool.get("servers_planned"), "台"), "仅按8卡/台估算，不代表已完成网络拓扑验证。"),
+    ]
+    return tree_node("余量与物理卡数", "一次容量余量 → 算力/显存取大 → 独立冗余 → 服务器取整",
+                     f"芯片 {detail.get('chip_label') or detail.get('chip_key')}；单卡 {fmt(bf16)} TFLOPS / {fmt(per_card_mem)} GB",
+                     tree_value(pool.get("cards_planned"), "张"),
+                     "卡数、服务器数与P值是不同量纲；规划容量由规划卡数反算。", children)
+
+
+def build_pool_tree(scope, pool, explanation, headroom, reserve):
+    common_steps = [s for s in explanation["steps"] if s.get("title") != "增加一次容量余量"]
+    task_children = []
+    for item in explanation.get("items", []):
+        source = "模型：" + str(item.get("model") or item.get("id"))
+        if item.get("revision"):
+            source += "；版本：" + str(item["revision"])
+        if item.get("source"):
+            source += "；来源：" + str(item["source"])
+        task_children.append(tree_node(item.get("name", item["id"]),
+                                       "展开本项的公式、代入数值与参数来源", "",
+                                       tree_value(item.get("base_p"), "P"), source,
+                                       tree_steps(item.get("steps", []))))
+    demand_children = tree_steps(common_steps)
+    if task_children:
+        demand_children.append(tree_node("逐项任务推导", "每个模型或候选任务独立展开", "",
+                                        f"{len(task_children)} 项", "所有子节点来自本次保存的计算轨迹。", task_children))
+    demand_relation = ("Σ 各模型（Prefill + Decode）需求" if scope == "innovation" else
+                       "max(候选单任务需求) × 并行微调槽位")
+    demand = tree_node("需求与工作量", demand_relation, "从方案输入和模型目录逐步换算",
+                       tree_value(pool.get("base_p"), "P"), "基础需求不含方案容量余量。", demand_children)
+    slots = (pool.get("intensity_parameters") or {}).get("train_slots", 1)
+    memory = memory_tree(scope, pool, reserve, slots)
+    cards = cards_tree(pool, headroom)
+    value = (tree_value(pool.get("cards_planned"), "张") + " · " + tree_value(pool.get("planned_p"), "P")
+             if pool.get("cards_planned") is not None else tree_value(pool.get("planned_p"), "P"))
+    return tree_node("创新池规划结果" if scope == "innovation" else "研发池规划结果",
+                     "需求与显存双约束 → 一次容量余量 → 物理卡数与独立冗余",
+                     f"headroom = {fmt(D(headroom) * 100)}%；显存预留 = {fmt(D(reserve) * 100)}%",
+                     value, "根节点为本次保存结果；三个主干可逐层展开到原始数字与来源。",
+                     [demand, memory, cards])
+
+
 def describe_task(item, original, models, pool):
     trace = item.get("trace") or {}
     v = trace.get("variables") or {}
@@ -264,7 +420,7 @@ def build_derivation(run, scope):
                   scope=scope, title=NAMES[scope] + " · 计算推导", completeness=report["completeness"] if scope == "total" else pool["completeness"],
                   base_p=report["total_base_p"] if scope == "total" else pool["base_p"],
                   planned_p=report["total_planned_p"] if scope == "total" else pool["planned_p"],
-                  inputs=[], steps=[], breakdown=[], items=[], missing_items=report["missing_items"] if scope == "total" else pool["missing_items"],
+                  inputs=[], steps=[], breakdown=[], items=[], tree=None, missing_items=report["missing_items"] if scope == "total" else pool["missing_items"],
                   notes=["全部数值来自该次输入、模型和计算轨迹快照，不读取当前编辑值、当前模型库或新的默认值。",
                          "中间数值最多展示6位小数，最终容量采用快照未舍入值；算力以 BF16 稠密算力为基准折算、单位 P / T，效率和结构代理仍需实测校准。"])
     inputs, steps = result["inputs"], result["steps"]
@@ -324,8 +480,10 @@ def build_derivation(run, scope):
         steps.append(step("汇总场景卡数", "业务池卡数 = Σ 各场景含余量卡数",
                           " + ".join(str(i.get("cards_planned")) for i in pool["items"]) or "暂无可计入项",
                           pool.get("cards_planned"), "张",
-                          "卡数已按实例对齐；余量按方案余量比例在场景层放大一次，池层不再重复。"))
+                          "卡数按 8 卡最小部署粒度向上对齐，且不少于一个部署单元；余量按方案余量比例在场景层放大一次，池层不再重复。"))
         result["notes"].append("场景高峰按同时发生汇总。展开场景查看显存/Prefill/Decode 三维约束与 SLA 回验；卡数是物理台数，算力是 BF16 基准的折算值（P / T）。")
     else:
         result["items"] = [describe_task(i, originals.get(i["id"], {}), models, pool) for i in pool["items"]]
+    if scope in ("innovation", "development"):
+        result["tree"] = build_pool_tree(scope, pool, result, headroom, D(payload["memory_reserve"]))
     return result

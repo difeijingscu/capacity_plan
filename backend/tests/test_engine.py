@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.catalogs import SYNTHETIC, seeds
-from app.engine.calculator import calculate, compute_task, cost_estimate
+from app.catalogs import SYNTHETIC, inference_catalog, seeds
+from app.engine.business import planned_cards
+from app.engine.calculator import calculate, cards_for_pool, compute_task, cost_estimate
 from app.schemas import (Allocation, Development, DevModel, InferenceRequest, Innovation,
                           PlanInput, Scenario, Task)
 
@@ -159,6 +160,17 @@ def test_moe_and_distinct_phase_params():
     assert actual["decode_flop_per_request"]==reference["decode_flop_per_request"]
 
 
+def test_mla_kv_cache_uses_latent_plus_rope():
+    """MLA 每 Token KV = 层数 × (低秩维 + RoPE维) × 字节数。"""
+    model={**SYNTHETIC,"layers":2,"latent_dim":16,"rope_dim":8}
+    actual=compute_task(Task(model_id="mla",request_rate=1,input_tokens=100,answer_tokens=20,
+                             reasoning_tokens=0,ttft_seconds=0,output_tokens_per_second=20),model)
+    # expected_concurrent=1，序列数=1；2 × (16 + 8) × 2B × (100 + 20) = 11520B。
+    assert actual["memory"]["expected_concurrent"]==1
+    assert actual["memory"]["allocated_sequences"]==1
+    assert actual["memory"]["cache_gb"]==D("0.00001152")
+
+
 def test_half_service_window_doubles_capacity():
     original=result(innovation=innovation())["pools"][1]
     half=result(innovation=innovation(service_hours_per_day=4))["pools"][1]
@@ -190,6 +202,22 @@ def test_disabled_and_missing_dev():
     assert missing["completeness"]=="PARTIAL"
 
 
+def test_disabled_innovation_and_development_have_zero_resources():
+    """禁用池即使未选芯片也返回零资源，不应用最低一卡、余量或冗余。"""
+    report=calculate(PlanInput(innovation=Innovation(enabled=False,chip_key=None),
+                               development=Development(enabled=False,chip_key=None)),[])
+    for pool in report["pools"][1:]:
+        assert pool["completeness"]=="DISABLED"
+        assert pool["cards"]==0
+        assert pool["cards_planned"]==0
+        assert pool["servers"]==0
+        assert pool["servers_planned"]==0
+        assert D(pool["capacity_p"])==0
+        assert D(pool["capacity_planned_p"])==0
+        assert pool["cards_detail"]["headroom_applications"]==0
+        assert pool["cards_detail"]["redundancy_cards"]==0
+
+
 def test_missing_scenario_not_lost():
     """无法估算的场景必须留在 missing_items，不能悄悄消失。"""
     report=calculate(legacy_plan(legacy_task(),Task(task_type="unit",units_per_second=10)),[SYNTHETIC],custom_inference_models=[as_inference(SYNTHETIC)])
@@ -215,6 +243,57 @@ def test_headroom_once():
     two=result(spec(),spec(),headroom=".2")["pools"][0]
     near(D(two["base_p"]),float(one["base_p"])*2)
     near(D(two["planned_p"]),float(two["base_p"])*1.2)
+
+
+def test_pool_compute_headroom_is_not_applied_twice():
+    """100P 经一次20%余量为120卡；另加的一张是冗余，不是第二次比例余量。"""
+    detail=cards_for_pool({"planned_p":D(120),"memory":{"memory_gb":0}},
+                          {"key":"1p","bf16_tflops":1000,"memory_gb":80},D(".2"))
+    assert detail["cards"]==120
+    assert detail["cards_detail"]["planned_compute_cards"]==120
+    assert detail["cards_planned"]==121
+    assert detail["cards_detail"]["headroom_applications"]==1
+    assert detail["cards_detail"]["redundancy_cards"]==1
+
+
+def test_pool_zero_headroom_keeps_only_explicit_redundancy():
+    detail=cards_for_pool({"planned_p":D(100),"memory":{"memory_gb":0}},
+                          {"key":"1p","bf16_tflops":1000,"memory_gb":80},D(0))
+    assert detail["cards"]==100
+    assert detail["cards_detail"]["planned_compute_cards"]==100
+    assert detail["cards_planned"]==101
+
+
+def test_pool_memory_headroom_is_applied_once():
+    """显存基础约束为10卡，20%余量后为12卡；不能再放大成15卡。"""
+    detail=cards_for_pool({"planned_p":D(1),"memory":{"memory_gb":800}},
+                          {"key":"1p","bf16_tflops":1000,"memory_gb":80},D(".2"))
+    assert detail["cards_detail"]["memory_cards"]==10
+    assert detail["cards_detail"]["planned_memory_cards"]==12
+    assert detail["cards_planned"]==12
+
+
+@pytest.mark.parametrize("cards,h,expected",[
+    (1,"0",8),      # 不足一个部署单元 → 补到 8
+    (2,"0",8),
+    (8,"0",8),      # h=0 不再强制增加一台
+    (9,"0",16),
+    (10,".2",16),
+    (18,".2",24),
+    (20,".2",24),
+    (40,".2",48),   # 浮点回归：40×1.2 不能因 48.00000000000001 变成 56
+])
+def test_business_cards_align_to_deployment_unit(cards,h,expected):
+    """8 卡是最小部署粒度，不是"至少多一台实例"：按 8 卡向上取整且不少于 8 卡。"""
+    assert planned_cards(cards,8,h)==expected
+
+
+def test_business_pool_planned_cards_are_deployment_multiples():
+    """业务池汇总卡数同样落在部署粒度上，且零余量时不会额外增加一台。"""
+    pool=result(spec(),headroom="0")["pools"][0]
+    assert pool["cards_planned"]%8==0
+    assert pool["cards_planned"]>=8
+    assert pool["cards_planned"]>=pool["cards"]
 
 
 def test_independent_pool_cost_rounding_and_missing_price():
@@ -305,10 +384,94 @@ def test_legacy_model_not_in_catalog_is_reported_not_guessed():
     assert report["completeness"]=="BLOCKED"
 
 
-def test_scenario_without_any_input_is_flagged():
+def test_scenario_without_any_input_is_blocked_not_defaulted():
+    """空场景不再按默认模型出卡数：宁可报待补，也不给一个看起来成立的结果。"""
     report=calculate(PlanInput(scenarios=[Scenario(name="空场景")]),[])
-    assert report["pools"][0]["items"][0]["inference_origin"]=="default"
-    assert "SCENARIO_NOT_CONFIGURED" in report["pools"][0]["items"][0]["warnings"]
+    assert report["pools"][0]["items"]==[]
+    assert [m["code"] for m in report["missing_items"]]==["MISSING_MODEL"]
+    assert report["completeness"]=="BLOCKED"
+
+
+def test_scenario_with_all_components_disabled_is_blocked():
+    """场景启用但组件全停用：过去会回退到第一个组件硬算，现在应阻断。"""
+    plan_input=PlanInput(scenarios=[Scenario(name="停用场景",components=[
+        Task(model_id="qwen3_8b",task_type="text",online_users=100,enabled=False)])])
+    report=calculate(plan_input,[])
+    assert report["pools"][0]["items"]==[]
+    assert [m["code"] for m in report["missing_items"]]==["SCENARIO_DISABLED_COMPONENTS"]
+    assert report["completeness"]=="BLOCKED"
+
+
+def test_multi_component_scenario_warns_about_ignored_components():
+    """多组件只按首个启用项折算，必须显式告警，不能静默丢组件。"""
+    plan_input=PlanInput(scenarios=[Scenario(name="双组件场景",components=[
+        Task(model_id="qwen3_8b",task_type="text",online_users=100),
+        Task(model_id="qwen3_8b",task_type="text",online_users=100)])])
+    pool=calculate(plan_input,[])["pools"][0]
+    assert len(pool["items"])==1
+    assert "COMPONENTS_PARTIALLY_IGNORED" in pool["items"][0]["warnings"]
+
+
+def test_global_weight_precision_applies_to_migrated_scenarios():
+    """全局量化精度（business_defaults.weight_precision）必须对旧字段场景生效。
+
+    业务页的「全局硬件配置」与推理评估页对齐后提供该下拉；若后端不消费，
+    页面选 W8A8 仍按 BF16 出卡数，等于控件是装饰。
+    """
+    def cards(precision):
+        plan_input=PlanInput(
+            business_defaults={"chip_key":"910c","profile":"neutral","weight_precision":precision},
+            scenarios=[Scenario(name="旧场景",
+                                components=[Task(model_id="qwen3_8b",task_type="text",online_users=100)])])
+        item=calculate(plan_input,[])["pools"][0]["items"][0]
+        return item["cards"],item["inference_spec"]["weight_precision"]
+    bf16_cards,bf16_prec=cards("bf16")
+    w8a8_cards,w8a8_prec=cards("w8a8")
+    assert bf16_prec=="bf16"
+    assert w8a8_prec=="w8a8"
+    # W8A8 权重减半：显存主导的场景卡数必须下降，不能与 BF16 同值
+    assert w8a8_cards < bf16_cards
+    assert cards("auto")[1]=="auto"
+
+
+def test_global_weight_precision_overrides_configured_scenario():
+    """已配置场景也不再按自身历史精度计算：精度是方案级设置。
+
+    页面取消了场景行的逐场景精度下拉，全局下拉是唯一入口。若后端仍以
+    scenario.inference.weight_precision 为准，改了全局下拉对已配置场景无效，
+    页面显示全局 W8A8、实际按 BF16 出卡，又回到「显示一套、算另一套」。
+    """
+    def cards(global_prec,scenario_prec):
+        plan_input=PlanInput(
+            business_defaults={"chip_key":"910c","profile":"neutral","weight_precision":global_prec},
+            scenarios=[Scenario(name="已配置场景",inference=spec(weight_precision=scenario_prec))])
+        item=calculate(plan_input,[])["pools"][0]["items"][0]
+        return item["cards"],item["inference_spec"]["weight_precision"]
+    # 场景里留着 bf16 的历史值，全局改成 w8a8 后必须以全局为准
+    w8a8_cards,w8a8_prec=cards("w8a8","bf16")
+    assert w8a8_prec=="w8a8"
+    assert w8a8_cards < cards("bf16","bf16")[0]
+    # 全局选「自动推荐」也覆盖场景值：下拉是唯一入口，不能只对部分取值生效
+    assert cards("auto","w8a8")[1]=="auto"
+
+    # 老方案没有该全局字段时保持原行为，历史结果不漂移
+    legacy=PlanInput(business_defaults={"chip_key":"910c","profile":"neutral"},
+                     scenarios=[Scenario(name="老方案场景",inference=spec(weight_precision="w8a8"))])
+    assert calculate(legacy,[])["pools"][0]["items"][0]["inference_spec"]["weight_precision"]=="w8a8"
+
+
+def test_disabled_scenario_still_exposes_resolved_spec_for_display():
+    """停用场景不参与计算，但仍返回解析结果，供页面回显（前端不再自行迁移）。"""
+    plan_input=PlanInput(scenarios=[Scenario(
+        name="停用场景",enabled=False,
+        components=[Task(model_id="qwen3_8b",task_type="text",online_users=50)])])
+    pool=calculate(plan_input,[])["pools"][0]
+    assert pool["items"]==[]
+    resolved=pool["resolved_specs"][plan_input.scenarios[0].id]
+    assert resolved["enabled"] is False
+    assert resolved["spec"]["model_key"]=="qwen3_8b"
+    assert resolved["spec"]["concurrency"]==50.0
+    assert resolved["origin"]=="migrated"
 
 
 def test_sensitivity_recalculates():
@@ -317,6 +480,24 @@ def test_sensitivity_recalculates():
     report=calculate(plan(spec(concurrency=500)),[],True)
     assert D(report["sensitivity"][0]["total_planned_p"])<D(report["total_planned_p"])
     assert D(report["sensitivity"][1]["total_planned_p"])>D(report["total_planned_p"])
+
+
+def test_custom_model_flows_through_business_and_sensitivity():
+    """同规格自定义模型应与内置模型逐项一致，敏感性结果不得退回 null。"""
+    model={**inference_catalog.find_model("qwen3_8b"),"key":"custom-8b","label":"自定义 8B"}
+    custom=calculate(plan(spec(model_key="custom-8b",concurrency=500)),[],True,
+                     inference_models=[],custom_inference_models=[model])
+    reference=calculate(plan(spec(concurrency=500)),[],True)
+    pool=custom["pools"][0]
+    expected=reference["pools"][0]
+    assert custom["completeness"]=="COMPLETE"
+    assert pool["completeness"]=="COMPLETE"
+    assert pool["items"][0]["model_id"]=="custom-8b"
+    assert pool["items"][0]["chip_key"]=="910c"
+    for field in ("cards","cards_planned","servers","base_p","planned_p","capacity_p","capacity_planned_p"):
+        assert pool[field]==expected[field]
+    assert [D(v["total_planned_p"]) for v in custom["sensitivity"]]==[
+        D(v["total_planned_p"]) for v in reference["sensitivity"]]
 
 
 def test_scenarios_aggregate_without_double_margin():

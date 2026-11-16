@@ -129,9 +129,13 @@ def _precision_of(key: str | None) -> dict:
             "kv": prec["kv"], "needNativeInt4": prec["need_native_int4"]}
 
 
-def _constants() -> dict:
-    """页面 ENG_CONST + FFN 有效利用率常数，全部来自 params（v2 结构）。"""
-    c = _params.current()["constants"]
+def _constants(params: dict | None = None) -> dict:
+    """页面 ENG_CONST + FFN 有效利用率常数，全部来自 params（v2 结构）。
+
+    params 为生效参数快照；None 时读取当前全局参数（兼容旧调用）。
+    计算链路应显式传入快照，避免执行期间全局参数变化导致上下文不一致。
+    """
+    c = (params or _params.current())["constants"]
     return {
         "prefillBudget": float(c["prefill_budget"]),
         "decodeFixedMs": float(c["decode_fixed_ms"]),
@@ -156,14 +160,15 @@ CUSTOM_CHIP_PROFILE = {
 }
 
 
-def eng_at(chip_key: str, tier: str) -> dict:
+def eng_at(chip_key: str, tier: str, params: dict | None = None) -> dict:
     """档位作用后的生效系数（页面 engAt 同口径）。
 
     基准 = params 默认值 + 用户覆盖（chip_profiles），档位系数只作用于
     效率类（指数规则见 tier_exponents），缩放后按页面区间夹取。
     未登记的芯片 key（自定义算力卡）回退到 CUSTOM_CHIP_PROFILE 通用经验值。
+    params 为生效参数快照；None 时读取当前全局参数（兼容旧调用）。
     """
-    cfg = _params.current()
+    cfg = params or _params.current()
     # 部分字段覆盖（尤其自定义芯片只调了一两项）时，缺省字段回退到通用经验值
     base = {**CUSTOM_CHIP_PROFILE, **(cfg["chip_profiles"].get(chip_key) or {})}
     tiers = cfg["tiers"]
@@ -767,7 +772,7 @@ def aggregate(results: list[dict]) -> dict:
 # ---------------------------------------------------------------- 高层入口（catalog + 请求）
 
 def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[dict],
-             profile: str = "neutral") -> dict:
+             profile: str = "neutral", params: dict | None = None) -> dict:
     """单场景推理算力评估（v2.0.0 页面口径）。
 
     request: model_key / chip_key / weight_precision / scene_key /
@@ -775,6 +780,8 @@ def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[
              （kv_precision / prefix_hit / max_ctx 为兼容保留字段，新引擎不消费）
     models/chips/scenes: catalog 清单（inference_models/chips/scenes.json 的条目形态，
              自定义模型同构）。profile: optimistic/neutral/conservative → 档位 tier。
+    params: 生效工程参数快照；None 时读取当前全局参数。正式测算应显式传入，
+             使同一任务内的芯片系数与常数来自同一份参数。
     """
     model = next((m for m in models if m["key"] == request.get("model_key")), None)
     if model is None:
@@ -809,8 +816,8 @@ def estimate(request: dict, models: list[dict], chips: list[dict], scenes: list[
     if scen["ttft"] <= 0 or scen["tpot"] <= 0:
         raise InferenceIssue("INVALID_SLA", "TTFT 与 TPOT 目标必须大于 0")
 
-    eng = eng_at(chip["key"], tier)
-    const = _constants()
+    eng = eng_at(chip["key"], tier, params=params)
+    const = _constants(params=params)
     out = evaluate(m_v, scen, chip_v, prec, eng, const)
     out.update({
         "tier": tier, "tierLabel": TIERS.get(tier, tier),

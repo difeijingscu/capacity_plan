@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.catalogs import SYNTHETIC, seeds
 from app.engine.calculator import calculate, clean
+from app.derivations import build_derivation
 from app.main import create_app
 from app.schemas import (Allocation, Development, DevModel, InferenceRequest, Innovation,
                           PlanInput, Scenario, Task)
@@ -45,12 +46,33 @@ def get(client, run, scope):
     return response.json()
 
 
+def direct_explanation(payload, scope, models=None):
+    """不启动 HTTP 客户端，直接验证快照推导数据结构。"""
+    models = models or [SYNTHETIC]
+    custom = [_as_inference(x) for x in models
+              if x.get("resident_parameters") and x.get("active_parameters_prefill")]
+    run = dict(id="run-tree", plan_id="plan-tree", plan_revision=1, created_at="2026-11-13T00:00:00",
+               input_snapshot=payload.model_dump(mode="json"), catalog_snapshot=deepcopy(models),
+               result=clean(calculate(payload, models, custom_inference_models=custom)))
+    return build_derivation(run, scope), run
+
+
 def by_title(steps, title):
     return next(s for s in steps if s["title"] == title)
 
 
 def by_title_input(fields, label):
     return next(f for f in fields if f["label"] == label)
+
+
+def tree_child(node, label):
+    if node["label"] == label:
+        return node
+    for child in node.get("children", []):
+        found = tree_child(child, label)
+        if found:
+            return found
+    return None
 
 
 def test_innovation_large_quota_matches_32p_snapshot(client):
@@ -123,6 +145,45 @@ def test_development_uses_largest_candidate_and_slots_not_sum(client):
     assert D(explanation["base_p"]) == tc
     assert D(by_title(explanation["steps"], "微调槽位容量")["value"]) == tc
     assert all(t["steps"] for t in explanation["items"])
+
+
+def test_innovation_tree_explains_workload_memory_and_single_margin():
+    payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=1_000_000,
+                                            allocations=[Allocation(model_id=SYNTHETIC["id"], share=1)]))
+    explanation, run = direct_explanation(payload, "innovation")
+    tree = explanation["tree"]
+    assert tree["label"] == "创新池规划结果"
+    assert [c["label"] for c in tree["children"]] == ["需求与工作量", "显存需求", "余量与物理卡数"]
+    assert tree_child(tree, "得到全池实际月度Token预算")
+    assert tree_child(tree, "单任务基础容量")
+    assert tree_child(tree, "KV cache")
+    compute = tree_child(tree, "算力约束卡数")
+    assert "不重复" in compute["relation"]
+    pool = run["result"]["pools"][1]
+    assert compute["value"] == f"{pool['cards_detail']['planned_compute_cards']} 张"
+    assert tree_child(tree, "独立故障冗余")["value"] == f"{pool['cards'] + 1} 张"
+
+
+def test_development_tree_explains_slots_training_memory_and_cards():
+    payload = PlanInput(development=Development(enabled=True, models=[DevModel(model_id=SYNTHETIC["id"])], train_slots=2))
+    explanation, _ = direct_explanation(payload, "development")
+    tree = explanation["tree"]
+    assert tree["label"] == "研发池规划结果"
+    assert tree_child(tree, "微调槽位容量")
+    assert tree_child(tree, "单次微调总工作量")
+    assert tree_child(tree, "Adapter 状态")
+    assert tree_child(tree, "训练显存需求")
+    assert tree_child(tree, "最终规划卡数")
+
+
+def test_legacy_tree_keeps_historical_double_margin_explanation():
+    payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=1_000_000,
+                                            allocations=[Allocation(model_id=SYNTHETIC["id"], share=1)]))
+    explanation, run = direct_explanation(payload, "innovation")
+    detail = run["result"]["pools"][1]["cards_detail"]
+    del detail["headroom_applications"]
+    tree = build_derivation(run, "innovation")["tree"]
+    assert "再次乘" in tree_child(tree, "算力约束卡数")["relation"]
 
 
 def test_non_llm_scenarios_are_blocked_with_reasons(client):
