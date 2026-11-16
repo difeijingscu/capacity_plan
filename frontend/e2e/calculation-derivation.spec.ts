@@ -28,6 +28,11 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   const drawer = page.locator('.calculation-derivation');
   await page.getByRole('button', { name: '查看创新服务计算推导', exact: true }).click();
   await expect(drawer.getByText('创新服务 · 计算推导', { exact: true })).toBeVisible();
+  await expect(drawer.locator('.fx2-card.t-root .nm')).toHaveText('创新池规划结果');
+  await expect(drawer.locator('.fx2-branch')).toHaveCount(3);
+  await expect(drawer.locator('.fx-block')).toContainText('需求与工作量');
+  await expect(drawer.locator('.fx-block')).toContainText('显存需求');
+  await expect(drawer.locator('.fx-block')).toContainText('余量与物理卡数');
   await expect(drawer).toContainText('50,000,000,000');
   await expect(drawer).toContainText('633,600');
   await expect(drawer).toContainText('78,914.141414');
@@ -58,12 +63,26 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await expect(drawer).toContainText('deepseek_v4_flash');
   await drawer.locator('.ant-drawer-close').click();
   await page.getByRole('button', { name: '查看开发测试计算推导', exact: true }).click();
+  await expect(drawer.locator('.fx2-card.t-root .nm')).toHaveText('研发池规划结果');
+  await expect(drawer.locator('.fx-block')).toContainText('训练显存需求');
   await expect(drawer).toContainText('微调槽位容量');
   await expect(drawer).toContainText('max(');
   await expect(drawer).toContainText('× 微调槽位数');
   await expect(drawer).toContainText('不机械累加所有候选模型');
   await expect(drawer).toContainText('F训练 = k训练 × N训练激活 × D × E');
   expect(errors).toEqual([]);
+});
+
+test('创新和研发配置页可展开最近测算的杜邦树', async ({ page }) => {
+  await createAndCalculate(page, '配置页杜邦树验收');
+  const drawer = page.locator('.calculation-derivation');
+  await page.getByRole('button', { name: '创新服务', exact: true }).click();
+  await page.getByRole('button', { name: '查看最近测算计算过程', exact: true }).click();
+  await expect(drawer.locator('.fx2-card.t-root .nm')).toHaveText('创新池规划结果');
+  await drawer.locator('.ant-drawer-close').click();
+  await page.getByRole('button', { name: '开发测试', exact: true }).click();
+  await page.getByRole('button', { name: '查看最近测算计算过程', exact: true }).click();
+  await expect(drawer.locator('.fx2-card.t-root .nm')).toHaveText('研发池规划结果');
 });
 
 test('修改输入后推导保留历史口径，重新测算后展示新输入', async ({ page }) => {

@@ -80,7 +80,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
       ]} />
       <Formula title="第一步 · 三维取最大，再奇数补偶">卡数 = 补偶( max(A, B, C) )<br />台数 = 卡数 ÷ 8（8 张卡为一台）</Formula>
       <Formula title="第二步 · 需求算力（BF16 等效参考）">C基础 = 卡数 × 芯片BF16峰值 ÷ 1000（P）<br />C建议 = C基础 × (1 + h)</Formula>
-      <Provenance><p>三条约束与推理评估引擎（engine-v2.0.0）共用同一套页面口径：A 按权重字节 + KV 缓存 + 激活与运行空间，KV 按 MLA / GQA 结构逐层计数；B 按 Prefill 算力与 M/G/1 排队校验 TTFT；C 按 Decode 带宽与算力枚举「分片 × 副本」校验 TPOT，并给出带宽受限、逐 Token 未达标等告警类型。需求算力是卡数折算的等效参考口径，与卡数不是同一量纲，不能混加比较。公式与参数的代码对照见开发笔记第 2 章。</p></Provenance>
+      <Provenance><p>三条约束与推理评估引擎共用同一套页面口径：A 按权重字节 + KV 缓存 + 激活与运行空间，KV 按 MLA / GQA 结构逐层计数；B 按 Prefill 算力与 M/G/1 排队校验 TTFT；C 按 Decode 带宽与算力枚举「分片 × 副本」校验 TPOT，并给出带宽受限、逐 Token 未达标等告警类型。需求算力是卡数折算的等效参考口径，与卡数不是同一量纲，不能混加比较。公式与参数的代码对照见开发笔记第 2 章。</p></Provenance>
     </Card>
     <Card title="旧版清单模板与阶段效率默认值">
       <Table<Obj> rowKey="id" dataSource={presetRows} pagination={false} size="small" scroll={{ x: 700 }} columns={[

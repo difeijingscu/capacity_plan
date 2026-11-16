@@ -83,7 +83,7 @@ export const METHOD_HTML = `
     <div class="fx-block"><div class="fx-t">单场景 → 算力汇总</div>
       <div class="fx-line"><div class="k"><b>部署方式</b></div><div><div class="f">混部（P/D 同批卡，取 max）；PD 分离 = P 池 + D 池，本工具暂未建模</div></div></div>
       <div class="fx-line"><div class="k"><b>单场景</b></div><div><div class="f">cards = align( max(A, B, C) )　主导因素 = argmax(A, B, C)</div></div></div>
-      <div class="fx-line"><div class="k"><b>算力汇总</b></div><div><div class="f">总卡数 = Σ 各场景卡数；含余量卡数 = 池层按余量比例放大并对齐 8 卡/台</div></div></div>
+      <div class="fx-line"><div class="k"><b>算力汇总</b></div><div><div class="f">总卡数 = Σ 各场景卡数；含余量卡数 = 池层按余量比例放大，再向上对齐到 8 卡最小部署粒度（不少于 8 卡）</div></div></div>
     </div>
     </div>
   </details>

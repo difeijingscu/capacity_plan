@@ -37,9 +37,12 @@
 .scen-list{display:grid;gap:12px}
 .scen-row{border:1px solid #e3ead9;border-radius:10px;background:#fff;padding:14px 16px;min-width:0}
 .scen-row.disabled{opacity:.55;background:#fafbf7}
-.scen-top{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(140px,1fr) minmax(180px,1.3fr) minmax(120px,.6fr) minmax(96px,.5fr) auto;gap:12px;align-items:end}
+.scen-top{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(140px,1fr) minmax(180px,1.4fr) minmax(96px,.5fr) auto;gap:12px;align-items:start}
 @media(max-width:1250px){.scen-top{grid-template-columns:repeat(2,minmax(0,1fr))}.scen-top .scen-badge{align-items:flex-start}}
-.scen-top .field>label{display:block;font-size:11px;color:#8b9a80;margin-bottom:4px}
+.scen-top .field>label{display:block;font-size:11px;color:#8b9a80;margin-bottom:4px;height:16px;line-height:16px;overflow:hidden;white-space:nowrap}
+.scen-top .field{display:flex;flex-direction:column;height:76px}
+.scen-top .field>.ant-input,.scen-top .field>.ant-select,.scen-top .field>.ant-input-number{flex:none}
+.scen-top .field>small.muted{height:16px;line-height:16px;margin-top:4px;font-size:11px;overflow:hidden;white-space:nowrap}
 .scen-badge{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:110px}
 .scen-badge .cards{font-size:22px;font-weight:650;color:#2f5941;line-height:1.1}
 .scen-badge .cards small{font-size:12px;font-weight:400;color:#7d8f74;margin-left:2px}

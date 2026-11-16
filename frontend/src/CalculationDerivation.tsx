@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Collapse, Descriptions, Drawer, Pagination, Space, Spin, Table, Tag } from 'antd';
 import { api, capacity, num, stateNames } from './api';
 import type { Obj } from './api';
+import FxTree from './FxTree';
 
 function valueText(value: unknown) {
   if (value == null) return '待补充';
@@ -50,8 +51,9 @@ export default function CalculationDerivation({ runId, scope, stale, onClose }: 
         <div className="derivation-summary"><span>本次保存的建议容量</span><strong>{capacity(view.planned_p)}</strong><small>快照值：{valueText(view.planned_p)}{view.planned_p != null && ' P'} · 基础容量：{valueText(view.base_p)}{view.base_p != null && ' P'}</small></div>
         {view.completeness === 'DISABLED' && <Alert type="info" showIcon message="本次方案未启用此资源池" description="该资源池计入总量为0，没有任务推导。" />}
         {view.missing_items.length > 0 && <Alert type="warning" showIcon message="以下需求尚未完整计入，当前数值仅代表已计入部分" description={<ul>{view.missing_items.map((r: Obj, i: number) => <li key={i}>{r.name || r.id}：{r.message}</li>)}</ul>} />}
+        {view.tree && <Card size="small" title="计算过程 · 杜邦式展开"><FxTree tree={view.tree} variant="pool" /></Card>}
         <Card size="small" title="本次输入与共同口径"><Inputs rows={view.inputs} /></Card>
-        {view.steps.length > 0 && <Card size="small" title={scope === 'total' ? '总量汇总与余量' : '资源池推导与汇总'}><Steps rows={view.steps} /></Card>}
+        {view.steps.length > 0 && <Card size="small" title={view.tree ? '文字步骤：公式与代入数值' : scope === 'total' ? '总量汇总与余量' : '资源池推导与汇总'}><Steps rows={view.steps} /></Card>}
         {view.breakdown.length > 0 && <Card size="small" title={scope === 'total' ? '三类资源池的数值组成' : '各场景的数值组成'}><Table<Obj> rowKey="id" size="small" pagination={{ pageSize: 10, hideOnSinglePage: true }} dataSource={view.breakdown} scroll={{ x: 580 }} columns={[
           { title: '名称', dataIndex: 'name' }, { title: '基础容量', dataIndex: 'base_p', render: capacity },
           { title: '建议容量（已含余量）', dataIndex: 'planned_p', render: capacity }, { title: '状态', dataIndex: 'completeness', render: v => stateNames[v] || v },

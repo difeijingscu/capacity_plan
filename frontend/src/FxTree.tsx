@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import { Tooltip } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import type { Obj } from './api';
+import './business-eval.css';
 
 /**
- * 杜邦式计算过程树：总卡数 → A/B/C 约束 → 因子 → 原始参数。
- * 数据来自后端引擎 evaluate() 输出的 tree（随 trace.detail 下发），
+ * 杜邦式计算过程树：业务池为总卡数 → A/B/C 约束，创新/研发池为规划结果 → 需求/显存/卡数三主干。
+ * 业务树来自引擎 trace.detail，创新/研发树来自历史快照 derivation.tree。
  * 节点 = { label, relation(关系式), expr(代入), value(数值), note(来源), tag, highlight, children[] }。
- * 渲染口径与推理评估页一致：根 → A/B/C 三栏并排，分支内部纵向逐层展开，
- * 初始只展开第一层（根 + A/B/C 三张卡片），点卡片逐层下钻。
+ * 根 → 三条分支并排，分支内部纵向逐层展开；初始只展开第一层，点卡片逐层下钻。
  */
 
 const BRANCH_CLASS = ['a', 'b', 'c'];
@@ -69,7 +69,13 @@ function FxCard({ node, path, level, branch, folded, onToggle }: {
   );
 }
 
-export default function FxTree({ tree }: { tree: Obj | null | undefined }) {
+export default function FxTree({ tree, variant = 'inference', footer }: {
+  tree: Obj | null | undefined;
+  variant?: 'inference' | 'pool';
+  footer?: string;
+}) {
+  const isPool = variant === 'pool';
+  const branchLabels = isPool ? ['需求 / 工作量', '显存 / 部署', '余量 / 卡数'] : ['A 显存', 'B Prefill', 'C Decode'];
   // 默认只展开第一层：折叠所有「非根且有下级」的节点（与页面 fxFoldDeep 一致）
   const defaultFolded = useMemo(() => {
     const out = new Set<string>();
@@ -93,13 +99,13 @@ export default function FxTree({ tree }: { tree: Obj | null | undefined }) {
       <div className="fx-t">
         <span>计算过程 · 杜邦式逐层拆解</span>
         <span className="fx-lgs">
-          <span><i className="l-root" />根</span><span><i className="l-a" />A 显存</span>
-          <span><i className="l-b" />B Prefill</span><span><i className="l-c" />C Decode</span>
+          <span><i className="l-root" />根</span><span><i className="l-a" />{branchLabels[0]}</span>
+          <span><i className="l-b" />{branchLabels[1]}</span><span><i className="l-c" />{branchLabels[2]}</span>
           <span><i className="l-leaf" />叶子参数</span>
         </span>
         <span className="fx-ctrl">
           <button type="button" onClick={expandAll}>全部展开</button>
-          <button type="button" onClick={topOnly}>只看 A/B/C</button>
+          <button type="button" onClick={topOnly}>{isPool ? '只看三条主干' : '只看 A/B/C'}</button>
         </span>
       </div>
       <div className="fx2-tree">
@@ -117,7 +123,7 @@ export default function FxTree({ tree }: { tree: Obj | null | undefined }) {
       <div className="fx2-hint">
         <span>⊞ 点卡片逐层展开 / 收起下级 · 初始只展开第一层</span>
       </div>
-      <div className="fx2-reuse">
+      {!isPool && <div className="fx2-reuse">
         <div className="fx2-reuse-h">关键变量复用路径<span>同一参数被多条链路引用 · 改动会同时影响两个分支</span></div>
         <div className="fx2-reuse-g">
           {FX_REUSE.map(v => (
@@ -127,10 +133,11 @@ export default function FxTree({ tree }: { tree: Obj | null | undefined }) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
       <div className="fx2-foot">
-        口径：容量按十进制 GB（1 GB = 10⁹ B）；每 token KV 随模型架构与量化档变化。
-        最终卡数取 max(A 显存, B Prefill, C Decode) → 奇数补偶；余量在池层统一加成，场景层为最小卡数。
+        {footer || (isPool
+          ? '口径：所有节点来自本次测算快照。planned_p 只应用一次比例余量；规划卡数再考虑显存约束与独立 1 卡冗余，不按 8 卡整机对齐。'
+          : '口径：容量按十进制 GB（1 GB = 10⁹ B）；每 token KV 随模型架构与量化档变化。最终卡数取 max(A 显存, B Prefill, C Decode) → 奇数补偶；余量在池层统一加成，含余量卡数按 8 卡最小部署粒度向上对齐、不少于一个部署单元。')}
       </div>
     </div>
   );

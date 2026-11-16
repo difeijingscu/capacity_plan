@@ -103,14 +103,10 @@ function summarizeByModel(scenarios: Obj[]): Obj[] {
 /** 后端 business.resolve_spec 直接拒收的任务类型：业务池只覆盖大模型推理。 */
 const NON_LLM_TASKS = new Set(['cv', 'unit', 'native']);
 
-/** 与后端 business._norm 同一套归一化：去符号、转小写。 */
-const norm = (value: unknown) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-export default function BusinessPage({ payload, edit, catalog, legacyModels, catalogLoading, preview, refreshCatalog, onImport }: {
+export default function BusinessPage({ payload, edit, catalog, catalogLoading, preview, refreshCatalog, onImport }: {
   payload: Obj;
   edit: (mutator: (plan: Obj) => void) => void;
   catalog: Obj | null;
-  legacyModels: Obj[];
   catalogLoading?: boolean;
   preview: Obj | null;
   refreshCatalog: () => Promise<void>;
@@ -135,6 +131,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   const configured = payload.scenarios.filter((s: Obj) => s.inference);
   const derivedChips = [...new Set(configured.map((s: Obj) => s.inference.chip_key).filter(Boolean))] as string[];
   const derivedTiers = [...new Set(configured.map((s: Obj) => PROFILE_TIER[s.inference.profile] || s.inference.profile).filter(Boolean))] as string[];
+  const derivedPrecisions = [...new Set(configured.map((s: Obj) => s.inference.weight_precision).filter(Boolean))] as string[];
   const defaults = payload.business_defaults || {};
   const globalChip: string | undefined = defaults.chip_key
     ?? (derivedChips.length === 1 ? derivedChips[0] : derivedChips.length === 0 ? '910c' : undefined);
@@ -144,6 +141,17 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   const mixedChip = !defaults.chip_key && derivedChips.length > 1;
   const globalProfile = TIER_TO_PROFILE[globalTier] || 'neutral';
   const globalChipInfo: Obj = chips.find(c => c.key === globalChip) || {};
+  /**
+   * 全局量化精度：场景清单不再提供逐场景选择，这里是唯一入口。
+   * 显式写入（含 auto）即以全局为准；老方案没有该字段时按各场景历史值推导，
+   * 不一致则给「各场景不一致」提示，等用户选定后统一，避免静默改掉历史结果。
+   */
+  const storedPrecision: string | undefined = defaults.weight_precision || undefined;
+  const globalPrecision: string = storedPrecision
+    || (derivedPrecisions.length === 1 ? derivedPrecisions[0] : 'auto');
+  const mixedPrecision = !storedPrecision && derivedPrecisions.length > 1;
+  /** 只有「老方案无全局字段且各场景精度不一致」时才不强制取全局值。 */
+  const precisionIsGlobal = !!storedPrecision || derivedPrecisions.length <= 1;
 
   /** 三个下拉都按目录分组：场景按业务组、芯片按系列、模型按厂商（label 前缀）。 */
   const sceneOptions = groupOptions(scenes, (s: Obj) => String(s.group || '其他'),
@@ -161,7 +169,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   function applyChipGlobal(value: string) {
     const label = chips.find(c => c.key === value)?.label || value;
     const doit = () => edit(plan => {
-      plan.business_defaults = { chip_key: value, profile: globalProfile };
+      plan.business_defaults = { ...(plan.business_defaults || {}), chip_key: value, profile: globalProfile };
       plan.scenarios.forEach((s: Obj) => { if (s.inference) s.inference.chip_key = value; });
     });
     if (configured.length > 0) {
@@ -174,50 +182,67 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   }
   function applyTierGlobal(value: string) {
     edit(plan => {
-      plan.business_defaults = { chip_key: globalChip || '910c', profile: TIER_TO_PROFILE[value] || value };
+      plan.business_defaults = { ...(plan.business_defaults || {}), chip_key: globalChip || '910c', profile: TIER_TO_PROFILE[value] || value };
       plan.scenarios.forEach((s: Obj) => { if (s.inference) s.inference.profile = TIER_TO_PROFILE[value] || value; });
     });
   }
-
-  /** 旧字段里的模型标识 → 推理模型清单标识，口径与后端迁移一致。 */
-  function matchModel(modelId: unknown): string | undefined {
-    const target = norm(modelId);
-    if (!target) return undefined;
-    const hit = models.find(m => norm(m.key) === target)
-      || models.find(m => norm(m.label) === target)
-      || models.find(m => {
-        const key = norm(m.key);
-        return key && (key.includes(target) || target.includes(key));
+  /**
+   * 全局量化精度：与算力卡同样处理——写入全局默认并同步已配置场景，
+   * 只有存在「精度与目标值不同」的场景时才确认，避免无谓弹窗。
+   */
+  function applyPrecisionGlobal(value: string) {
+    const label = PRECISIONS.find(p => p.value === value)?.label || value;
+    const affected = configured.filter((s: Obj) => s.inference.weight_precision !== value);
+    const doit = () => edit(plan => {
+      // 只改精度，顺带保留已有的 chip_key/profile；不在这里重写全局芯片默认
+      plan.business_defaults = { ...(plan.business_defaults || {}), weight_precision: value };
+      plan.scenarios.forEach((s: Obj) => { if (s.inference) s.inference.weight_precision = value; });
+    });
+    if (affected.length > 0) {
+      modal.confirm({
+        title: '统一全部场景的量化精度？',
+        content: `将把 ${affected.length} 个场景的精度改为「${label}」；尚未配置的场景在选定模型后跟随该全局值。`,
+        okText: '统一', cancelText: '取消', onOk: doit,
       });
-    return hit?.key;
+    } else doit();
+  }
+
+  /** 后端解析结果：pool.resolved_specs 覆盖全部场景（含停用），items 只含计算成功的启用场景。 */
+  function resolvedOf(target: Obj): Obj | undefined {
+    return pool?.resolved_specs?.[target.id] || rating(target.id);
   }
 
   /**
-   * 场景的推理配置：已配置的直接用；只有旧字段的按后端同一套规则折算，
-   * 这样表里显示的就是实际参与计算的模型，不会出现「显示一套、算另一套」。
-   * 芯片与档位的兜底跟随全局硬件配置。
+   * 场景的推理配置一律以后端解析结果为准，前端不再复刻迁移规则。
+   *
+   * 过去前端自己按 components[0] + 默认场景档折算，后端却按「首个启用组件 + template 映射
+   * 场景档 + TTFT/输出速率」迁移，两边不是同一套：页面显示一套、引擎算另一套，
+   * 而且用户改任一参数就会把这套错误口径写回方案。现在只把后端结果套上全局兜底用于展示；
+   * 后端还没有结果或解析失败时不猜模型，由 UI 显示「待补全」。
    */
-  function specOf(s: Obj): Obj {
-    const base = { ...DEFAULT_INFERENCE, chip_key: globalChip || '910c', profile: globalProfile };
-    if (s.inference) return { ...base, ...s.inference };
-    const task: Obj = (s.components || [])[0] || {};
-    const spec: Obj = { ...base };
-    const matched = matchModel(task.model_id) || matchModel(legacyModels.find(m => m.id === task.model_id)?.display_name);
-    if (matched) spec.model_key = matched;
-    if (task.online_users != null) spec.concurrency = Number(task.online_users);
-    if (task.input_tokens != null) spec.prompt_len = Number(task.input_tokens);
-    if (task.answer_tokens != null) spec.output_len = Number(task.answer_tokens) + Number(task.reasoning_tokens || 0);
-    return spec;
+  function specOf(target: Obj): Obj {
+    const base = { ...DEFAULT_INFERENCE, chip_key: globalChip || '910c', profile: globalProfile, weight_precision: globalPrecision };
+    const merged = target.inference
+      ? { ...base, ...target.inference }
+      : resolvedOf(target)?.spec
+        ? { ...base, ...resolvedOf(target)!.spec }
+        : { ...base, model_key: undefined, scene_key: undefined };
+    // 量化精度是方案级设置：全局有明确口径时覆盖场景里的历史值，避免页面显示与引擎口径分裂。
+    if (precisionIsGlobal) merged.weight_precision = globalPrecision;
+    return merged;
   }
 
-  /** 旧字段场景的迁移状态：与后端 resolve_spec 的三种结局一一对应。 */
-  function legacyState(target: Obj): 'configured' | 'migrated' | 'missing' | 'unsupported' {
+  /** 迁移状态：直接映射后端 origin / error，不再本地推断。 */
+  function legacyState(target: Obj): 'configured' | 'migrated' | 'missing' | 'unsupported' | 'inactive' | 'unknown' {
     if (target.inference) return 'configured';
-    const task: Obj = (target.components || []).find((c: Obj) => c.enabled) || (target.components || [])[0] || {};
-    if (!task.task_type) return 'missing';
-    if (NON_LLM_TASKS.has(task.task_type)) return 'unsupported';
-    const matched = matchModel(task.model_id) || matchModel(legacyModels.find(m => m.id === task.model_id)?.display_name);
-    return matched ? 'migrated' : 'missing';
+    const resolved = resolvedOf(target);
+    if (!resolved) return 'unknown';
+    if (resolved.error === 'SCENARIO_DISABLED_COMPONENTS') return 'inactive';
+    if (resolved.error) {
+      const nonLlm = (target.components || []).some((c: Obj) => NON_LLM_TASKS.has(c.task_type));
+      return nonLlm ? 'unsupported' : 'missing';
+    }
+    return resolved.origin === 'migrated' ? 'migrated' : 'configured';
   }
 
   /** 写入推理配置：以当前展示值为基线，保住旧字段折算出来的并发与长度。返回是否写入。 */
@@ -283,6 +308,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
       inference: {
         ...DEFAULT_INFERENCE,
         chip_key: globalChip || '910c', profile: globalProfile,
+        weight_precision: globalPrecision,
         model_key: first?.key,
         concurrency: preset.concurrency ?? null,
       },
@@ -297,6 +323,16 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
     if (legacy === 'unsupported') {
       return <Tooltip title="视频检测、批量任务与原生存量不在业务池口径内，不会按大模型硬算。请在推理评估页单独估算，或把该场景改为大模型推理。">
         <Tag color="red">不支持</Tag>
+      </Tooltip>;
+    }
+    if (legacy === 'inactive') {
+      return <Tooltip title="该场景的组件都已停用，但场景仍处于「计入规划」状态；请启用至少一个组件，或取消计入规划。">
+        <Tag color="red">待启用</Tag>
+      </Tooltip>;
+    }
+    if (legacy === 'unknown') {
+      return <Tooltip title="本次预览还没有返回该场景的解析结果；保存并测算后会自动重算。">
+        <Tag>待解析</Tag>
       </Tooltip>;
     }
     if (legacy === 'missing') {
@@ -351,6 +387,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
                 if (!spec.model_key && preset.default_model_key) values.model_key = preset.default_model_key;
                 write(s, values);
               }} />
+            <small className="muted">&nbsp;</small>
           </div>
           <div className="field">
             <label>模型</label>
@@ -367,17 +404,12 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
             </small>
           </div>
           <div className="field">
-            <label>推理精度</label>
-            <Select aria-label={'权重精度-' + s.name} style={{ width: '100%' }} value={off ? null : spec.weight_precision}
-              placeholder="不适用" disabled={off}
-              options={precisionOptions(chip)} onChange={v => write(s, { weight_precision: v })} />
-          </div>
-          <div className="field">
             <label>并发会话</label>
             <InputNumber aria-label={'并发会话-' + s.name} min={1} style={{ width: '100%' }} disabled={off}
               value={spec.concurrency == null || off ? null : Number(spec.concurrency)}
               placeholder={off ? '不适用' : String(sceneOf(spec).concurrency ?? '待填写')}
               onChange={v => write(s, { concurrency: v ?? null })} />
+            <small className="muted">&nbsp;</small>
           </div>
           <div className="scen-badge">
             {row?.cards_planned != null
@@ -414,7 +446,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
             </span>
           </Tooltip>
           <span className="right">
-            <small className="muted">{chip.label ? `${chip.label.split(' · ')[0]}` : ''}</small>
+            <small className="muted">{chip.label ? `${chip.label.split(' · ')[0]}` : ''}{off ? '' : ` · ${PRECISIONS.find(p => p.value === globalPrecision)?.label.split('（')[0] || '自动'}`}</small>
             <Popconfirm title="移除此场景？保存后仍可撤销。"
               onConfirm={() => edit(p => { p.scenarios = p.scenarios.filter((x: Obj) => x.id !== s.id); })}>
               <Button size="small" type="text" aria-label={'移除-' + s.name} icon={<DeleteOutlined aria-hidden="true" />} />
@@ -469,7 +501,6 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
   }
 
   const byModel = sceneItems.length ? summarizeByModel(sceneItems) : [];
-  const headroomPct = num(Number(preview?.headroom ?? payload.headroom ?? 0) * 100, 0);
   const missingCount = pool?.missing_items?.length ?? 0;
   const estimatedCount = sceneItems.filter((x: Obj) => x.cards != null).length;
 
@@ -479,7 +510,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
       <Card className="be-global">
         <div className="be-sec-h">
           <h2>全局硬件配置</h2>
-          <span>算力卡与工程档位对全部场景统一生效；改动立即重算</span>
+          <span>算力卡、量化精度与工程档位对全部场景统一生效；改动立即重算</span>
           <span className="act">
             <Button icon={<PlusOutlined aria-hidden="true" />} onClick={() => setChipModal(true)}>登记自定义算力卡</Button>
           </span>
@@ -502,6 +533,18 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
             </div>
           </div>
           <div className="field">
+            <label>推理量化精度（全局）
+              <Tooltip title="W 权重字节决定显存装载量，A 激活精度决定计算峰值档位，KV 精度（自动跟随）决定并发容量。W8A8 相比 BF16：权重减半、KV 减半、算力翻倍。W4A8 需芯片原生支持 INT4。">
+                <InfoCircleOutlined aria-hidden="true" />
+              </Tooltip>
+            </label>
+            <Select aria-label="全局推理量化精度" style={{ width: '100%' }} value={globalPrecision}
+              placeholder={mixedPrecision ? '各场景不一致（选择后统一）' : '待选择'}
+              options={precisionOptions(globalChipInfo)}
+              onChange={applyPrecisionGlobal} />
+            <div className="be-chip-hint">KV 精度随档位自动跟随：BF16 2 字节、W8A8/W4A8 1 字节；仍可在下方场景清单逐场景单独调整</div>
+          </div>
+          <div className="field">
             <label>工程开销档位（全局）
               <Tooltip title="只缩放效率类系数：Prefill MFU 与带宽利用率全额跟随，单卡显存利用率半幅；结构性开销与口径常数不受档位影响。">
                 <InfoCircleOutlined aria-hidden="true" />
@@ -511,12 +554,6 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
               options={tierOptions.length ? tierOptions : TIER_FALLBACK}
               onChange={applyTierGlobal} />
             <div className="be-chip-hint">保守 ×0.8 / 均衡 ×1 / 激进 ×1.2，作用于下方生效系数</div>
-          </div>
-          <div className="field">
-            <label>权重精度与 KV 精度</label>
-            <div className="be-chip-hint" style={{ marginTop: 0, fontSize: 12, lineHeight: 1.9 }}>
-              精度在场景清单逐场景选择：权重精度定显存装载量、激活精度定峰值算力档位、KV 精度自动跟随（全精度 2 字节、量化 1 字节）。W4A8 仅在芯片原生支持 INT4 时可选。
-            </div>
           </div>
         </div>
         {/* 工程系数：默认收起，用户需要时再展开（与推理评估集成页同一交互层级） */}
@@ -548,7 +585,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
         </div>
         <div className="note-line">
           <InfoCircleOutlined aria-hidden="true" />
-          每个场景选择模型、推理精度、场景类型并填写并发会话数；算力卡与工程档位取自上方全局配置。
+          每个场景选择模型、场景类型并填写并发会话数；算力卡、推理量化精度与工程档位取自上方全局配置。
           系统按「显存 → Prefill → Decode」三维取最大再用时延回验，给出所需算力与卡数；「调整参数」可改写场景档默认值，「计算过程」给出杜邦式逐层拆解。
         </div>
         <Spin spinning={!!catalogLoading}>
@@ -573,12 +610,12 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
       <Card>
         <div className="be-sec-h">
           <h2>算力汇总</h2>
-          <span>逐场景独立出卡后求和；余量只在池层乘一次，场景层不重复加</span>
+          <span>逐场景独立出卡后求和</span>
         </div>
         {pool ? (
           <div className="be-kpis">
             <div className="be-kpi hl">
-              <div className="k">所需卡数（含 {headroomPct}% 余量）</div>
+              <div className="k">所需卡数</div>
               <div className="v">{num(pool.cards_planned, 0)}<small>张</small></div>
               <div className="sub">物理 {num(pool.cards, 0)} 张 · 约 {num(Math.ceil(Number(pool.cards_planned || 0) / 8), 0)} 台服务器（8 卡/台）</div>
             </div>
@@ -590,7 +627,7 @@ export default function BusinessPage({ payload, edit, catalog, legacyModels, cat
             <div className="be-kpi">
               <div className="k">规划等效算力</div>
               <div className="v">{capacity(pool.capacity_planned_p)}</div>
-              <div className="sub">含余量后的等效供给（BF16 基准）</div>
+              <div className="sub">等效供给（BF16 基准）</div>
             </div>
             <div className="be-kpi">
               <div className="k">已估算场景</div>
