@@ -26,7 +26,7 @@ export default function CustomChipModal({ open, onClose, onSaved }: {
     setSaving(true);
     try {
       await api('/inference/chips', 'POST', values);
-      message.success('自定义算力卡已登记，可直接在全局硬件配置里选用');
+      message.success('自定义算力卡已登记，可直接在全局配置里选用');
       form.resetFields();
       onClose();
       await onSaved();

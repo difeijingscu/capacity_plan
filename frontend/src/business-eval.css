@@ -5,7 +5,7 @@
 .business-eval .be-sec-h>span{font-size:12px;color:#7d8f74}
 .business-eval .be-sec-h .act{margin-left:auto}
 
-/* ---------- 全局硬件配置 ---------- */
+/* ---------- 全局配置 ---------- */
 .be-global .ant-card-body{display:grid;gap:14px}
 .be-global-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:18px}
 @media(max-width:1100px){.be-global-grid{grid-template-columns:1fr}}

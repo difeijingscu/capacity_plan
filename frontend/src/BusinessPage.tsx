@@ -12,12 +12,13 @@ import CustomModelModal from './CustomModelModal';
 import CustomChipModal from './CustomChipModal';
 import CoefPanel from './CoefPanel';
 import FxTree from './FxTree';
+import { chipSelectOptions, chipSpecHint } from './chips';
 import { METHOD_HTML, BASIS_HTML } from './businessEvalContent';
 import './business-eval.css';
 
 /**
  * 业务场景池：分区结构与交互完全对齐「推理评估 For 产品组合」集成页——
- * 全局硬件配置 → 场景清单 → 算力汇总 → 估算方法说明 → 估算依据与口径。
+ * 全局配置 → 场景清单 → 算力汇总 → 估算方法说明 → 估算依据与口径。
  * 工程系数与两块静态说明默认收起，展开后仍按步骤/小节逐层点开，首屏只留目录。
  * 与推理评估页的差异仅在数据联动：场景读写当前规划方案的 payload.scenarios，
  * 计算走后端引擎（与页面公式同口径），结果随预览下发并进入测算快照。
@@ -89,15 +90,6 @@ function groupOptions(items: Obj[], groupOf: (item: Obj) => string, toOption: (i
   return groups;
 }
 const modelGroup = (m: Obj) => m.custom ? '自定义' : (String(m.label || m.key).match(/^[A-Za-z]+/)?.[0] || '其他');
-const chipGroup = (c: Obj) => c.custom ? '自定义' : (c.family ? `昇腾 ${c.family} 系列` : '其他');
-/**
- * 选卡文案与推理评估页保持一致：型号 + 档位 +（FP16 峰值/显存）。
- * 950PR / 950DT 各有多个 Cube 档，只显示「昇腾950DT」会让三档重名，无法区分。
- */
-function chipOptionLabel(c: Obj): string {
-  const spec = c.bf16_tflops && c.memory_gb ? `（FP16 ${c.bf16_tflops}T/${c.memory_gb}G）` : '';
-  return `${c.label || c.key}${spec}${c.custom ? ' · 自定义' : ''}`;
-}
 /** 场景行等窄位置用短名：去掉「昇腾」前缀但保留档位，仍可区分同款各档。 */
 const chipShortLabel = (c: Obj): string => String(c.label || c.key || '').replace(/^昇腾\s*/, '');
 
@@ -180,8 +172,7 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
   /** 三个下拉都按目录分组：场景按业务组、芯片按系列、模型按厂商（label 前缀）。 */
   const sceneOptions = groupOptions(scenes, (s: Obj) => String(s.group || '其他'),
     x => ({ value: x.key, label: x.name, title: x.hint }));
-  const chipOptions = groupOptions(chips, chipGroup,
-    c => ({ value: c.key, label: chipOptionLabel(c), title: c.label }));
+  const chipOptions = chipSelectOptions(chips);
   const modelOptions = groupOptions(models, modelGroup,
     m => ({ value: m.key, label: (m.label || m.key) + (m.custom ? ' · 自定义' : '') }));
   const tierOptions: { value: string; label: string }[] = (catalog?.tiers ?? []).map((t: Obj) =>
@@ -328,7 +319,8 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
     const id = crypto.randomUUID().replaceAll('-', '');
     const preset = sceneOf({ scene_key: DEFAULT_INFERENCE.scene_key });
     const first = models.find(m => m.key === (preset.default_model_key || 'qwen3_8b')) || models[0];
-    edit(plan => plan.scenarios.push({
+    // 新场景插到最上方：场景多时列表会滚出首屏，追加到末尾等于「点了没反应」。
+    edit(plan => plan.scenarios.unshift({
       id, name: '新业务场景', description: '', enabled: true, source_reference: {},
       components: [],
       inference: {
@@ -532,10 +524,10 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
 
   return (
     <div className="main-panel business-eval">
-      {/* ============ ① 全局硬件配置 ============ */}
+      {/* ============ ① 全局配置 ============ */}
       <Card className="be-global">
         <div className="be-sec-h">
-          <h2>全局硬件配置</h2>
+          <h2>全局配置</h2>
           <span>算力卡、量化精度与工程档位对全部场景统一生效；改动立即重算</span>
           <span className="act">
             <Button icon={<PlusOutlined aria-hidden="true" />} onClick={() => setChipModal(true)}>登记自定义算力卡</Button>
@@ -552,11 +544,7 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
               placeholder={mixedChip ? '各场景不一致（选择后统一）' : '待选择'}
               showSearch optionFilterProp="label" options={chipOptions}
               onChange={applyChipGlobal} />
-            <div className="be-chip-hint">
-              {globalChipInfo.bf16_tflops
-                ? `BF16 ${globalChipInfo.bf16_tflops}T · INT8 ${globalChipInfo.int8_tflops ?? '—'}T · 显存 ${globalChipInfo.memory_gb}GB · 带宽 ${globalChipInfo.hbm_tbs}TB/s · 互联 ${globalChipInfo.link_gbs ?? '—'}GB/s`
-                : '—'}
-            </div>
+            <div className="be-chip-hint">{chipSpecHint(globalChipInfo)}</div>
           </div>
           <div className="field">
             <label>推理量化精度（全局）

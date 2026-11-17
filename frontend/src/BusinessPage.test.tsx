@@ -5,6 +5,7 @@
  * pool.scenarios 只是概览摘要；读错数据源会让按钮永远 disabled。
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 
@@ -201,7 +202,7 @@ describe('业务场景 · 旧字段迁移只认后端结果', () => {
   });
 });
 
-describe('业务场景 · 全局硬件配置与推理评估页对齐', () => {
+describe('业务场景 · 全局配置与推理评估页对齐', () => {
   const chips950: Obj[] = [
     { key: '950pr32', label: '昇腾950PR · 32 Cube', family: '950', bf16_tflops: 486, memory_gb: 128, native_int4: true },
     { key: '950pr', label: '昇腾950PR · 28 Cube', family: '950', bf16_tflops: 425, memory_gb: 112, native_int4: true },
@@ -245,5 +246,41 @@ describe('业务场景 · 全局硬件配置与推理评估页对齐', () => {
     // 两块都不再是下拉：分组内不应出现 combobox（全局仅算力卡仍是下拉）
     expect(prec.querySelector('[role="combobox"]')).toBeNull();
     expect(tier.querySelector('[role="combobox"]')).toBeNull();
+  }, 20000);
+});
+
+/**
+ * 新增场景必须插到清单最上方：场景多时列表会滚出首屏，
+ * 追加到末尾等于「点了按钮看不到新行」。
+ */
+function StatefulPage({ initial }: { initial: Obj }) {
+  const [plan, setPlan] = useState<Obj>(initial);
+  const edit = (mut: (p: Obj) => void) => setPlan(prev => {
+    const next: Obj = JSON.parse(JSON.stringify(prev));
+    mut(next);
+    return next;
+  });
+  return (
+    <AntApp>
+      <BusinessPage payload={plan} edit={edit} catalog={catalog} preview={preview}
+        refreshCatalog={async () => {}} onImport={() => {}} />
+    </AntApp>
+  );
+}
+
+describe('业务场景 · 新增场景位置', () => {
+  it('新场景出现在清单第一行，原有场景依次下移', () => {
+    const initial: Obj = JSON.parse(JSON.stringify(payload));
+    initial.scenarios.push({
+      id: 's2', name: '第二个场景', description: '', enabled: true,
+      inference: { model_key: 'glm5_3_flash', chip_key: '910c', scene_key: 'rag', concurrency: 50 },
+    });
+    render(<StatefulPage initial={initial} />);
+    fireEvent.click(screen.getByRole('button', { name: /添加场景/ }));
+    const names = screen.getAllByPlaceholderText('场景名称')
+      .map(node => (node as HTMLInputElement).value);
+    expect(names).toHaveLength(3);
+    expect(names[0]).toBe('新业务场景');
+    expect(names.slice(1)).toEqual(['企业知识问答', '第二个场景']);
   }, 20000);
 });

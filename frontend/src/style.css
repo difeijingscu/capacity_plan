@@ -136,3 +136,12 @@ nav button.nav-standalone{align-items:flex-start;padding-top:11px;padding-bottom
 .page-source-note a:hover{text-decoration:underline}
 /* 已有来源标注时，页脚不再重复分隔线，避免两条横线贴在一起 */
 .page-source-note+footer{margin-top:10px;padding-top:0;border-top:0}
+
+/* ---------- 创新服务 / 开发测试页顶部「全局配置」 ---------- */
+.pool-global .ant-card-body{padding:20px 22px}
+.pool-global-head{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:16px}
+.pool-global-head h3{font-size:15px;margin:0;color:#3b6044}
+.pool-global-head span{font-size:11px;color:#8b978c;line-height:1.7}
+.pool-global-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 20px}
+.pool-chip-hint{font-size:11px;color:#8b978c;margin-top:8px;line-height:1.7}
+@media(max-width:900px){.pool-global-grid{grid-template-columns:minmax(0,1fr)}}
