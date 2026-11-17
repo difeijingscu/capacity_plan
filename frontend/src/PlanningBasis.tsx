@@ -147,7 +147,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
       ]} />
       <Formula title="先取支持全部候选模型的能力包络">Ct = st × max(各候选模型的单任务微调容量)<br />C研发建议 = Ct × (1 + h)</Formula>
       <p>取最大值意味着一个槽位能承接任意选中模型，默认还允许不同槽位运行同一模型的不同实验。各档位的数据量、窗口与槽位都是本产品定义，允许高级参数覆盖，不是行业统一标准。</p>
-      <Collapse items={[{ key: 'dev-memory', label: '微调显存的辅助估算方法', children: <><Formula title="训练状态与激活预算">M微调 = (基础权重 + 适配器状态 + 激活预算 + 工作空间) ÷ (1 − 显存预留比例)</Formula><p>当前适配器参数缺专用统计时，用完整参数的 {percent(training.adapter_fraction)} 作代理，状态按每适配器参数16字节预算；激活预算为 max(8GB, 基础权重×20%) × 序列长度/2048 × micro batch，工作空间取 max(2GB, 基础权重×10%)。均是可校准的经验预算，不是框架级显存实测。</p><p>微调进程按槽位各自驻留；显存按槽位数 × 最大单任务显存聚合。QLoRA需额外的量化元数据基线，未知时不能声称完整可落地。</p></> }]} />
+      <Collapse items={[{ key: 'dev-memory', label: '微调显存的辅助估算方法', children: <><Formula title="训练状态与激活预算">M微调 = 基础权重 + 适配器状态 + 激活预算 + 工作空间</Formula><p>当前适配器参数缺专用统计时，用完整参数的 {percent(training.adapter_fraction)} 作代理，状态按每适配器参数16字节预算；激活预算为 max(8GB, 基础权重×20%) × 序列长度/2048 × micro batch，工作空间取 max(2GB, 基础权重×10%)。均是可校准的经验预算，不是框架级显存实测。显存按需求直接汇总，不再除以（1 − 显存预留），方案级显存预留已取消。</p><p>微调进程按槽位各自驻留；显存按槽位数 × 最大单任务显存聚合。QLoRA需额外的量化元数据基线，未知时不能声称完整可落地。</p></> }]} />
     </Card>
   </div>;
 

@@ -3,7 +3,7 @@ import { ArrowLeftOutlined, ArrowRightOutlined, BookOutlined } from '@ant-design
 
 const ownershipRows = [
   { level: '项目', purpose: '管理一次独立的规划工作', contents: '项目名称、归档状态、所属方案', relationship: '一个项目可以包含多个方案；不同项目分别管理。' },
-  { level: '规划方案', purpose: '保存一套可以完整测算的规划选择', contents: '容量余量、显存预留，以及三类规划', relationship: '一个方案归属一个项目；复制后各方案独立维护。' },
+  { level: '规划方案', purpose: '保存一套可以完整测算的规划选择', contents: '容量余量，以及三类规划', relationship: '一个方案归属一个项目；复制后各方案独立维护。' },
   { level: '测算记录', purpose: '保留某次输入对应的结果和依据', contents: '方案修订、输入与模型快照、计算结果', relationship: '同一个方案可有多次测算记录，历史结果保持当时口径。' },
 ];
 const poolRows = [
@@ -57,7 +57,7 @@ export default function PlanningOrganization({ onBack, onBasis }: { onBack: () =
           { title: '保存的内容', dataIndex: 'contents' }, { title: '归属关系', dataIndex: 'relationship' },
         ]} />
         <div className="basis-example"><strong>什么时候复制方案？</strong>需要考察另一种人数规模、模型选择、Token额度或实验能力时，点击“复制方案”。新方案会复制当前三类规划及共同参数，此后独立维护，修改其中一套不会同步修改另一套。复制方案不会复制出一份新的历史测算结果，需要基于新方案计算。</div>
-        <p className="basis-caption">容量余量与显存预留保存在方案中，三类规划各自独立配置。方案按当前峰值规模测算，不包含规划年限与增长率这类时间外推参数。</p>
+        <p className="basis-caption">容量余量保存在方案中，三类规划各自独立配置。方案按当前峰值规模测算，不包含规划年限与增长率这类时间外推参数。</p>
       </Card>
 
       <Card title="02 · 三类规划：并列配置，各自解决不同的问题">
