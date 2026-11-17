@@ -66,14 +66,13 @@
         "kv_bytes": 2,
         "weight_bytes": 2,
         "ttft_seconds": 2,
-        "output_tokens_per_second": 30,
-        "memory_reserve_fraction": 0.15
+        "output_tokens_per_second": 30
       },
       "expected": {
         "base_p": 0.27176634920634923,
         "weight_gb_once": 16,
         "kv_gb_per_scenario": 6.03979776,
-        "group_memory_gb": 35.387759435294114
+        "group_memory_gb": 30.07959552
       }
     },
     {
@@ -87,14 +86,13 @@
         "kv_bytes": 2,
         "weight_bytes": 2,
         "ttft_seconds": 2,
-        "output_tokens_per_second": 30,
-        "memory_reserve_fraction": 0.15
+        "output_tokens_per_second": 30
       },
       "expected": {
         "expected_concurrent": 15.88888888888889,
         "allocated_sequences": 16,
         "kv_gb": 6.03979776,
-        "memory_gb": 28.282115011764706
+        "memory_gb": 24.03979776
       }
     },
     {
