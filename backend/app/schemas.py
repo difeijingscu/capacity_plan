@@ -168,7 +168,11 @@ class BusinessDefaults(StrictModel):
 
 class PlanInput(StrictModel):
     headroom: Annotated[Decimal, Field(ge=0, le=5)] = Decimal(".20")
-    memory_reserve: Annotated[Decimal, Field(ge=0, lt=1)] = Decimal(".15")
+    # 已停用（v2.0.5）：显存预留不再参与任何池的显存估算或卡数折算。
+    # 保留字段只为旧 payload 通过 extra="forbid" 校验，取值不参与计算与展示；
+    # 业务池的显存约束用芯片标称显存 × mem_util 与 KV × kv_reserve，
+    # 创新/研发池改为「权重 + KV cache + runtime」直接汇总。
+    memory_reserve: Annotated[Decimal, Field(ge=0, lt=1)] = Decimal("0")
     # 兼容字段：老 payload 里带着 "defaults-v1"，extra="forbid" 不能直接删，
     # 但它既不参与计算也不参与展示。实际参数口径版本来自 catalogs/inference_params.json
     # 的 version，并记在计算快照的 catalog_snapshot.params_effective.version 里。

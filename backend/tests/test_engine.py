@@ -150,6 +150,16 @@ def test_three_pools_do_not_share():
     assert all(D(p["memory"]["memory_gb"])>0 for p in report["pools"])
 
 
+def test_memory_reserve_is_deprecated_and_has_no_effect():
+    """显存预留已停用：改这个值不得改变任一池的显存需求、卡数与卡数（含余量）。"""
+    base=result(spec(),innovation=innovation(),development=dev())
+    high=result(spec(),innovation=innovation(),development=dev(),memory_reserve=".5")
+    for low_pool,high_pool in zip(base["pools"],high["pools"]):
+        assert low_pool["memory"]["memory_gb"]==high_pool["memory"]["memory_gb"]
+        assert low_pool.get("cards")==high_pool.get("cards")
+        assert low_pool.get("cards_planned")==high_pool.get("cards_planned")
+
+
 def test_moe_and_distinct_phase_params():
     model={**SYNTHETIC,"architecture":"MoE","resident_parameters":100e9,"active_parameters_prefill":4e9,"active_parameters_decode":8e9}
     actual=compute_task(task(kappa_prefill=1.1,kappa_decode=1.1),model)

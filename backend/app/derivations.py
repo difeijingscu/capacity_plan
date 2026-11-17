@@ -55,7 +55,7 @@ def tree_steps(rows):
             for r in rows]
 
 
-def memory_tree(scope, pool, reserve, slots=1):
+def memory_tree(scope, pool, slots=1):
     memory = pool.get("memory") or {}
     total = memory.get("memory_gb")
     if scope == "innovation":
@@ -67,8 +67,8 @@ def memory_tree(scope, pool, reserve, slots=1):
             runtime = group.get("runtime_gb")
             children.append(tree_node(
                 group.get("model_id") or group.get("id") or "共享部署组",
-                "组显存 = (权重 + KV cache + runtime) ÷ (1 - 显存预留)",
-                f"({fmt(weight)} + {fmt(cache)} + {fmt(runtime)}) ÷ (1 - {fmt(reserve)})",
+                "组显存 = 权重 + KV cache + runtime",
+                f"{fmt(weight)} + {fmt(cache)} + {fmt(runtime)}",
                 tree_value(group.get("memory_gb"), "GB"),
                 "同组兼容任务的权重和 runtime 取最大，KV cache 相加；数值来自 memory_for 与 summarize_memory。",
                 [
@@ -83,7 +83,7 @@ def memory_tree(scope, pool, reserve, slots=1):
         return tree_node("显存需求", "池显存 = Σ 各共享部署组显存",
                          " + ".join(fmt(g.get("memory_gb")) for g in groups) if groups else "暂无可计入部署组",
                          tree_value(total, "GB"),
-                         f"显存预留 {fmt(reserve * 100)}% 已在各组应用一次；同池共享，三池之间不共享。", children)
+                         "显存按需求直接汇总，不再叠加方案级显存预留；同池共享，三池之间不共享。", children)
 
     rows = [i for i in pool.get("items", []) if (i.get("memory") or {}).get("memory_gb") is not None]
     children = []
@@ -91,9 +91,9 @@ def memory_tree(scope, pool, reserve, slots=1):
         v = (item.get("trace") or {}).get("variables") or {}
         children.append(tree_node(
             item.get("name", item["id"]),
-            "单任务显存 = (基座权重 + adapter + activation + workspace) ÷ (1 - 显存预留)",
-            f"({fmt(v.get('base_weight_gb'))} + {fmt(v.get('adapter_state_gb'))} + "
-            f"{fmt(v.get('activation_gb'))} + {fmt(v.get('workspace_gb'))}) ÷ (1 - {fmt(reserve)})",
+            "单任务显存 = 基座权重 + adapter + activation + workspace",
+            f"{fmt(v.get('base_weight_gb'))} + {fmt(v.get('adapter_state_gb'))} + "
+            f"{fmt(v.get('activation_gb'))} + {fmt(v.get('workspace_gb'))}",
             tree_value((item.get("memory") or {}).get("memory_gb"), "GB"),
             "训练显存为经验代理；不含效果评测。", [
                 tree_node("基座权重", "LoRA 按16位；QLoRA 按量化权重及元数据", "模型驻留参数与微调方法",
@@ -156,7 +156,7 @@ def cards_tree(pool, headroom):
                      "卡数、服务器数与P值是不同量纲；规划容量由规划卡数反算。", children)
 
 
-def build_pool_tree(scope, pool, explanation, headroom, reserve):
+def build_pool_tree(scope, pool, explanation, headroom):
     common_steps = [s for s in explanation["steps"] if s.get("title") != "增加一次容量余量"]
     task_children = []
     for item in explanation.get("items", []):
@@ -178,13 +178,13 @@ def build_pool_tree(scope, pool, explanation, headroom, reserve):
     demand = tree_node("需求与工作量", demand_relation, "从方案输入和模型目录逐步换算",
                        tree_value(pool.get("base_p"), "P"), "基础需求不含方案容量余量。", demand_children)
     slots = (pool.get("intensity_parameters") or {}).get("train_slots", 1)
-    memory = memory_tree(scope, pool, reserve, slots)
+    memory = memory_tree(scope, pool, slots)
     cards = cards_tree(pool, headroom)
     value = (tree_value(pool.get("cards_planned"), "张") + " · " + tree_value(pool.get("planned_p"), "P")
              if pool.get("cards_planned") is not None else tree_value(pool.get("planned_p"), "P"))
     return tree_node("创新池规划结果" if scope == "innovation" else "研发池规划结果",
                      "需求与显存双约束 → 一次容量余量 → 物理卡数与独立冗余",
-                     f"headroom = {fmt(D(headroom) * 100)}%；显存预留 = {fmt(D(reserve) * 100)}%",
+                     f"headroom = {fmt(D(headroom) * 100)}%",
                      value, "根节点为本次保存结果；三个主干可逐层展开到原始数字与来源。",
                      [demand, memory, cards])
 
@@ -575,5 +575,5 @@ def build_derivation(run, scope):
     if scope == "business":
         result["tree"] = build_business_tree(pool, result, headroom)
     elif scope in ("innovation", "development"):
-        result["tree"] = build_pool_tree(scope, pool, result, headroom, D(payload["memory_reserve"]))
+        result["tree"] = build_pool_tree(scope, pool, result, headroom)
     return result

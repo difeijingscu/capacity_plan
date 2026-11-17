@@ -11,7 +11,9 @@ D = lambda value: Decimal(str(value))
 ZERO = D(0)
 PETA = D("1e15")
 GIGA = D("1e9")
-ENGINE_VERSION = "engine-v2.0.4"
+# v2.0.5：取消方案级显存预留，创新/研发池显存改为「权重 + KV cache + runtime」直接汇总，
+# 显存需求与卡数整体下降；口径变化会使旧缓存指纹失效，因此升版本。
+ENGINE_VERSION = "engine-v2.0.5"
 REFERENCE = "BF16_DENSE_EQUIVALENT"
 # QLoRA 权重量化元数据开销的全局默认（4-bit 权重 + 量化参数的工程经验值）。
 # v2.0.0 起模型清单不再逐模型登记该字段，统一取此常量。
@@ -115,8 +117,12 @@ def inference_model_view(m: dict) -> dict:
     }
 
 
-def memory_for(task, model, rate, li, lg, reserve):
-    """Return unreserved components; reserve applied once at serving-group aggregation."""
+def memory_for(task, model, rate, li, lg):
+    """返回未经预留放大的显存分量。
+
+    v2.0.5 起不再存在方案级「显存预留」：显存需求即权重 + KV cache + runtime 之和，
+    由卡数折算环节用芯片标称显存判定，不再额外除 (1 - reserve)。
+    """
     if rate == 0 and not task.prewarm:
         return dict(weight_gb=ZERO, cache_gb=ZERO, runtime_gb=ZERO, status="COMPLETE", allocated_sequences=0)
     resident = model.get("resident_parameters") if model else None
@@ -167,7 +173,7 @@ def memory_for(task, model, rate, li, lg, reserve):
     return dict(weight_gb=weight, cache_gb=None, runtime_gb=runtime, status="WEIGHT_LOWER_BOUND", allocated_sequences=sequences)
 
 
-def compute_task(task, model, reserve=D(".15")):
+def compute_task(task, model):
     cfg = resolved(task)
     group = "|".join((task.model_id or task.id, task.serving_profile, str(task.weight_bits), str(task.kv_bytes), task.deployment_group, task.id if task.independent else "shared"))
     result = dict(id=task.id, model_id=task.model_id, task_type=task.task_type, group_key=group, evidence_grade="C", latency_status="UNVERIFIED", warnings=["HEURISTIC_EFFICIENCY"], native_capacity_by_precision={})
@@ -208,7 +214,7 @@ def compute_task(task, model, reserve=D(".15")):
         formula = "llm-phases-v1"
     else:
         raise CalculationIssue("UNSUPPORTED_PROFILE", "未知计算任务")
-    result["memory"] = memory_for(task, model, rate, li, lg, reserve)
+    result["memory"] = memory_for(task, model, rate, li, lg)
     result["trace"] = {
         "formula_id": formula, "version": ENGINE_VERSION, "variables": variables,
         "formula": "λ × ((2×Np×Li×κp + Fvision)/ηp + 2×Nd×Lg×κd/ηd) / 10^15" if formula == "llm-phases-v1" else "单位/秒 × FLOP/单位 / η / 10^15",
@@ -220,7 +226,8 @@ def compute_task(task, model, reserve=D(".15")):
     return result
 
 
-def summarize_memory(items, reserve):
+def summarize_memory(items):
+    """按部署组汇总显存需求：权重/runtime 取最大、KV cache 相加，不再除以 (1 - 预留)。"""
     groups = {}
     for item in items:
         mem = item.get("memory", {})
@@ -238,7 +245,7 @@ def summarize_memory(items, reserve):
             group["status"] = status
     for key, group in groups.items():
         group["id"] = key
-        group["memory_gb"] = (group["weight_gb"] + group["cache_gb"] + group["runtime_gb"]) / (1 - reserve)
+        group["memory_gb"] = group["weight_gb"] + group["cache_gb"] + group["runtime_gb"]
     total = sum((g["memory_gb"] for g in groups.values()), ZERO)
     status = "UNKNOWN" if any(g["status"] == "UNKNOWN" for g in groups.values()) else "WEIGHT_LOWER_BOUND" if any(g["status"] == "WEIGHT_LOWER_BOUND" for g in groups.values()) else "PROXY" if any(g["status"] == "PROXY" for g in groups.values()) else "COMPLETE"
     return dict(memory_gb=total, status=status, groups=list(groups.values()))
@@ -325,7 +332,7 @@ def pool_summary(pool_id, items, missing, plan, enabled=True, base_override=None
     missing = missing + native_missing
     status = "DISABLED" if not enabled else "PARTIAL" if missing and computable else "BLOCKED" if missing else "COMPLETE"
     base = (base_override if base_override is not None else sum((x["base_p"] for x in computable), ZERO)) if computable or not enabled or not missing else None
-    return dict(id=pool_id, base_p=base, planned_p=base * (1 + plan.headroom) if base is not None else None, effective_p=sum((x.get("effective_p") or ZERO for x in computable), ZERO), completeness=status, evidence_grade="C", items=items, missing_items=missing, counted_tasks=len(computable), total_tasks=len(computable) + len(missing), memory=memory_override or summarize_memory(computable, plan.memory_reserve))
+    return dict(id=pool_id, base_p=base, planned_p=base * (1 + plan.headroom) if base is not None else None, effective_p=sum((x.get("effective_p") or ZERO for x in computable), ZERO), completeness=status, evidence_grade="C", items=items, missing_items=missing, counted_tasks=len(computable), total_tasks=len(computable) + len(missing), memory=memory_override or summarize_memory(computable))
 
 
 def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
@@ -379,7 +386,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
                     "MODEL_RETIRED",
                     f"模型「{task.model_id or task.id}」不在 v2.0 模型清单"
                     "（CV 与多模态已移除，请在页面上重新选择模型）")
-            item = compute_task(task, model, plan.memory_reserve)
+            item = compute_task(task, model)
             if migrated:
                 item["warnings"].append("MIGRATED_MODEL")
             item.update(name=name, pool_id=pool_id, scenario_id=scenario_id)
@@ -508,7 +515,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
                     adapter = resident * dc.adapter_fraction * 16 / GIGA
                     activation = max(D(8), base_weight * D(".2")) * D(dev_cfg["sequence_length"]) / 2048 * dc.micro_batch
                     workspace = max(D(2), base_weight * D(".1"))
-                    mem = (base_weight + adapter + activation + workspace) / (1 - plan.memory_reserve)
+                    mem = base_weight + adapter + activation + workspace
                     train_mems.append(mem)
                     dev.append(dict(id=f"train-{entry.model_id}", model_id=entry.model_id, name=label+" · "+entry.method.upper(), pool_id="development", base_p=capacity, effective_p=ft/(D(dev_cfg["train_deadline_hours"])*3600)/PETA, memory=dict(status="PROXY", memory_gb=mem), evidence_grade="C", trace=dict(formula_id="lora-work-v1", formula="k × N_active × D × E / (H × 3600 × ηtrain × 10^15)", variables={**dev_cfg, "active_parameters_train": active, "train_k": dc.train_k, "train_eta": dc.train_eta, "flop_total": ft, "base_weight_gb": base_weight, "adapter_state_gb": adapter, "activation_gb": activation, "workspace_gb": workspace}, model_source=model.get("source_url"))))
                 except CalculationIssue as exc:
