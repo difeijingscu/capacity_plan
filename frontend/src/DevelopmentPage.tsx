@@ -41,12 +41,6 @@ const INTENSITY_FALLBACK: Obj = {
 
 /** 训练系数默认值，与 schemas.Development 的缺省一致。 */
 const COEF_DEFAULTS = { train_k: 4, train_eta: 0.25, adapter_fraction: 0.005 };
-/**
- * 默认微调模型，与 schemas.DEFAULT_MODEL 保持一致。
- * 新建方案由后端缺省直接带一条记录；旧方案或外部导入的 payload 若 models 为空，
- * 页面按这个默认值展示，并在用户开启本池或改动设置时补写。
- */
-const DEFAULT_MODEL = 'deepseek_v4_flash';
 
 const MEMORY_LABELS: Obj = {
   COMPLETE: '完整估算', PROXY: '经验代理', WEIGHT_LOWER_BOUND: '仅显存下界', UNKNOWN: '待核验',
@@ -80,9 +74,13 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
   const chips: Obj[] = [...(catalog?.chips ?? []), ...(catalog?.custom_chips ?? [])];
 
   const entries: Obj[] = c.models ?? [];
-  /** 本页只呈现一个微调对象：取第一条作为「当前模型」。 */
+  /** 本页只呈现一个微调对象：取第一条作为「当前模型」；没有候选就是「未选择」。 */
   const entry: Obj | undefined = entries[0];
-  const modelKey: string = entry?.model_id ?? DEFAULT_MODEL;
+  /**
+   * 没有候选时保持 undefined，页面不凭空显示一个用户没选过的模型。旧实现回落到
+   * DeepSeek-V4-Flash：下拉显示「已选」，引擎却报「请选择需要微调的模型」。
+   */
+  const modelKey: string | undefined = entry?.model_id;
   const method: string = entry?.method ?? 'lora';
   const extraModels = Math.max(0, entries.length - 1);
   const model: Obj = matchModel(models, modelKey) || {};
@@ -125,17 +123,21 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
     });
   }
 
-  /** 页面显示的默认记录（尚未写入 payload 时的补写内容）。 */
-  function defaultEntry(methodOverride?: string): Obj {
-    return { model_id: DEFAULT_MODEL, method: methodOverride || 'lora' };
+  /**
+   * 新建一条候选记录，方法取 LoRA。只在用户明确选了模型时调用——页面不替用户挑模型。
+   */
+  function defaultEntry(key: string): Obj {
+    return { model_id: key, method: 'lora' };
   }
 
-  /** 开启本池时，若旧方案没有微调对象，把页面显示的默认模型一并写入。 */
+  /**
+   * 开启/关闭本池只改开关本身。
+   *
+   * 旧实现在开启时若没有候选就补一条默认模型，等于按一次开关方案里就多出一个没选过的模型
+   * （还会进快照）。现在宁可把「未选择模型」显式留在页面上。
+   */
   function setEnabled(next: boolean) {
-    edit(p => {
-      p.development.enabled = next;
-      if (next && !(p.development.models || []).length) p.development.models = [defaultEntry()];
-    });
+    edit(p => { p.development.enabled = next; });
   }
 
   /** 选模型：只替换第一条的 `model_id`，其余候选原样保留。 */
@@ -148,7 +150,7 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
       const list = p.development.models || [];
       p.development.models = list.length
         ? list.map((m: Obj, i: number) => (i === 0 ? { ...m, model_id: nextKey } : m))
-        : [{ model_id: nextKey, method: 'lora' }];
+        : [defaultEntry(nextKey)];
     });
   }
 
@@ -160,11 +162,15 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
    * （实测两候选方案改方法后 0.1 P → 0.0304 P，卡数却不变，页面上看不出异常）。
    */
   function setMethod(next: string) {
+    // 方法存在候选记录上：没有候选就没有可写的位置，旧实现会顺手建一条默认模型的候选。
+    if (!entries.length) {
+      message.warning('请先选择需要微调的模型，再设置微调方法');
+      return;
+    }
     edit(p => {
       const list = p.development.models || [];
-      p.development.models = list.length
-        ? list.map((m: Obj, i: number) => (i === 0 ? { ...m, method: next } : m))
-        : [{ model_id: DEFAULT_MODEL, method: next }];
+      if (!list.length) return;
+      p.development.models = list.map((m: Obj, i: number) => (i === 0 ? { ...m, method: next } : m));
     });
   }
 
@@ -309,15 +315,18 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
                 <InfoCircleOutlined aria-hidden="true" />
               </Tooltip>
             </label>
-            {/* 不用 Spin 包裹：Spin 的 wrapper 是 inline-block，会把 width:100% 的 Select 挤成内容宽度。 */}
+            {/* 不用 Spin 包裹：Spin 的 wrapper 是 inline-block，会把 width:100% 的 Select 挤成内容宽度。
+                没有候选记录时 value 为 undefined，下拉留空显示 placeholder——选任何一个值都会写入候选。 */}
             <Select aria-label="需要微调的模型" style={{ width: '100%' }}
               value={model.key || modelKey} loading={!!catalogLoading}
               placeholder="选择需要微调的模型" showSearch optionFilterProp="label"
               options={modelSelectOptions(models)} onChange={setModel} />
             <small className="muted">
               {model.total_b
-                ? `总参 ${num(model.total_b)}B · 激活 ${num(model.active_b)}B · ${model.arch}${entry ? '' : ' · 默认模型，改动任一设置后写入方案'}`
-                : '目录里没有该模型的结构数据，请重新选择'}
+                ? `总参 ${num(model.total_b)}B · 激活 ${num(model.active_b)}B · ${model.arch}`
+                : entry
+                  ? `目录里没有「${entry.model_id}」的结构数据，请重新选择`
+                  : '本方案还没有候选模型记录；选择一个模型后才会出卡数'}
             </small>
           </div>
           <div className="field">
@@ -326,11 +335,13 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
                 <InfoCircleOutlined aria-hidden="true" />
               </Tooltip>
             </label>
-            <Select aria-label="微调方法" style={{ width: '100%' }} value={method}
+            <Select aria-label="微调方法" style={{ width: '100%' }} value={method} disabled={!entry}
               options={[{ value: 'lora', label: 'LoRA（FP16 基座）' }, { value: 'qlora', label: 'QLoRA（需要量化基线）' }]}
               onChange={setMethod} />
             <small className="muted">
-              基座 {METHOD_LABELS[method] || method} · 方法只改显存口径，不改训练工作量
+              {entry
+                ? `基座 ${METHOD_LABELS[method] || method} · 方法只改显存口径，不改训练工作量`
+                : '方法存在候选模型上，先选择模型'}
             </small>
           </div>
           <div className="quota-summary">
@@ -501,7 +512,7 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
                   </div>
                 )}
               </>
-            : <Empty description={entry ? '选择强度与任务参数后自动汇总' : '选择需要微调的模型后自动汇总'} />}
+            : <Empty description={entry ? '选择强度与任务参数后自动汇总' : '本方案没有候选模型记录，请先选择模型'} />}
         {/* 缺失原因放在分支外：还没算出结果时（BLOCKED）也要说清楚缺什么。 */}
         {c.enabled && (pool?.missing_items?.length ?? 0) > 0 && (
           <Alert className="below" type="warning" showIcon

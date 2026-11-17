@@ -182,27 +182,36 @@ describe('开发测试页', () => {
     expect(folds[1].textContent).toContain('强度档位的具体任务参数');
   });
 
-  it('没有候选模型时，「需要微调的模型」默认回落到 DeepSeek-V4-Flash', () => {
-    const { container } = renderPage(planWith([]));
-    expect(selectedText('需要微调的模型')).toContain('DeepSeek-V4-Flash');
-    expect(container.textContent).toContain('默认模型');
+  it('没有候选模型时下拉留空，不显示用户没选过的替身模型', () => {
+    renderPage(planWith([]), null);
+    // 旧实现回落到 DeepSeek-V4-Flash：下拉显示「已选」、引擎却报「请选择需要微调的模型」
+    expect(selectedText('需要微调的模型')).toBe('');
+    expect(screen.getByText('选择需要微调的模型')).toBeTruthy();
+    expect(screen.getByText(/本方案还没有候选模型记录/)).toBeTruthy();
+    expect(screen.getByText('本方案没有候选模型记录，请先选择模型')).toBeTruthy();
+    // 方法存在候选上：没有候选时下拉禁用，避免「改了也存不下来」
+    expect(screen.getByRole('combobox', { name: '微调方法' })).toHaveProperty('disabled', true);
   });
 
-  it('旧方案没有候选模型时，开启本池会把默认模型写进方案', () => {
+  it('开启本池不替用户挑模型，选择模型才写入候选', async () => {
     const plan = planWith([]);
     plan.development.enabled = false;
-    let written: Obj | null = null;
-    renderPage(plan, preview, (mutator) => {
-      const next: Obj = JSON.parse(JSON.stringify(plan));
-      mutator(next);
-      written = next;
-    });
+    renderPage(plan, null, (mutator) => mutator(plan));
     fireEvent.click(screen.getByRole('switch', { name: '开发测试启用' }));
-    const models = (written as Obj | null)?.development?.models as Obj[];
-    expect(models).toHaveLength(1);
-    expect(models[0].model_id).toBe('deepseek_v4_flash');
-    expect(models[0].method).toBe('lora');
-  });
+    // 只改开关：不能因为「开启本池」就写一条默认模型的候选（那会跟着快照冻结）
+    expect(plan.development.enabled).toBe(true);
+    expect(plan.development.models).toHaveLength(0);
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '需要微调的模型' }));
+    await new Promise(r => setTimeout(r, 300));
+    const option = Array.from(document.querySelectorAll('.ant-select-item-option'))
+      .find(node => (node.textContent || '').includes('GLM-5.3 Flash'));
+    expect(option).toBeTruthy();
+    fireEvent.click(option as Element);
+    expect(plan.development.models).toHaveLength(1);
+    expect(plan.development.models[0].model_id).toBe('glm5_3_flash');
+    expect(plan.development.models[0].method).toBe('lora');
+  }, 20000);
 
   it('切换强度档会清空任务参数，避免沿用上一档的数据量', () => {
     const plan = planWith(single);

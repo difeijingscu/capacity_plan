@@ -209,26 +209,36 @@ describe('创新服务页', () => {
     expect(fold!.querySelector('[aria-label="Decode 效率"]')).toBeTruthy();
   });
 
-  it('没有模型分配时，服务模型默认回落到 DeepSeek-V4-Flash', () => {
-    const { container } = renderPage(planWith([]));
-    // 旧方案/导入 payload 的 allocations 可能是空列表，页面仍应给出默认模型而不是空白下拉
-    expect(selectedText('创新服务模型')).toContain('DeepSeek-V4-Flash');
-    expect(container.textContent).toContain('默认模型');
+  it('没有模型分配时下拉留空，不显示用户没选过的替身模型', () => {
+    renderPage(planWith([]), null);
+    // 旧实现回落到 DeepSeek-V4-Flash：下拉显示「已选」、引擎却报「请选择服务模型」，
+    // 而且再点同一个值不触发 onChange，用户没有出路
+    expect(selectedText('创新服务模型')).toBe('');
+    expect(screen.getByText('选择提供创新服务的模型')).toBeTruthy();
+    expect(screen.getByText(/本方案还没有服务模型记录/)).toBeTruthy();
+    expect(screen.getByText('本方案没有服务模型记录，请先选择模型')).toBeTruthy();
+    // 请求口径存在分配记录上：没有模型时输入禁用，避免「改了也存不下来」的假操作
+    expect((screen.getByRole('spinbutton', { name: '每请求Token' }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole('spinbutton', { name: '输入Token占比' }) as HTMLInputElement).disabled).toBe(true);
   });
 
-  it('旧方案没有模型分配时，开启本池会把默认模型写进方案', () => {
+  it('开启本池不替用户挑模型，选择模型才写入分配', async () => {
     const plan = planWith([]);
     plan.innovation.enabled = false;
-    let written: Obj | null = null;
-    renderPage(plan, preview, (mutator) => {
-      const next: Obj = JSON.parse(JSON.stringify(plan));
-      mutator(next);
-      written = next;
-    });
+    renderPage(plan, null, (mutator) => mutator(plan));
     fireEvent.click(screen.getByRole('switch', { name: '创新服务启用' }));
-    const allocations = (written as Obj | null)?.innovation?.allocations as Obj[];
-    expect(allocations).toHaveLength(1);
-    expect(allocations[0].model_id).toBe('deepseek_v4_flash');
-    expect(allocations[0].share).toBe(1);
-  });
+    // 只改开关：不能因为「开启本池」就写一条默认模型的分配（那会跟着快照冻结）
+    expect(plan.innovation.enabled).toBe(true);
+    expect(plan.innovation.allocations).toHaveLength(0);
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '创新服务模型' }));
+    await new Promise(r => setTimeout(r, 300));
+    const option = Array.from(document.querySelectorAll('.ant-select-item-option'))
+      .find(node => (node.textContent || '').includes('GLM-5.3 Flash'));
+    expect(option).toBeTruthy();
+    fireEvent.click(option as Element);
+    expect(plan.innovation.allocations).toHaveLength(1);
+    expect(plan.innovation.allocations[0].model_id).toBe('glm5_3_flash');
+    expect(plan.innovation.allocations[0].share).toBe(1);
+  }, 20000);
 });
