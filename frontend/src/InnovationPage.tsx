@@ -32,7 +32,7 @@ const CACHE_HIT_DEFAULT = 0.3;
 /** 单请求 Token 结构默认值，与 schemas.Allocation 的缺省一致。 */
 const REQUEST_DEFAULTS = { request_total_tokens: 2560, input_fraction: 0.8 };
 /**
- * 默认服务模型，与 schemas.DEFAULT_INNOVATION_MODEL 保持一致。
+ * 默认服务模型，须与后端 `schemas.DEFAULT_MODEL` 同值（前端不引用后端符号，只能靠约定，改一处要同步改另一处）。
  * 新建方案由后端缺省直接带一条 share=1 的分配；旧方案或外部导入的 payload 若 allocations 为空，
  * 页面按这个默认值展示，并在用户开启本池或改动请求口径时补写，避免「页面有模型、引擎不出数」。
  */
@@ -294,9 +294,9 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
               onChange={v => change('quota_per_user_month', v ?? null)} />
           </div>
           <div className="quota-summary">
-            <span>全池月度额度</span>
+            <span>月度额度上限</span>
             <strong>{num(allocated)}</strong>
-            <small>Token / 月 · 分配前总额</small>
+            <small>Token / 月 · 未乘使用率</small>
           </div>
         </div>
 

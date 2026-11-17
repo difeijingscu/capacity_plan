@@ -42,7 +42,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
       <p>所有输入按<strong>当前峰值规模</strong>理解，不引入规划年限、年增长率等时间外推参数：早期规划只需要回答“现在这个规模大概需要多少算力”，周期与增长留给后续实测校准。</p>
       <div className="basis-pool-grid">{[
         ['01', '业务场景', '支撑已规划的具体应用', '在线人数、模型、请求内容与响应目标'],
-        ['02', '创新服务', '提供灵活可用的模型服务池', '支持人数、人均月Token与模型份额'],
+        ['02', '创新服务', '提供灵活可用的模型服务池', '支持人数、人均月Token、使用率与服务窗口'],
         ['03', '开发测试', '按需支撑模型微调', '候选模型、微调强度与并行槽位'],
       ].map(([index, name, purpose, inputs]) => <div key={name}><span>{index}</span><h3>{name}</h3><p>{purpose}</p><small>{inputs}</small></div>)}</div>
       <Steps className="basis-steps" responsive items={[{ title: '定义业务规模', description: '场景清单与期末需求' }, { title: '匹配模型与基线', description: '任务、参数与计量单位' }, { title: '换算工作量', description: '每秒请求或单位任务' }, { title: '形成容量', description: '效率、余量与显存' }]} />
@@ -99,17 +99,18 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
 
   const innovation = <div className="basis-content">
     <Card title="创新服务：月度额度守恒，再换算服务峰值">
-      <p>每个人拥有一份每月总Token额度，包含输入及总生成Token。多个模型按份额共享这份总额度；选择三个模型不等于给每个人发三份完整额度。推理Token已包含在生成额度时不再重复叠加。</p>
+      <p>每个人拥有一份每月总Token额度，包含输入及总生成Token。本池按<strong>一个模型</strong>规划：整份额度都归选定的这一个模型，不按模型数量拆分额度。推理Token已包含在生成额度时不再重复叠加。</p>
+      <p className="basis-caption">早期保存的多模型方案不自动改写，其汇总仍是全部分配条目的合计（页面会标明「N 个模型合计」）；需要按单模型口径重新规划时，用页面上的「收敛为单模型」按钮显式转换。</p>
       <Variables rows={[
         ['U / q / u', '支持人数 / 人均每月总Token / 额度使用率', '人 / Token·人⁻¹·月⁻¹ / 比例'],
-        ['wm / βm', '模型m分配的Token份额 / 其中输入Token比例', '各模型份额合计100%'],
+        ['β', '其中输入Token占总量的比例（生成部分为 1 − β）', '比例'],
         ['d / t / k', '每月服务日数 / 每日小时 / 峰值倍数', '日 / 小时 / 倍'],
-        ['Im / Om', '模型m的峰值输入 / 总生成Token速率', 'Token/秒'],
+        ['I / O', '峰值输入 / 总生成Token速率', 'Token/秒'],
         ['Breq', '用于估计请求速率及缓存的平均单请求总Token', 'Token/请求'],
       ]} />
-      <Formula title="第一步 · 计算并分配月度总额">Q月 = U × q × u<br />Q模型m = Q月 × wm，Σwm = 1</Formula>
-      <Formula title="第二步 · 从月度总额换算峰值速率">T服务 = d × t × 3600<br />Im = Q模型m × βm ÷ T服务 × k<br />Om = Q模型m × (1 − βm) ÷ T服务 × k</Formula>
-      <Formula title="第三步 · 沿用模型的分阶段工作量">Cm基础 = [2Np,m × κp,m × Im ÷ ηp + 2Nd,m × κd,m × Om ÷ ηd] ÷ 10¹⁵<br />C创新建议 = ΣCm基础 × (1 + h)</Formula>
+      <Formula title="第一步 · 计算月度总额">Q月 = U × q × u</Formula>
+      <Formula title="第二步 · 从月度总额换算峰值速率">T服务 = d × t × 3600<br />I = Q月 × β ÷ T服务 × k<br />O = Q月 × (1 − β) ÷ T服务 × k</Formula>
+      <Formula title="第三步 · 沿用模型的分阶段工作量">C基础 = [2Np × κp × I ÷ ηp + 2Nd × κd × O ÷ ηd] ÷ 10¹⁵<br />C创新建议 = C基础 × (1 + h)</Formula>
       <Provenance><p>“月总量 ÷ 服务秒数”是单位与额度守恒换算；峰值倍数是本产品对集中使用程度的规划假设。该配额换算不是厂商发布的通用Token与P一比一兑换表。分阶段工作量使用与业务场景相同的分析近似。<Source id="scaling" /></p><p>实际可达吞吐及延迟应由匹配负载测试验证。<Source id="metrics" /></p></Provenance>
     </Card>
     <Card title="初始假设与使用说明">
@@ -119,9 +120,9 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
         { key: 'input', label: '输入 / 生成份额', children: '80% / 20%' }, { key: 'request', label: '单请求总Token', children: '2560' },
       ]} />
       <p className="basis-caption">以上是新方案的产品默认假设，用户可在创新服务参数中调整。22个服务日定义消化整月额度的集中服务窗口，不是把月额度减少成22/30。</p>
-      <div className="basis-example"><strong>额度分配示例</strong>1000人 × 每人每月100万Token = 每月10亿Token。两个模型份额70% / 30%，分别分配7亿 / 3亿，而不是每个模型各10亿。</div>
+      <div className="basis-example"><strong>额度换算示例</strong>1000人 × 每人每月100万Token = 每月10亿Token；按使用率折算后再除以服务窗口秒数得到峰值速率。整份额度归本池选定的那一个模型，不再拆成多份份额；需要同时服务第二个模型时，按它的峰值需求另做评估。</div>
       <Formula title="缓存所需的请求尺度">Li = β × Breq，Lg = (1 − β) × Breq<br />λ = (I + O) ÷ Breq</Formula>
-      <p>初始按各模型峰值同时发生，创新池权重独立于业务池。非Token计量的生成服务需要独立的单位任务基线，没有可靠基线时保留为未计入。</p>
+      <p>初始按该模型的峰值同时发生，创新池权重独立于业务池。非Token计量的生成服务需要独立的单位任务基线，没有可靠基线时保留为未计入。</p>
     </Card>
   </div>;
 

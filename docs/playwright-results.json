@@ -4,7 +4,8 @@
       "C:\\Users\\difeijing\\.workbuddy\\binaries\\node\\versions\\22.22.2-6\\node.exe",
       "D:\\10.Coding\\ComputePlanner\\frontend\\node_modules\\@playwright\\test\\cli.js",
       "test",
-      "e2e/calculation-derivation.spec.ts"
+      "e2e/planning-basis.spec.ts",
+      "e2e/planning-organization.spec.ts"
     ],
     "configFile": "D:\\10.Coding\\ComputePlanner\\frontend\\playwright.config.ts",
     "rootDir": "D:/10.Coding/ComputePlanner/frontend/e2e",
@@ -102,19 +103,19 @@
       "timeout": 30000,
       "reuseExistingServer": false,
       "env": {
-        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794922728506"
+        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794923887910"
       }
     }
   },
   "suites": [
     {
-      "title": "calculation-derivation.spec.ts",
-      "file": "calculation-derivation.spec.ts",
+      "title": "planning-basis.spec.ts",
+      "file": "planning-basis.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [
         {
-          "title": "四张容量卡片展示真实代入过程及研发最大任务聚合",
+          "title": "无需项目即可阅读规划依据，首页和侧栏入口一致",
           "ok": true,
           "tags": [],
           "tests": [
@@ -129,12 +130,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 7748,
+                  "duration": 2847,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T13:38:51.870Z",
+                  "startTime": "2026-11-17T13:58:11.993Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -142,13 +143,13 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-8e0f29785af663f5aac6",
-          "file": "calculation-derivation.spec.ts",
-          "line": 26,
+          "id": "4901a388905384d88a3e-1e37a1339ae4cebcedce",
+          "file": "planning-basis.spec.ts",
+          "line": 3,
           "column": 1
         },
         {
-          "title": "创新和研发配置页可展开最近测算的杜邦树",
+          "title": "业务场景移除助手并使用全宽，切换规划依据保留未保存输入",
           "ok": true,
           "tags": [],
           "tests": [
@@ -163,12 +164,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5051,
+                  "duration": 2716,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T13:39:00.077Z",
+                  "startTime": "2026-11-17T13:58:15.266Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -176,13 +177,13 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-5dcf13a04ec60e8b20f1",
-          "file": "calculation-derivation.spec.ts",
-          "line": 83,
+          "id": "4901a388905384d88a3e-32afa92449f3a8e51380",
+          "file": "planning-basis.spec.ts",
+          "line": 35,
           "column": 1
         },
         {
-          "title": "修改输入后推导保留历史口径，重新测算后展示新输入",
+          "title": "规划依据在窄屏可阅读，公式与表格不撑开页面",
           "ok": true,
           "tags": [],
           "tests": [
@@ -197,12 +198,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 6675,
+                  "duration": 1656,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T13:39:05.149Z",
+                  "startTime": "2026-11-17T13:58:18.001Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -210,13 +211,55 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-e4558c7396c5254a1d1f",
-          "file": "calculation-derivation.spec.ts",
-          "line": 100,
+          "id": "4901a388905384d88a3e-7869489bd4bb9ea2c6fa",
+          "file": "planning-basis.spec.ts",
+          "line": 53,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "planning-organization.spec.ts",
+      "file": "planning-organization.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "概览两个说明入口平级，组织设计无需项目即可阅读并可返回",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2001,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-17T13:58:19.700Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3037cb8f4a7b7c1ffd0f-4f97c7c1f0e19b5d7a86",
+          "file": "planning-organization.spec.ts",
+          "line": 3,
           "column": 1
         },
         {
-          "title": "缺失任务和未启用资源池说明清楚，手机抽屉可阅读",
+          "title": "阅读组织设计保留当前方案的未保存内容",
           "ok": true,
           "tags": [],
           "tests": [
@@ -231,12 +274,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3961,
+                  "duration": 2519,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T13:39:11.844Z",
+                  "startTime": "2026-11-17T13:58:21.719Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -244,9 +287,43 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-81c152d96e634961c6d4",
-          "file": "calculation-derivation.spec.ts",
-          "line": 129,
+          "id": "3037cb8f4a7b7c1ffd0f-54f0e487c27807588d19",
+          "file": "planning-organization.spec.ts",
+          "line": 29,
+          "column": 1
+        },
+        {
+          "title": "窄屏组织关系图和说明表格不撑开页面",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1519,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-17T13:58:24.257Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3037cb8f4a7b7c1ffd0f-ef9be8d5f85ac54d924a",
+          "file": "planning-organization.spec.ts",
+          "line": 44,
           "column": 1
         }
       ]
@@ -254,9 +331,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-17T13:38:48.510Z",
-    "duration": 28462.516000000003,
-    "expected": 4,
+    "startTime": "2026-11-17T13:58:07.932Z",
+    "duration": 19163.94,
+    "expected": 6,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

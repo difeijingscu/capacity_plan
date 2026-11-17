@@ -213,7 +213,6 @@ export default function App() {
   const report = activeRun?.result;
   const stale = !!activeRun && (dirty || (activeRun.plan_revision !== plan?.revision || activeRun.plan_id !== plan?.id));
   const modelLabel = (id: string) => models.find(m => m.id === id)?.display_name || id || '未选择';
-  /** v2 创新/研发池按推理目录选模型（32 条 LLM + 自定义）；旧 id 由后端 match_model_key 迁移。 */
   async function createProject(isDemo = false) {
     const response = isDemo ? await api('/demo', 'POST', {}) : await api('/projects', 'POST', { name: projectName });
     await refreshProjects(); await loadPlan(response.plan.id); setProjectModal(false); setProjectName(''); setPage('business');

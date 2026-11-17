@@ -116,6 +116,14 @@ describe('创新服务页', () => {
     expect(screen.getByText('单模型')).toBeTruthy();
   });
 
+  it('额度上限与池 Token 用不同名称：U × q 未乘使用率，不等于 KPI 的月度 Token', () => {
+    renderPage(planWith(single));
+    // 两者曾同名「全池」，使用率 < 100% 时数值不一致，容易被当成算错。
+    expect(screen.getByText('月度额度上限')).toBeTruthy();
+    expect(screen.getByText(/未乘使用率/)).toBeTruthy();
+    expect(screen.queryByText('全池月度额度')).toBeNull();
+  });
+
   it('汇总读取本池卡数与算力', () => {
     renderPage(planWith(single));
     // 明细表「含余量卡数」= 8 张；折算明细里有算力/显存两个约束卡数

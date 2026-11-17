@@ -8,7 +8,7 @@ const ownershipRows = [
 ];
 const poolRows = [
   { name: '业务场景规划', question: '已经明确要建设的AI应用，需要多少算力？', inputs: '场景清单、在线人数、模型、请求与输入输出参数', structure: '多个场景；每个场景可以有多个计算组件。' },
-  { name: '创新服务规划', question: '为内部人员提供灵活的模型调用，需要多大的服务池？', inputs: '支持人数、人均月Token额度、模型份额、服务窗口', structure: '一个Token服务池；多个模型按份额分享总额度。' },
+  { name: '创新服务规划', question: '为内部人员提供灵活的模型调用，需要多大的服务池？', inputs: '支持人数、人均月Token额度、使用率、服务窗口', structure: '一个Token服务池；一份月度额度由本池选定的一个模型承接。' },
   { name: '开发测试规划', question: '为模型微调，需要多少实验资源？', inputs: '候选模型、微调强度、单次完成窗口、并行槽位', structure: '一个开发测试池；按单任务微调能力及允许的并行数量配置。' },
 ];
 const exampleRows = [
@@ -66,7 +66,7 @@ export default function PlanningOrganization({ onBack, onBasis }: { onBack: () =
           { title: '主要输入', dataIndex: 'inputs' }, { title: '内部组织方式', dataIndex: 'structure' },
         ]} />
         <div className="basis-example"><strong>业务场景：组件 → 场景 → 业务池</strong>一个“视频智能告警”场景可以拆成“目标检测”和“告警文字生成”两个计算组件。先汇总组件得到场景需求，再汇总所有场景得到业务场景池需求。场景高峰默认同时发生；兼容的同模型服务可以共享基础权重，计算负载仍分别相加。</div>
-        <div className="basis-example"><strong>创新服务：一份总额度 → 多个模型份额 → 服务池</strong>支持1000人，每人每月100万Token，总额度为每月10亿Token。两个模型按70%和30%分配时，分别按7亿和3亿Token估算。无需事先逐一列出所有未来创新应用。</div>
+        <div className="basis-example"><strong>创新服务：人员规模 → 一份月度额度 → 选定模型 → 服务池</strong>支持1000人，每人每月100万Token，月额度为10亿Token；按使用率折算后除以服务窗口得到峰值速率，整份额度归这一个模型。无需事先逐一列出所有未来创新应用。</div>
         <div className="basis-example"><strong>开发测试：候选模型 → 单任务微调能力 → 并行槽位</strong>选中三个模型表示资源池需要能承接这三个模型的微调，不等于三个模型始终同时训练。系统按候选模型所需的最大单任务微调能力，再结合微调槽位数配置资源；评测算力不在本池规划范围内。</div>
         <p className="below">三部分可分别填写。业务场景中选择的模型，不会自动加入创新服务或开发测试，各池需独立确认支持哪些模型。</p>
         <Alert type="info" showIcon message="普通新建项目与示例项目的区别" description="普通新建项目的业务清单为空，创新服务和开发测试默认关闭；关闭的池不计入需求。载入示例项目时会预填三类规划，便于体验完整流程。" />
