@@ -402,6 +402,93 @@ def describe_scenario(item):
     return result
 
 
+def build_business_tree(pool, explanation, headroom):
+    """业务池杜邦树：逐场景三维取最大 → 汇总 → 一次余量 → 8 卡部署粒度 → 容量折算。
+
+    与创新/研发不同，业务池没有独立故障冗余、也不按整机对齐；卡数只由
+    「Σ 场景卡数 × (1 + h) 再向上取整到 8 卡」决定，所以这里不出现 +1 节点。
+    变量取自 pool.items 的 trace（explanation.items 只有文字步骤，没有原始变量）。
+    """
+    steps_by_id = {i["id"]: i.get("steps", []) for i in explanation.get("items") or []}
+    items = pool.get("items") or []
+    cards, cards_planned = pool.get("cards"), pool.get("cards_planned")
+    scenes, scene_cards, bf16_values = [], [], set()
+    for item in items:
+        v = (item.get("trace") or {}).get("variables") or {}
+        if v.get("bf16_tflops") is not None:
+            bf16_values.add(D(v["bf16_tflops"]))
+        final = v.get("cards", item.get("cards"))
+        if final is not None:
+            scene_cards.append(D(final))
+        raw = v.get("raw_cards")
+        even = "" if raw is None or final is None or D(raw) == D(final) else f" → 补偶 {fmt(final)}"
+        scenes.append(tree_node(
+            item.get("name") or item["id"],
+            "卡数 = max(A显存, B Prefill, C Decode)，奇数补偶",
+            f"max({fmt(v.get('a'))}, {fmt(v.get('b'))}, {fmt(v.get('c'))}){even}",
+            tree_value(final, "张"),
+            f"模型 {v.get('model_key') or '—'} · {v.get('precision') or '—'} @ {v.get('chip_key') or '—'}；"
+            f"瓶颈 {v.get('bottleneck_label') or '—'}；该场景需求算力 {tree_value(item.get('base_p'), 'P')}",
+            tree_steps(steps_by_id.get(item["id"], []))))
+    demand = tree_node("逐场景需求与卡数", "Σ 各场景卡数（三维取最大，不是相加）",
+                       " + ".join(fmt(c) for c in scene_cards) if scene_cards else "暂无可计入场景",
+                       tree_value(cards, "张"),
+                       "场景高峰按同时发生汇总；卡数是物理台数，与算力（P）不是同一量纲。",
+                       scenes)
+    margin = tree_node("一次容量余量与部署粒度",
+                       "含余量卡数 = max(8, ceil(Σ卡数 × (1 + h) ÷ 8) × 8)",
+                       f"max(8, ceil({fmt(cards)} × (1 + {fmt(headroom)}) ÷ 8) × 8)",
+                       tree_value(cards_planned, "张"),
+                       f"h = {fmt(D(headroom) * 100)}%；余量只在场景层放大一次，池层不再重复；"
+                       "结果向上对齐到最小部署粒度 8 卡，且不少于一个部署单元。",
+                       [tree_node("建议算力（含余量）", "建议容量 = 基础容量 × (1 + h)",
+                                  f"{fmt(pool.get('base_p'))} × (1 + {fmt(headroom)})",
+                                  tree_value(pool.get("planned_p"), "P"),
+                                  "阶段效率与结构修正已计入基础容量，此处只加容量预留。")])
+    bf16 = next(iter(bf16_values), None)
+    capacity_note = ("按所选芯片的 BF16 稠密算力折算。" if len(bf16_values) <= 1 else
+                     "各场景芯片不同，按各自单卡算力分别折算后求和。")
+    capacity = tree_node("等效算力折算", "P = 卡数 × 单卡 BF16 算力(T) ÷ 1000",
+                         f"{fmt(cards_planned)} × {fmt(bf16)} ÷ 1000" if bf16 is not None else "芯片规格待补充",
+                         tree_value(pool.get("capacity_planned_p"), "P"), capacity_note,
+                         [tree_node("物理卡数（不含余量）", "逐场景三维取最大后求和", "",
+                                    tree_value(cards, "张"), "含余量卡数见上一分支。"),
+                          tree_node("规划服务器数（参考）", "ceil(卡数 ÷ 8)", f"ceil({fmt(cards_planned)} ÷ 8)",
+                                    tree_value(pool.get("servers"), "台"),
+                                    "仅按 8 卡/台折算，不代表已完成网络与供电拓扑验证。")])
+    # 图例名放在 legend 上：tag 会被渲染成卡片胶囊，与图例重复。
+    demand["legend"], margin["legend"], capacity["legend"] = "需求 / 卡数", "余量 / 粒度", "容量折算"
+    value = (tree_value(cards_planned, "张") + " · " + tree_value(pool.get("planned_p"), "P")
+             if cards_planned is not None else tree_value(pool.get("planned_p"), "P"))
+    return tree_node("业务池规划结果",
+                     "逐场景三维取最大 → 汇总 → 一次容量余量 → 8 卡部署粒度 → 容量折算",
+                     f"headroom = {fmt(D(headroom) * 100)}%", value,
+                     "根节点为本次保存结果；三个主干可逐层展开到原始数字与来源。",
+                     [demand, margin, capacity])
+
+
+def build_total_tree(report, pools, headroom):
+    """总量杜邦树：三池建议容量相加，汇总层不再乘余量。"""
+    children = []
+    for pool in pools:
+        kids = [tree_node("一次容量余量", "建议容量 = 基础容量 × (1 + h)",
+                          f"{fmt(pool.get('base_p'))} × (1 + {fmt(headroom)})",
+                          tree_value(pool.get("planned_p"), "P"),
+                          "余量在池内已应用一次，汇总层不重复相乘。")]
+        if pool.get("cards_planned") is not None:
+            kids.append(tree_node("含余量卡数", "口径见该池计算推导", "",
+                                  tree_value(pool.get("cards_planned"), "张"),
+                                  "三池卡数不相加：机型与部署粒度不同，只在本池内有意义。"))
+        children.append(tree_node(NAMES.get(pool["id"], pool["id"]), "本池建议容量（已含余量）", "",
+                                  tree_value(pool.get("planned_p"), "P"),
+                                  f"状态：{pool.get('completeness')}；基础容量 {tree_value(pool.get('base_p'), 'P')}",
+                                  kids))
+    return tree_node("建议规划总算力", "总量 = Σ 三池建议容量（各池已含余量，汇总不再乘余量）",
+                     " + ".join(fmt(p.get("planned_p")) for p in pools) or "暂无可计入资源池",
+                     tree_value(report.get("total_planned_p"), "P"),
+                     "三池独立配置，同池兼容模型可共享权重但负载仍相加；跨池不共享。", children)
+
+
 def build_derivation(run, scope):
     report, payload = run["result"], run["input_snapshot"]
     headroom = D(report["headroom"])
@@ -430,6 +517,7 @@ def build_derivation(run, scope):
         steps.append(sum_step("汇总三类资源池基础容量", pools, report["total_base_p"]))
         steps.extend(margin_steps(report["total_base_p"], report["total_planned_p"], headroom))
         result["notes"].append("三池独立配置；同池兼容模型可以共享权重，但计算负载仍相加。各池建议值已含余量，汇总后不再次增加余量。")
+        result["tree"] = build_total_tree(report, pools, headroom)
         return result
     if pool["completeness"] == "DISABLED":
         result["notes"].append("本次方案未启用此资源池，计入总量为0；没有任务推导。")
@@ -484,6 +572,8 @@ def build_derivation(run, scope):
         result["notes"].append("场景高峰按同时发生汇总。展开场景查看显存/Prefill/Decode 三维约束与 SLA 回验；卡数是物理台数，算力是 BF16 基准的折算值（P / T）。")
     else:
         result["items"] = [describe_task(i, originals.get(i["id"], {}), models, pool) for i in pool["items"]]
-    if scope in ("innovation", "development"):
+    if scope == "business":
+        result["tree"] = build_business_tree(pool, result, headroom)
+    elif scope in ("innovation", "development"):
         result["tree"] = build_pool_tree(scope, pool, result, headroom, D(payload["memory_reserve"]))
     return result

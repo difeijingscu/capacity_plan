@@ -75,7 +75,9 @@ export default function FxTree({ tree, variant = 'inference', footer }: {
   footer?: string;
 }) {
   const isPool = variant === 'pool';
-  const branchLabels = isPool ? ['需求 / 工作量', '显存 / 部署', '余量 / 卡数'] : ['A 显存', 'B Prefill', 'C Decode'];
+  // 图例名优先取主干节点自带的 legend：业务池三条主干与创新/研发不同，
+  // 用固定的「需求 / 显存 / 余量」会与卡片标题对不上。
+  const fallbackLabels = isPool ? ['需求 / 工作量', '显存 / 部署', '余量 / 卡数'] : ['A 显存', 'B Prefill', 'C Decode'];
   // 默认只展开第一层：折叠所有「非根且有下级」的节点（与页面 fxFoldDeep 一致）
   const defaultFolded = useMemo(() => {
     const out = new Set<string>();
@@ -94,6 +96,7 @@ export default function FxTree({ tree, variant = 'inference', footer }: {
   const topOnly = () => setFolded(defaultFolded);
 
   const kids: Obj[] = tree.children || [];
+  const branchLabels = fallbackLabels.map((label, i) => kids[i]?.legend || label);
   return (
     <div className="fx-block">
       <div className="fx-t">

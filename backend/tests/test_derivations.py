@@ -213,3 +213,35 @@ def test_scope_validation_and_missing_run(client):
     run = save_run(client, PlanInput())
     assert client.get(f"/api/v1/calculations/{run['id']}/derivation?scope=unknown").status_code == 422
     assert client.get("/api/v1/calculations/missing/derivation").status_code == 404
+
+
+def test_business_tree_explains_three_dimensions_and_eight_card_granularity():
+    """业务池也要有杜邦树：三维取最大 → 汇总 → 一次余量 → 8 卡粒度 → 容量折算。"""
+    payload = PlanInput(headroom=".2", scenarios=[Scenario(name="问答", inference=InferenceRequest(
+        model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
+    explanation, run = direct_explanation(payload, "business")
+    tree = explanation["tree"]
+    assert tree["label"] == "业务池规划结果"
+    assert [c["label"] for c in tree["children"]] == ["逐场景需求与卡数", "一次容量余量与部署粒度", "等效算力折算"]
+    scene = tree_child(tree, "问答")
+    assert scene is not None and "max(" in scene["expr"]
+    # 场景内仍能展开到 A/B/C 三维与补偶的具体数值
+    assert tree_child(scene, "三维取最大（不是相加）+ 奇数补偶")
+    pool = run["result"]["pools"][0]
+    margin = tree_child(tree, "一次容量余量与部署粒度")
+    assert margin["value"] == f"{pool['cards_planned']} 张"
+    assert "8" in margin["relation"]
+    assert tree_child(tree, "物理卡数（不含余量）")["value"] == f"{pool['cards']} 张"
+    # 业务池没有独立故障冗余，不应出现创新/研发池的 +1 节点
+    assert tree_child(tree, "独立故障冗余") is None
+
+
+def test_total_tree_sums_three_pools_without_second_margin():
+    payload = PlanInput(headroom=".2", scenarios=[Scenario(name="问答", inference=InferenceRequest(
+        model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
+    explanation, run = direct_explanation(payload, "total")
+    tree = explanation["tree"]
+    assert tree["label"] == "建议规划总算力"
+    assert [c["label"] for c in tree["children"]] == ["业务场景", "创新服务", "开发测试"]
+    assert "汇总不再乘余量" in tree["relation"]
+    assert D(tree["value"].split(" ")[0].replace(",", "")) == pytest.approx(D(run["result"]["total_planned_p"]))
