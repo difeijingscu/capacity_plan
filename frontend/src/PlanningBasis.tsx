@@ -128,7 +128,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
   const devRows = Object.entries(defaults.intensities || {}).map(([id, values]) => ({ id, name: ({ light: '轻度', standard: '标准（默认）', high: '高强度' } as Obj)[id], ...(values as Obj) }));
   const development = <div className="basis-content">
     <Card title="开发测试：按任务能力和并行槽位配置">
-      <p>开发测试池按需启用。选定需要支持的模型，再选择实验强度；先计算单个微调任务的容量，资源池按允许同时运行的槽位组合。多个候选模型可以轮流使用同一槽位，因此不按模型数量机械累加。开发测试只规划微调，不包含效果评测的算力。</p>
+      <p>开发测试池按需启用。选定需要微调的模型（单模型），再选择实验强度；先计算单个微调任务的容量，资源池按允许同时运行的槽位组合。本池只规划一个模型的微调，不按模型数量累加，也不包含效果评测的算力。</p>
       <Variables rows={[
         ['Ntrain / D / E', '训练阶段激活参数 / 未乘轮数的数据Token / 训练轮数', '参数 / Token / 轮'],
         ['ktrain / ηtrain', '微调工作量系数 / 训练有效效率', '经验系数 / 比例'],

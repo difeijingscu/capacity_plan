@@ -75,21 +75,26 @@ def tree_child(node, label):
     return None
 
 
-def test_innovation_large_quota_matches_32p_snapshot(client):
+def test_innovation_large_quota_matches_26p_snapshot(client):
     model = next(m for m in seeds("models") if m["id"] == "deepseek-v4-flash")
     payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=50_000_000,
                                             allocations=[Allocation(model_id=model["id"], share=1)]))
     run = save_run(client, payload, [model])
     explanation = get(client, run, "innovation")
-    assert float(explanation["planned_p"]) == pytest.approx(32.07792207792208)
+    # 默认缓存命中率 30%：Prefill 输入工作量按 0.7 折算，Decode 与显存不变。
+    assert float(explanation["planned_p"]) == pytest.approx(26.0)
     assert D(by_title(explanation["steps"], "得到全池实际月度Token预算")["value"]) == 50_000_000_000
     assert D(by_title(explanation["steps"], "得到有效服务时间")["value"]) == 633600
     task = explanation["items"][0]
-    assert float(by_title(task["steps"], "输入阶段容量")["value"]) == pytest.approx(16.88311688311688)
+    assert float(by_title(task["steps"], "输入阶段容量")["value"]) == pytest.approx(11.818181818181818)
     assert float(by_title(task["steps"], "生成阶段容量")["value"]) == pytest.approx(9.84848484848485)
+    # 命中前的工作量单独留一步，界面上的「2 × Np × Li × κp」与折降后数值能逐项对上。
+    assert float(by_title(task["steps"], "每请求输入工作量")["value"]) == pytest.approx(63897600000000)
+    assert float(by_title(task["steps"], "缓存命中折算输入工作量")["value"]) == pytest.approx(44728320000000)
     assert task["revision"] == model["revision"]
     assert "1.2" in by_title(task["steps"], "每请求输入工作量")["substitution"]
     assert any("同时执行" in i["note"] for i in explanation["inputs"])
+    assert any("前缀缓存命中率" in i["label"] for i in explanation["inputs"])
 
 
 def test_derivation_is_read_only_and_uses_frozen_inputs_and_catalog(client):

@@ -131,8 +131,8 @@ describe('业务场景 · 计算过程', () => {
     fireEvent.click(button);
     expect(screen.getByTestId('fx-tree').textContent).toBe('所需算力卡 N');
     expect(screen.getByText(/主导因素：Prefill/)).toBeTruthy();
-    // 整页渲染在本机约 3–5 秒，贴着默认 5 秒上限会随机超时，这里放宽
-  }, 20000);
+    // 整页渲染在本机 3–5 秒、慢机器可达 20 秒以上，贴着默认 5 秒上限会随机超时，这里放宽
+  }, 40000);
 
   it('场景没有估算结果时按钮保持禁用（不误报为可展开）', () => {
     const empty = {

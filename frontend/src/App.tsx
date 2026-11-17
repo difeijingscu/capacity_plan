@@ -6,11 +6,12 @@ import * as echarts from 'echarts';
 import { api, capacity, num, poolNames, stateNames, typeNames, waitJob } from './api';
 import type { Obj } from './api';
 import BusinessPage from './BusinessPage';
+import InnovationPage from './InnovationPage';
+import DevelopmentPage from './DevelopmentPage';
 import InferenceParamsPage from './InferenceParamsPage';
 import PlanningBasis from './PlanningBasis';
 import PlanningOrganization from './PlanningOrganization';
 import CalculationDerivation from './CalculationDerivation';
-import PoolGlobalCard from './PoolGlobalCard';
 import InferencePage from './InferencePage';
 import PlaceholderPage from './PlaceholderPage';
 import CabinetLayoutPage from './CabinetLayoutPage';
@@ -159,7 +160,9 @@ export default function App() {
   useEffect(() => { const g = groupOfPage(page); if (g) setOpenGroups(list => list.includes(g) ? list : [...list, g]); }, [page]);
 
   useEffect(() => {
-    if (!payload || page !== 'business') return;
+    // 业务场景、创新服务、开发测试三页都在填写时即时预览：各页的汇总与逐项结果同源，改完立刻可见。
+    // 开发测试页的 KPI、明细与卡数折算全部读 preview，缺了这个分支就只剩空态或残留上一次方案的数字。
+    if (!payload || (page !== 'business' && page !== 'innovation' && page !== 'development')) return;
     let cancelled = false;
     setPreviewReport(null);
     const timer = setTimeout(() => { void api('/preview-calculation', 'POST', {payload}).then(r => { if (!cancelled) setPreviewReport(r); }).catch(() => { if (!cancelled) setPreviewReport(null); }); }, 650);
@@ -178,6 +181,9 @@ export default function App() {
       const historicalCosts = p.calculations[0] ? await api('/calculations/' + p.calculations[0].id + '/costs') : [];
       if (token !== planContext.current) return;
       setPlan(p); setPayload(p.payload); setDirty(false); setRuns(projectRuns);  setCosts(historicalCosts[0] || null); setActiveRun(p.calculations[0] || null); setCompareIds([]); setComparison(null);
+      // 预览结果与当前 payload 同源，切方案时必须一并作废：否则新方案会先显示上一个方案的
+      // 汇总数字，等 650ms 防抖的预览返回后才纠正（该窗口内页面上没有任何过期提示）。
+      setPreviewReport(null);
     }
     finally { if (token === planContext.current) setLoading(false); }
   }
@@ -208,14 +214,6 @@ export default function App() {
   const stale = !!activeRun && (dirty || (activeRun.plan_revision !== plan?.revision || activeRun.plan_id !== plan?.id));
   const modelLabel = (id: string) => models.find(m => m.id === id)?.display_name || id || '未选择';
   /** v2 创新/研发池按推理目录选模型（32 条 LLM + 自定义）；旧 id 由后端 match_model_key 迁移。 */
-  const inferenceModels = [...(inferenceCatalog?.models ?? []), ...(inferenceCatalog?.custom_models ?? [])];
-  /** 三池共用的算力卡目录：内置 + 自定义，业务页与两个池页用同一份。 */
-  const allChips: Obj[] = [...(inferenceCatalog?.chips ?? []), ...(inferenceCatalog?.custom_chips ?? [])];
-  const inferenceModelOptions = inferenceModels.map((m: Obj) => ({ value: m.key, label: (m.label || m.key) + (m.custom ? ' · 自定义' : '') }));
-  const inferenceModelLabel = (id: string) => {
-    const hit = inferenceModels.find((m: Obj) => m.key === id);
-    return hit ? (hit.label || hit.key) : modelLabel(id);
-  };
   async function createProject(isDemo = false) {
     const response = isDemo ? await api('/demo', 'POST', {}) : await api('/projects', 'POST', { name: projectName });
     await refreshProjects(); await loadPlan(response.plan.id); setProjectModal(false); setProjectName(''); setPage('business');
@@ -253,25 +251,18 @@ export default function App() {
   }
 
   function innovationPage() {
-    const c = payload!.innovation;
-    function change(key: string, value: unknown) { edit(p => p.innovation[key] = value); }
-    const totalShare = c.allocations.reduce((sum: number, a: Obj) => sum + Number(a.share), 0);
-    return <><Card className="pool-intro"><div><span className="eyebrow">INNOVATION POOL</span><h2>把创新额度，转换为可规划的资源。</h2><p>每位用户拥有一份月度总 Token 额度，再按比例分配给所选模型。</p></div><Switch checked={c.enabled} checkedChildren="已启用" unCheckedChildren="未启用" onChange={v => change('enabled', v)} /></Card><PoolGlobalCard poolLabel="本池" ariaLabel="创新池算力卡"
-      chips={allChips} value={c.chip_key} hint="与业务场景共用同一套算力卡规格（含自定义卡），三池卡数才可比；换卡后本池卡数按新规格重算。"
-      onChange={v => change('chip_key', v)} /><Card className="below" size="small" title="计算过程 · 杜邦式展开"><Space wrap><Button icon={<ApartmentOutlined aria-hidden="true" />} disabled={!activeRun} onClick={() => setDerivationScope('innovation')}>查看最近测算计算过程</Button><span className="muted">{activeRun ? (stale ? '当前输入已变更，展开内容仍来自最近保存的测算快照。' : '从月度额度、模型吞吐逐层展开到显存、余量和物理卡数。') : '完成一次正式测算后可展开计算过程。'}</span></Space></Card><Card title="月度服务规模"><div className="form-grid"><Field label="支持人数"><InputNumber aria-label="创新支持人数" min={0} value={c.users == null ? null : Number(c.users)} onChange={v => change('users', v)} addonAfter="人" /></Field><Field label="每人每月总 Token" hint="包含输入与总生成Token，推理Token已计入时不再额外相乘。"><InputNumber aria-label="每人月Token" min={0} value={c.quota_per_user_month == null ? null : Number(c.quota_per_user_month)} onChange={v => change('quota_per_user_month', v)} /></Field><div className="quota-summary"><span>全池月度额度</span><strong>{num(c.users == null || c.quota_per_user_month == null ? null : Number(c.users) * Number(c.quota_per_user_month))}</strong><small>Token / 月 · 分配前总额</small></div></div><div className="section-title"><h3>模型与额度分配</h3><Tag color={Math.abs(totalShare - 1) < 1e-6 ? 'green' : 'orange'}>已分配 {num(totalShare * 100)}%</Tag></div><Select mode="multiple" aria-label="创新服务模型" style={{ width: '100%', marginBottom: 18 }} placeholder="选择提供创新服务的模型" options={inferenceModelOptions} value={c.allocations.map((a: Obj) => a.model_id)} onChange={ids => edit(p => { p.innovation.allocations = ids.map((id: string) => ({ model_id: id, share: 1 / ids.length, input_fraction: .8, request_total_tokens: 2560 })); })} /><Table<Obj> rowKey="model_id" pagination={false} dataSource={c.allocations} columns={[
-      { title: '模型', dataIndex: 'model_id', render: inferenceModelLabel },
-      { title: 'Token 份额', render: (_: unknown, a: Obj) => <InputNumber aria-label={'额度份额-' + a.model_id} min={0} max={100} value={Number(a.share) * 100} addonAfter="%" onChange={v => edit(p => { p.innovation.allocations.find((x: Obj) => x.model_id === a.model_id).share = Number(v) / 100; })} /> },
-      { title: '输入Token占比', render: (_: unknown, a: Obj) => <InputNumber min={0} max={100} value={Number(a.input_fraction) * 100} addonAfter="%" onChange={v => edit(p => { p.innovation.allocations.find((x: Obj) => x.model_id === a.model_id).input_fraction = Number(v) / 100; })} /> },
-    ]} /><div className="note-line">选择模型后会先均分份额；确认后可自行调整，合计须为100%。</div><Collapse items={[{ key: 'advanced', label: '服务时间与峰值参数（默认值可修改）', children: <div className="form-grid">{[['service_days', '每月服务日数'], ['service_hours_per_day', '每日服务小时'], ['peak_factor', '峰值倍数']].map(([key, label]) => <Field key={key} label={label}><InputNumber min={.01} value={Number(c[key])} onChange={v => change(key, v)} /></Field>)}<Field label="额度使用率"><InputNumber min={0} max={100} value={Number(c.usage_ratio) * 100} addonAfter="%" onChange={v => change('usage_ratio', Number(v) / 100)} /></Field></div> }]} /></Card><Alert className="below" type="info" showIcon message="默认22日 × 每天8小时、峰值3倍、额度全部兑现；这些参数属于经验假设，按期末规模计算。" /></>;
+    return <InnovationPage payload={payload!} edit={edit} catalog={inferenceCatalog}
+      catalogLoading={inferenceLoading} preview={previewReport}
+      derivationReady={!!activeRun} derivationStale={stale}
+      onDerivation={() => setDerivationScope('innovation')} />;
   }
 
   function developmentPage() {
-    const c = payload!.development; const preset = defaults.intensities?.[c.intensity] || {};
-    function change(key: string, value: unknown) { edit(p => p.development[key] = value); }
-    const fields = [['train_data_tokens', '每任务微调数据 Token'], ['epochs', '训练轮数'], ['train_deadline_hours', '微调完成时间（小时）'], ['sequence_length', '训练序列长度'], ['train_slots', '同时微调槽位']];
-    return <><Card className="pool-intro"><div><span className="eyebrow">DEVELOPMENT POOL</span><h2>为模型实验，保留合适的空间。</h2><p>只规划模型微调，不含效果评测；按可并行微调任务的能力配置资源。</p></div><Switch checked={c.enabled} checkedChildren="已启用" unCheckedChildren="未启用" onChange={v => change('enabled', v)} /></Card><PoolGlobalCard poolLabel="本池" ariaLabel="开发池算力卡"
-      chips={allChips} value={c.chip_key} hint="与业务场景共用同一套算力卡规格（含自定义卡）；训练与推理共用同一张卡的算力与显存。"
-      onChange={v => change('chip_key', v)} /><Card className="below" size="small" title="计算过程 · 杜邦式展开"><Space wrap><Button icon={<ApartmentOutlined aria-hidden="true" />} disabled={!activeRun} onClick={() => setDerivationScope('development')}>查看最近测算计算过程</Button><span className="muted">{activeRun ? (stale ? '当前输入已变更，展开内容仍来自最近保存的测算快照。' : '从单任务训练量、并行槽位逐层展开到显存、余量和物理卡数。') : '完成一次正式测算后可展开计算过程。'}</span></Space></Card><Card title="模型与开发测试强度"><div className="intensity-grid">{[['light', '轻度', '少量实验，单个微调任务排队'], ['standard', '标准', '常态化实验，按标准数据与轮次规划'], ['high', '高强度', '多任务并行，更大的数据与更短窗口']].map(([id, name, note]) => <button key={id} className={'intensity-card ' + (c.intensity === id ? 'chosen' : '')} onClick={() => change('intensity', id)}><ExperimentOutlined aria-hidden="true" /><strong>{name}</strong><p>{note}</p>{c.intensity === id && <CheckCircleOutlined aria-hidden="true" className="chosen-check" />}</button>)}</div><Field label="需要支持的模型"><Select aria-label="开发测试模型" mode="multiple" style={{ width: '100%' }} value={c.models.map((m: Obj) => m.model_id)} options={inferenceModelOptions} onChange={ids => edit(p => { p.development.models = ids.map((id: string) => c.models.find((m: Obj) => m.model_id === id) || { model_id: id, method: 'lora' }); })} /></Field><Table<Obj> rowKey="model_id" pagination={false} dataSource={c.models} columns={[{ title: '候选模型', dataIndex: 'model_id', render: inferenceModelLabel }, { title: '微调方法', render: (_: unknown, m: Obj) => <Select value={m.method} options={[{ value: 'lora', label: 'LoRA' }, { value: 'qlora', label: 'QLoRA（需要量化基线）' }]} onChange={v => edit(p => { p.development.models.find((x: Obj) => x.model_id === m.model_id).method = v; })} style={{ width: 230 }} /> }]} /><div className="note-line"><InfoCircleOutlined aria-hidden="true" /> 候选模型共用任务槽位，不会因多选一个模型自动增加一整套常驻资源。</div><Collapse items={[{ key: 'dev', label: '展开强度档位的具体任务参数', children: <><div className="form-grid">{fields.map(([key, label]) => <Field key={key} label={label}><InputNumber aria-label={label} min={1} value={c[key] == null ? Number(preset[key]) : Number(c[key])} onChange={v => change(key, v)} /></Field>)}</div><Button type="link" onClick={() => edit(p => { fields.forEach(([key]) => p.development[key] = null); })}>恢复当前档位默认值</Button></> }]} /></Card></>;
+    return <DevelopmentPage payload={payload!} edit={edit} catalog={inferenceCatalog}
+      catalogLoading={inferenceLoading} preview={previewReport}
+      intensityDefaults={defaults.intensities}
+      derivationReady={!!activeRun} derivationStale={stale}
+      onDerivation={() => setDerivationScope('development')} />;
   }
 
   function resultsPage() {

@@ -398,6 +398,54 @@ def test_new_and_demo_plans_default_to_w8a8(client):
     assert business["items"][0]["inference_spec"]["weight_precision"]=="w8a8"
 
 
+def test_new_plan_defaults_to_deepseek_v4_flash_in_innovation(client):
+    """创新服务页的默认服务模型是 DeepSeek-V4-Flash：新建方案即带一条 share=1 的分配。"""
+    created=client.post("/api/v1/projects",json={"name":"默认模型项目"}).json()
+    payload=created["plan"]["payload"]
+    allocations=payload["innovation"]["allocations"]
+    assert [a["model_id"] for a in allocations]==["deepseek_v4_flash"]
+    assert float(allocations[0]["share"])==1.0
+    # 默认值必须真能出卡：模型要能在推理目录里匹配到，否则页面显示有模型、引擎报未匹配
+    keys={m["key"] for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert "deepseek_v4_flash" in keys
+    payload["innovation"].update({"enabled":True,"users":1000,"quota_per_user_month":1_000_000})
+    calc=client.post("/api/v1/preview-calculation",json={"payload":payload})
+    assert calc.status_code==200,calc.text
+    pool=[p for p in calc.json()["pools"] if p["id"]=="innovation"][0]
+    assert pool["completeness"]=="COMPLETE"
+    assert pool["items"][0]["model_id"]=="deepseek_v4_flash"
+    assert float(pool["monthly_tokens"])==1_000_000_000
+    # 示例方案同样用平台默认模型，避免「示例里是别的模型」被当成默认值
+    demo=client.post("/api/v1/demo").json()
+    assert [a["model_id"] for a in demo["plan"]["payload"]["innovation"]["allocations"]]==["deepseek_v4_flash"]
+
+
+def test_new_plan_defaults_to_deepseek_v4_flash_in_development(client):
+    """开发测试页的默认微调模型也是 DeepSeek-V4-Flash：新建方案即带一条 LoRA 记录。
+
+    与创新池同源（schemas.DEFAULT_MODEL）：两池都只规划一个模型，默认值必须真能出卡，
+    否则页面显示有模型、引擎报未匹配（研发池是 MODEL_RETIRED / UNSUPPORTED_PROFILE）。
+    """
+    created=client.post("/api/v1/projects",json={"name":"默认微调模型项目"}).json()
+    payload=created["plan"]["payload"]
+    models=payload["development"]["models"]
+    assert [m["model_id"] for m in models]==["deepseek_v4_flash"]
+    assert models[0]["method"]=="lora"
+    keys={m["key"] for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert "deepseek_v4_flash" in keys
+    payload["development"]["enabled"]=True
+    calc=client.post("/api/v1/preview-calculation",json={"payload":payload})
+    assert calc.status_code==200,calc.text
+    pool=[p for p in calc.json()["pools"] if p["id"]=="development"][0]
+    assert pool["completeness"]=="COMPLETE", pool["missing_items"]
+    assert pool["items"][0]["model_id"]=="deepseek_v4_flash"
+    # 标准档 500 万 Token × 2 轮、k=4：单任务训练量 = 4 × 13B × 5e6 × 2 = 5.2e17 FLOP
+    assert float(pool["items"][0]["trace"]["variables"]["flop_total"])==pytest.approx(5.2e17)
+    # 示例方案同样用平台默认模型
+    demo=client.post("/api/v1/demo").json()
+    assert [m["model_id"] for m in demo["plan"]["payload"]["development"]["models"]]==["deepseek_v4_flash"]
+
+
 def test_demo_reuses_the_existing_example_project(client):
     """重复载入示例只应打开同一份示例，不能每次新建一个同名项目。"""
     first=client.post("/api/v1/demo").json()

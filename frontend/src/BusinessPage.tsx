@@ -12,7 +12,7 @@ import CustomModelModal from './CustomModelModal';
 import CustomChipModal from './CustomChipModal';
 import CoefPanel from './CoefPanel';
 import FxTree from './FxTree';
-import { chipSelectOptions, chipSpecHint } from './chips';
+import { chipSelectOptions, chipSpecHint, groupOptions, modelGroup } from './chips';
 import { METHOD_HTML, BASIS_HTML } from './businessEvalContent';
 import './business-eval.css';
 
@@ -81,18 +81,6 @@ const ADV_FIELDS = SCENE_FIELDS.filter(([f]) => f !== 'concurrency');
 const SCENE_PRESET_SOURCE: Obj = { ttft_target_ms: 'ttft_ms', tpot_target_ms: 'tpot_ms' };
 const presetField = (preset: Obj, field: string) => preset[SCENE_PRESET_SOURCE[field] ?? field];
 
-/** 按 groupOf 分组生成 Select 的 optgroup 结构（保持首次出现顺序）。 */
-function groupOptions(items: Obj[], groupOf: (item: Obj) => string, toOption: (item: Obj) => Obj) {
-  const groups: { label: string; options: Obj[] }[] = [];
-  const index = new Map<string, Obj[]>();
-  for (const item of items) {
-    const label = groupOf(item);
-    if (!index.has(label)) { const bucket: Obj[] = []; index.set(label, bucket); groups.push({ label, options: bucket }); }
-    index.get(label)!.push(toOption(item));
-  }
-  return groups;
-}
-const modelGroup = (m: Obj) => m.custom ? '自定义' : (String(m.label || m.key).match(/^[A-Za-z]+/)?.[0] || '其他');
 /** 场景行等窄位置用短名：去掉「昇腾」前缀但保留档位，仍可区分同款各档。 */
 const chipShortLabel = (c: Obj): string => String(c.label || c.key || '').replace(/^昇腾\s*/, '');
 

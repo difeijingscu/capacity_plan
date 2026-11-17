@@ -8,8 +8,10 @@ async function createAndCalculate(page: Page, name: string, partial = false) {
       { name: '推导长文', inference: { model_key: 'deepseek_v4_flash', chip_key: '950dt', scene_key: 'long_gen', concurrency: 20 } },
       ...(partial ? [{ name: '待补基线任务', components: [{ task_type: 'unit', units_per_second: 3 }] }] : []),
     ],
+    // cache_hit_rate 显式写成 30%：下面断言的黄金值按「Prefill × (1 − 30%)」算，
+    // 不依赖 schemas.Innovation 的缺省值（缺省值将来若调整，这条用例不该跟着漂）。
     innovation: partial ? { enabled: false } : { enabled: true, users: 1000, quota_per_user_month: 50000000,
-      allocations: [{ model_id: 'deepseek_v4_flash', share: 1 }] },
+      cache_hit_rate: 0.3, allocations: [{ model_id: 'deepseek_v4_flash', share: 1 }] },
     development: partial ? { enabled: false } : { enabled: true, intensity: 'standard',
       models: [{ model_id: 'qwen3_8b', method: 'lora' }, { model_id: 'qwen36_27b', method: 'lora' }] },
   } } });
@@ -36,9 +38,14 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await expect(drawer).toContainText('50,000,000,000');
   await expect(drawer).toContainText('633,600');
   await expect(drawer).toContainText('78,914.141414');
-  await expect(drawer).toContainText('16.883117');
+  // engine-v2.1.0：前缀缓存命中率只折算 Prefill——先给命中前的全量工作量，
+  // 再单独一步乘 (1 − 30%)，两个数字都要能在抽屉里逐项对上。
+  await expect(drawer).toContainText('前缀缓存命中率');
+  await expect(drawer).toContainText('63,897,600,000,000');
+  await expect(drawer).toContainText('44,728,320,000,000');
+  await expect(drawer).toContainText('11.818182');
   await expect(drawer).toContainText('9.848485');
-  await expect(drawer).toContainText('32.077922');
+  await expect(drawer).toContainText('21.666667');
   await expect(drawer).toContainText('输入结构修正 κp');
   await expect(drawer).toContainText('输入效率 ηp');
   await page.screenshot({ path: '../docs/screenshots/10-innovation-derivation.png', fullPage: true });
@@ -77,11 +84,16 @@ test('创新和研发配置页可展开最近测算的杜邦树', async ({ page 
   await createAndCalculate(page, '配置页杜邦树验收');
   const drawer = page.locator('.calculation-derivation');
   await page.getByRole('button', { name: '创新服务', exact: true }).click();
-  await page.getByRole('button', { name: '查看最近测算计算过程', exact: true }).click();
+  // 两个池页的汇总卡统一用「查看计算过程」；按钮在无测算快照时置灰，这里能点到即说明快照已就位。
+  await page.getByRole('button', { name: '查看计算过程', exact: true }).click();
   await expect(drawer.locator('.fx2-card.t-root .nm')).toHaveText('创新池规划结果');
   await drawer.locator('.ant-drawer-close').click();
   await page.getByRole('button', { name: '开发测试', exact: true }).click();
-  await page.getByRole('button', { name: '查看最近测算计算过程', exact: true }).click();
+  // 开发测试页的汇总区完全读 /preview-calculation：预览没覆盖本页时这里只会显示
+  // 「选择强度与任务参数后自动汇总」空态，所以先断言 KPI 出现，再验证推导入口。
+  const devSummary = page.locator('.ant-card').filter({ has: page.getByRole('heading', { name: '算力汇总' }) });
+  await expect(devSummary.locator('.be-kpi .v').first()).toBeVisible();
+  await page.getByRole('button', { name: '查看计算过程', exact: true }).click();
   await expect(drawer.locator('.fx2-card.t-root .nm')).toHaveText('研发池规划结果');
 });
 

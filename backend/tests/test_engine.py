@@ -94,6 +94,56 @@ def innovation_q(**kwargs):
     return Innovation(enabled=True,quota_per_user_month=1_000_000,allocations=[Allocation(model_id=SYNTHETIC["id"],share=1)],**kwargs)
 
 
+def test_innovation_cache_hit_defaults_to_thirty_percent():
+    """缓存命中率默认 30%（业界经验 20%–50%，取保守值），且不改变月度额度口径。"""
+    assert Innovation().cache_hit_rate==D(".30")
+    pool=result(innovation=innovation())["pools"][1]
+    near(pool["items"][0]["cache_hit_rate"],0.3)
+    near(pool["items"][0]["trace"]["quota"]["cache_hit_rate"],0.3)
+    near(pool["monthly_tokens"],1e9)
+
+
+def test_cache_hit_only_scales_prefill():
+    """命中只省 Prefill 算力：Decode 工作量、KV 显存与上下文长度都按全量输入。"""
+    hit=result(innovation=innovation())["pools"][1]["items"][0]
+    full=result(innovation=innovation(cache_hit_rate=0))["pools"][1]["items"][0]
+    assert D(hit["prefill_flop_per_request"])==D(full["prefill_flop_per_request"])*D("0.7")
+    assert D(hit["prefill_flop_per_request_raw"])==D(full["prefill_flop_per_request_raw"])
+    assert hit["decode_flop_per_request"]==full["decode_flop_per_request"]
+    assert hit["memory"]["cache_gb"]==full["memory"]["cache_gb"]
+    assert D(hit["base_p"])<D(full["base_p"])
+
+
+def test_legacy_payload_without_cache_hit_rate_is_not_discounted():
+    """老 payload（v2.1.0 之前）的 innovation 里没有 cache_hit_rate 键，重算按 0 处理。
+
+    缺省值 30% 只对新建方案生效。若按缺省值算，老方案重算会静默比历史快照少算
+    30% 的 Prefill 输入工作量，结果对不上且没有任何提示——这类「升级即漂移」
+    与 weight_precision 用 None 保住历史值的做法一致地要避免。
+    """
+    legacy={"innovation":{"enabled":True,"users":1000,"quota_per_user_month":1_000_000,
+                          "allocations":[{"model_id":SYNTHETIC["id"],"share":1}]}}
+    plan=PlanInput.model_validate(legacy)
+    assert plan.innovation.cache_hit_rate==0
+    # 新建方案（payload 连 innovation 键都没有）才走 30% 缺省值
+    assert PlanInput.model_validate({}).innovation.cache_hit_rate==D(".30")
+    # 用户本意填 0 与从未设置过必须区分开：显式 0 落库后仍是 0，不会被判成老方案
+    explicit=PlanInput.model_validate({"innovation":{"enabled":True,"cache_hit_rate":0}})
+    assert explicit.innovation.cache_hit_rate==0
+    assert PlanInput.model_validate(explicit.model_dump(mode="json")).innovation.cache_hit_rate==0
+    # 老方案补齐的 0 也随保存落库，往返后保持 0 而不是弹回 30%
+    assert PlanInput.model_validate(plan.model_dump(mode="json")).innovation.cache_hit_rate==0
+    # 显式 0.3 的新方案不受影响
+    kept=PlanInput.model_validate({"innovation":{"enabled":True,"cache_hit_rate":0.3}})
+    assert kept.innovation.cache_hit_rate==D(".30")
+    # 引擎侧：老方案按全量 Prefill 出数，与「显式 0」逐项相同
+    legacy_item=result(innovation=plan.innovation)["pools"][1]["items"][0]
+    full=result(innovation=innovation(cache_hit_rate=0))["pools"][1]["items"][0]
+    assert D(legacy_item["prefill_flop_per_request"])==D(full["prefill_flop_per_request"])
+    assert D(legacy_item["prefill_flop_per_request"])==D(legacy_item["prefill_flop_per_request_raw"])
+    assert legacy_item["base_p"]==full["base_p"]
+
+
 def test_golden_innovation():
     report=result(innovation=innovation())
     actual=report["pools"][1]
@@ -207,7 +257,8 @@ def test_high_intensity_and_candidate_invariance():
 
 def test_disabled_and_missing_dev():
     assert result(spec())["pools"][2]["planned_p"]=="0.00"
-    missing=result(spec(),development=Development(enabled=True))
+    # 缺省已带一条默认微调模型（schemas.DEFAULT_MODEL），所以「未选模型」要显式清空才出现
+    missing=result(spec(),development=Development(enabled=True,models=[]))
     assert missing["pools"][2]["planned_p"] is None
     assert missing["completeness"]=="PARTIAL"
 

@@ -37,6 +37,9 @@ class Task(StrictModel):
     eta_prefill: Efficiency = Decimal(".35")
     eta_decode: Efficiency = Decimal(".15")
     eta_unit: Efficiency = Decimal(".30")
+    # 前缀缓存命中率：只折算 Prefill 的输入工作量，Decode 与 KV 显存按全量上下文。
+    # 业务池与研发池不设该入口，保持 0；创新池由 Innovation.cache_hit_rate 下发。
+    cache_hit: Ratio = Decimal(0)
     kappa_prefill: Positive | None = None
     kappa_decode: Positive | None = None
     ttft_seconds: NonNeg | None = None
@@ -108,6 +111,18 @@ class Allocation(StrictModel):
     # 创新池统一按文本 Token 口径估算，额度中的视觉 Token 不再单独折算。
 
 
+# 三池统一的默认模型：DeepSeek-V4-Flash（284B/A13B）。
+# 创新池与开发测试池都只规划一个模型，新建方案时由缺省值直接带一条记录，
+# 页面下拉即显示该模型；换成别的模型只是覆盖这一条，不改变「单模型」口径。
+DEFAULT_MODEL = "deepseek_v4_flash"
+# 旧名保留：main.py / 测试里的历史引用不必跟着改名，语义与 DEFAULT_MODEL 相同。
+DEFAULT_INNOVATION_MODEL = DEFAULT_MODEL
+
+
+def default_innovation_allocations() -> list[Allocation]:
+    return [Allocation(model_id=DEFAULT_MODEL, share=1)]
+
+
 class Innovation(StrictModel):
     enabled: bool = False
     users: NonNeg | None = None
@@ -117,9 +132,18 @@ class Innovation(StrictModel):
     service_hours_per_day: Annotated[Decimal, Field(gt=0, le=24)] = Decimal(8)
     representative_month: str | None = None
     peak_factor: Positive = Decimal(3)
-    allocations: list[Allocation] = Field(default_factory=list)
+    allocations: list[Allocation] = Field(default_factory=default_innovation_allocations)
     eta_prefill: Efficiency = Decimal(".35")
     eta_decode: Efficiency = Decimal(".15")
+    # 前缀缓存命中率：命中前缀的输入 Token 复用 KV cache，不再重复做 Prefill。
+    # 业界经验：多轮对话、共享系统提示与 RAG 服务的前缀命中率常见 20%–50%，
+    # 取 30% 作保守默认（无缓存或纯冷启动的服务应改为 0）。
+    # 命中也只省 Prefill 算力：Decode 仍需逐 token 关注全量上下文，
+    # KV 显存、上下文上限校验均按全量输入计算。
+    # 该键是 engine-v2.1.0 新增：老 payload 里根本没有它，重算时必须按 0（当时没有
+    # 缓存折算），由 PlanInput._legacy_cache_hit 按「键是否存在」补齐，不能套用这里的
+    # 30% 缺省值——否则老方案重算会静默比历史快照少算输入工作量。30% 只对新建方案生效。
+    cache_hit_rate: Ratio = Decimal(".30")
     # 折算卡数用的算力芯片（catalogs/inference_chips.json 的 key）。
     # 与业务池共用同一套芯片规格，两池卡数才可比；None 表示本方案不出卡数。
     chip_key: str | None = "910c"
@@ -130,10 +154,19 @@ class DevModel(StrictModel):
     method: Literal["lora", "qlora"] = "lora"
 
 
+def default_dev_models() -> list["DevModel"]:
+    """开发测试池的缺省微调对象：与创新池同一个默认模型。
+
+    页面只提供单选，这里恒定一条；引擎仍按列表遍历，多出来的历史条目不会被静默丢弃
+    （旧方案在页面上会提示「原有 N 个候选模型」并给收敛入口）。
+    """
+    return [DevModel(model_id=DEFAULT_MODEL)]
+
+
 class Development(StrictModel):
     enabled: bool = False
     intensity: Literal["light", "standard", "high"] = "standard"
-    models: list[DevModel] = Field(default_factory=list)
+    models: list[DevModel] = Field(default_factory=default_dev_models)
     train_data_tokens: Positive | None = None
     epochs: Positive | None = None
     train_deadline_hours: Positive | None = None
@@ -184,6 +217,25 @@ class PlanInput(StrictModel):
     scenarios: list[Scenario] = Field(default_factory=list, max_length=1000)
     innovation: Innovation = Field(default_factory=Innovation)
     development: Development = Field(default_factory=Development)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_cache_hit(cls, data):
+        """缓存命中率是 engine-v2.1.0 新增字段，老 payload 的 innovation 里没有这个键。
+
+        这类方案当时根本没有缓存折算，重算时必须按 0，否则会套用 30% 缺省值，
+        静默把输入工作量算小，结果与历史快照对不上且页面没有任何提示。
+        判据只能是「键是否存在」：用户本意填 0（无缓存服务）与从未设置过要能区分开，
+        所以不能查取值。补进去的 0 会随下次保存落库，之后一直按显式值处理。
+
+        新建方案走 PlanInput.model_validate({}) 或 PlanInput()，整个 innovation 键都不存在，
+        此时不干预，让 Innovation 的 30% 缺省值生效。
+        """
+        if isinstance(data, dict):
+            innovation = data.get("innovation")
+            if isinstance(innovation, dict) and "cache_hit_rate" not in innovation:
+                return {**data, "innovation": {**innovation, "cache_hit_rate": Decimal(0)}}
+        return data
 
     @model_validator(mode="after")
     def coherent(self):

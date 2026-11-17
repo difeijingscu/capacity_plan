@@ -26,7 +26,7 @@ from app.engine.calculator import ENGINE_VERSION, CalculationIssue, calculate, c
 from app.engine import inference as inference_engine
 from app.engine import params as inference_params
 from app.imports import preview, suggest_task
-from app.schemas import BusinessDefaults, Development, InferenceChipInput, InferenceModelInput, InferenceRequest, PlanInput, Scenario, Task, prune_payload
+from app.schemas import DEFAULT_MODEL, BusinessDefaults, Development, InferenceChipInput, InferenceModelInput, InferenceRequest, PlanInput, Scenario, Task, prune_payload
 from app.store import RevisionConflict, Store, now
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -192,9 +192,13 @@ def create_app(data_dir=None):
             payload.innovation.users=Decimal(1000)
             payload.innovation.quota_per_user_month=Decimal(1000000)
             from app.schemas import Allocation, DevModel
-            payload.innovation.allocations=[Allocation(model_id=text_task.model_id,share=1)]
+            # 创新池的服务模型取平台默认值，不从业务场景继承：场景挑的是性价比模型，
+            # 示例若沿用会让用户以为创新池默认就是那个模型（页面缺省已是 DeepSeek-V4-Flash）。
+            payload.innovation.allocations=[Allocation(model_id=DEFAULT_MODEL,share=1)]
             payload.development.enabled=True
-            payload.development.models=[DevModel(model_id=text_task.model_id)]
+            # 研发池同样取平台默认模型：示例要展示的是「微调一个主流大模型」，
+            # 不能沿用业务场景挑的性价比小模型，否则页面默认值与实际 payload 不一致。
+            payload.development.models=[DevModel(model_id=DEFAULT_MODEL)]
         created = create_project({"name":"示例 · 组织AI算力规划","payload":payload.model_dump(mode="json")})
         return {**created, "reused": False}
 

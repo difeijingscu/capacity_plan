@@ -13,7 +13,7 @@ PETA = D("1e15")
 GIGA = D("1e9")
 # v2.0.5：取消方案级显存预留，创新/研发池显存改为「权重 + KV cache + runtime」直接汇总，
 # 显存需求与卡数整体下降；口径变化会使旧缓存指纹失效，因此升版本。
-ENGINE_VERSION = "engine-v2.0.5"
+ENGINE_VERSION = "engine-v2.1.0"
 REFERENCE = "BF16_DENSE_EQUIVALENT"
 # QLoRA 权重量化元数据开销的全局默认（4-bit 权重 + 量化参数的工程经验值）。
 # v2.0.0 起模型清单不再逐模型登记该字段，统一取此常量。
@@ -73,16 +73,26 @@ def resolved(task):
     return values
 
 
-def inference(rate, np, nd, li, lg, kp=D("1.1"), kd=D("1.1"), ep=D(".35"), ed=D(".15"), vision=ZERO):
-    rate, np, nd, li, lg, kp, kd, ep, ed, vision = map(D, (rate, np, nd, li, lg, kp, kd, ep, ed, vision))
+def inference(rate, np, nd, li, lg, kp=D("1.1"), kd=D("1.1"), ep=D(".35"), ed=D(".15"), vision=ZERO, hit=ZERO):
+    """两阶段容量：Prefill 与 Decode 分别除以阶段效率后相加。
+
+    `hit` 是前缀缓存命中率，只折算 Prefill 的输入工作量——命中前缀的 KV 已在缓存里，
+    不必重算输入。Decode 仍逐 token 关注全量上下文，KV 显存也按全量上下文占用，
+    因此 `fp`（原始输入工作量）与 `li`（上下文长度）都保持全量口径。
+    """
+    rate, np, nd, li, lg, kp, kd, ep, ed, vision, hit = map(
+        D, (rate, np, nd, li, lg, kp, kd, ep, ed, vision, hit))
     fp = 2 * np * li * kp
     fd = 2 * nd * lg * kd
+    fp_cache = fp * (D(1) - hit)
     return {
-        "base_p": rate * ((fp + vision) / ep + fd / ed) / PETA,
-        "effective_p": rate * (fp + vision + fd) / PETA,
-        "prefill_flop_per_request": fp,
+        "base_p": rate * ((fp_cache + vision) / ep + fd / ed) / PETA,
+        "effective_p": rate * (fp_cache + vision + fd) / PETA,
+        "prefill_flop_per_request": fp_cache,
+        "prefill_flop_per_request_raw": fp,
         "decode_flop_per_request": fd,
         "vision_flop_per_request": vision,
+        "cache_hit_rate": hit,
     }
 
 
@@ -209,8 +219,8 @@ def compute_task(task, model):
         kappa = D("1.2") if model.get("architecture") == "MoE" else D("1.1")
         kp, kd = task.kappa_prefill or kappa, task.kappa_decode or kappa
         np, nd = scalar(model, "active_parameters_prefill"), scalar(model, "active_parameters_decode")
-        result.update(inference(rate, np, nd, li, lg, kp, kd, task.eta_prefill, task.eta_decode))
-        variables = {**cfg, "request_rate": rate, "input_tokens_total": li, "generation_tokens_total": lg, "active_parameters_prefill": np, "active_parameters_decode": nd, "kappa_prefill": kp, "kappa_decode": kd}
+        result.update(inference(rate, np, nd, li, lg, kp, kd, task.eta_prefill, task.eta_decode, ZERO, task.cache_hit))
+        variables = {**cfg, "request_rate": rate, "input_tokens_total": li, "generation_tokens_total": lg, "active_parameters_prefill": np, "active_parameters_decode": nd, "kappa_prefill": kp, "kappa_decode": kd, "cache_hit_rate": task.cache_hit, "prefill_tokens_effective": li * (D(1) - task.cache_hit)}
         formula = "llm-phases-v1"
     else:
         raise CalculationIssue("UNSUPPORTED_PROFILE", "未知计算任务")
@@ -461,7 +471,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
     monthly = None
     if config.enabled:
         if config.users is None or config.quota_per_user_month is None or not config.allocations:
-            innov_missing.append(dict(id="innovation", name="创新服务", pool_id="innovation", code="MISSING_WORKLOAD", message="请填写人数、月额度并选择模型分配"))
+            innov_missing.append(dict(id="innovation", name="创新服务", pool_id="innovation", code="MISSING_WORKLOAD", message="请填写支持人数与每人月 Token，并选择服务模型"))
         else:
             monthly = config.users * config.quota_per_user_month * config.usage_ratio
             seconds = config.service_days * config.service_hours_per_day * 3600
@@ -470,12 +480,12 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
                     continue
                 count = monthly * allocation.share
                 rate = count / seconds * config.peak_factor / allocation.request_total_tokens
-                task = Task(id=f"innovation-{allocation.model_id}", task_type="text", model_id=allocation.model_id, request_rate=rate, input_tokens=allocation.request_total_tokens * allocation.input_fraction, answer_tokens=allocation.request_total_tokens * (1 - allocation.input_fraction), reasoning_tokens=ZERO, eta_prefill=config.eta_prefill, eta_decode=config.eta_decode, allow_proxy=True)
+                task = Task(id=f"innovation-{allocation.model_id}", task_type="text", model_id=allocation.model_id, request_rate=rate, input_tokens=allocation.request_total_tokens * allocation.input_fraction, answer_tokens=allocation.request_total_tokens * (1 - allocation.input_fraction), reasoning_tokens=ZERO, eta_prefill=config.eta_prefill, eta_decode=config.eta_decode, cache_hit=config.cache_hit_rate, allow_proxy=True)
                 found, _ = find_model(allocation.model_id)
                 item = attempt(task, (found or {}).get("display_name", allocation.model_id), "innovation", innov, innov_missing)
                 if item:
                     item["monthly_tokens"] = count
-                    item["trace"]["quota"] = dict(monthly_total=monthly, model_share=allocation.share, allocated=count, service_seconds=seconds, peak_factor=config.peak_factor, input_tokens_per_second=count*allocation.input_fraction/seconds*config.peak_factor, output_tokens_per_second=count*(1-allocation.input_fraction)/seconds*config.peak_factor, reasoning_already_included=True)
+                    item["trace"]["quota"] = dict(monthly_total=monthly, model_share=allocation.share, allocated=count, service_seconds=seconds, peak_factor=config.peak_factor, cache_hit_rate=config.cache_hit_rate, input_tokens_per_second=count*allocation.input_fraction/seconds*config.peak_factor, output_tokens_per_second=count*(1-allocation.input_fraction)/seconds*config.peak_factor, reasoning_already_included=True)
     innovation_pool = pool_summary("innovation", innov, innov_missing, plan, config.enabled)
     innovation_pool["monthly_tokens"] = monthly
     _attach_cards(innovation_pool, next((c for c in inf_chips if c.get("key") == config.chip_key), None),
@@ -489,7 +499,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
     train_caps, train_mems = [], []
     if dc.enabled:
         if not dc.models:
-            dev_missing.append(dict(id="development", name="开发测试", pool_id="development", code="MISSING_WORKLOAD", message="请选择需要支持的模型"))
+            dev_missing.append(dict(id="development", name="开发测试", pool_id="development", code="MISSING_WORKLOAD", message="请选择需要微调的模型"))
         for entry in dc.models:
             model, _migrated = find_model(entry.model_id)
             label = (model or {}).get("display_name", entry.model_id)

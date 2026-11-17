@@ -229,13 +229,22 @@ def describe_task(item, original, models, pool):
             steps.append(step("合并图文输入", "Li = 文本Token + (图片数 + 抽取帧数) × 每图视觉Token",
                               f"{fmt(v['input_tokens'])} + ({fmt(v['images_per_request'])} + {fmt(v['extracted_frames_per_request'])}) × {fmt(v['visual_tokens_per_image'])}",
                               v["input_tokens_total"], "Token/请求", "创新额度若已包含视觉Token，则不重复追加视觉Token。"))
-        fp, fd, vision = map(D, (item["prefill_flop_per_request"], item["decode_flop_per_request"], item.get("vision_flop_per_request") or 0))
+        # fp 是「缓存命中折算后」的有效输入工作量；命中前的全量工作量单独取 raw 字段，
+        # 便于把「2 × Np × Li × κp」这一步与折解放到两条相邻步骤里，数值可逐项对上。
+        hit = D(item.get("cache_hit_rate") or v.get("cache_hit_rate") or 0)
+        fp = D(item["prefill_flop_per_request"])
+        fp_raw = D(item.get("prefill_flop_per_request_raw") or fp)
+        fd, vision = map(D, (item["decode_flop_per_request"], item.get("vision_flop_per_request") or 0))
         steps.extend([
             step("每请求输入工作量", "Fp = 2 × Np × Li × κp",
-                 f"2 × {fmt(v['active_parameters_prefill'])} × {fmt(v['input_tokens_total'])} × {fmt(v['kappa_prefill'])}", fp, "FLOP/请求"),
+                 f"2 × {fmt(v['active_parameters_prefill'])} × {fmt(v['input_tokens_total'])} × {fmt(v['kappa_prefill'])}", fp_raw, "FLOP/请求"),
             step("每请求生成工作量", "Fd = 2 × Nd × Lg × κd",
                  f"2 × {fmt(v['active_parameters_decode'])} × {fmt(v['generation_tokens_total'])} × {fmt(v['kappa_decode'])}", fd, "FLOP/请求"),
         ])
+        if hit:
+            steps.append(step("缓存命中折算输入工作量", "Fp有效 = Fp × (1 − 缓存命中率)",
+                              f"{fmt(fp_raw)} × (1 − {fmt(hit)})", fp, "FLOP/请求",
+                              "命中前缀的输入 Token 复用已有 KV cache，不再重复 Prefill；Decode 与 KV 显存仍按全量上下文计算。"))
         if vision:
             expression = fmt(vision) if v.get("vision_flop_per_request") is not None else f"{fmt(fp)} × {fmt(v['vision_flop_ratio'])}"
             steps.append(step("视觉编码工作量", "采用专用输入，或 F视觉 = Fp × 视觉工作量比例", expression, vision, "FLOP/请求",
@@ -528,6 +537,9 @@ def build_derivation(run, scope):
                        field("人均月度总Token", config["quota_per_user_month"], "Token/人/月"), field("额度使用率", config["usage_ratio"], "比例"),
                        field("每月服务日", config["service_days"], "天"), field("每日服务时长", config["service_hours_per_day"], "小时"),
                        field("峰值倍数", config["peak_factor"], "倍")])
+        if config.get("cache_hit_rate") is not None:
+            inputs.append(field("前缀缓存命中率", config["cache_hit_rate"], "比例",
+                                "只折算 Prefill 输入工作量；Decode 与 KV 显存仍按全量上下文计算。"))
         monthly = pool.get("monthly_tokens")
         if monthly is not None:
             seconds = D(config["service_days"]) * D(config["service_hours_per_day"]) * 3600
@@ -541,7 +553,12 @@ def build_derivation(run, scope):
                 step("按峰值倍数规划吞吐", "峰值总TPS = 平均总TPS × 峰值倍数",
                      f"{fmt(average)} × {fmt(config['peak_factor'])}", average * D(config["peak_factor"]), "Token/秒"),
             ])
-        result["notes"].append("多个模型分享一份总额度。展开下方模型项查看份额、输入/生成比例、阶段效率和结构修正的数值代入。")
+        # 页面只编辑一条分配，但旧方案/外部写入仍可能有多条：引擎按列表逐项折算后求和，
+        # 所以脚注必须按实际条数说明，不能在单模型方案里也写「多个模型分享」。
+        if len(config.get("allocations") or []) > 1:
+            result["notes"].append("多个模型分享一份总额度：各模型按份额折算自己的峰值请求率，池需求为全部模型的合计。展开下方模型项查看份额、输入/生成比例、阶段效率和结构修正的数值代入。")
+        else:
+            result["notes"].append("全部月度额度归这一个模型（份额 100%）。展开下方模型项查看输入/生成比例、阶段效率和结构修正的数值代入。")
     elif scope == "development":
         config = pool.get("intensity_parameters", {})
         if "train_slots" in config:

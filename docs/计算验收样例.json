@@ -106,6 +106,7 @@
         "service_hours_per_day": 8,
         "peak_factor": 3,
         "input_fraction": 0.8,
+        "cache_hit_rate": 0.3,
         "model_shares": [
           {
             "model_id": "synthetic-dense-8b",
@@ -117,8 +118,8 @@
         "monthly_total_tokens": 1000000000,
         "input_tokens_per_second": 3787.878787878788,
         "output_tokens_per_second": 946.969696969697,
-        "base_p": 0.3015873015873016,
-        "planned_p": 0.36190476190476195
+        "base_p": 0.24444444444444444,
+        "planned_p": 0.29333333333333333
       }
     },
     {
@@ -138,15 +139,16 @@
             "share": 0.3
           }
         ],
-        "inherit_profile": "innovation_8b_monthly"
+        "cache_hit_rate": 0.3,
+      "inherit_profile": "innovation_8b_monthly"
       },
       "expected": {
         "monthly_allocations": [
           700000000,
           300000000
         ],
-        "base_p": 0.3920634920634921,
-        "planned_p": 0.4704761904761905
+        "base_p": 0.31777777777777777,
+        "planned_p": 0.38133333333333336
       }
     },
     {
