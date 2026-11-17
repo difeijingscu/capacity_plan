@@ -26,7 +26,7 @@ from app.engine.calculator import ENGINE_VERSION, CalculationIssue, calculate, c
 from app.engine import inference as inference_engine
 from app.engine import params as inference_params
 from app.imports import preview, suggest_task
-from app.schemas import Development, InferenceChipInput, InferenceModelInput, InferenceRequest, PlanInput, Scenario, Task, prune_payload
+from app.schemas import BusinessDefaults, Development, InferenceChipInput, InferenceModelInput, InferenceRequest, PlanInput, Scenario, Task, prune_payload
 from app.store import RevisionConflict, Store, now
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -169,7 +169,12 @@ def create_app(data_dir=None):
         catalog = models()
         text_task = suggest_task("知识问答","查询制度与知识",catalog)
         text_task.online_users=Decimal(100)
-        payload = PlanInput(is_demo=True,scenarios=[
+        payload = PlanInput(is_demo=True,
+                            # 全局硬件默认必须与场景取值一致：已配置场景的芯片以场景自身
+                            # chip_key 为准，全局值只做展示与旧场景兜底，两边不一致会让
+                            # 页面显示 910C、实际按 950DT 出数。
+                            business_defaults=BusinessDefaults(chip_key="950dt36"),
+                            scenarios=[
             Scenario(name="企业知识问答",description="查询内部制度与知识并回答",
                      inference=InferenceRequest(model_key="glm5_3_flash",chip_key="950dt36",scene_key="rag")),
         ])

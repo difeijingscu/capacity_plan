@@ -366,3 +366,19 @@ def test_parameter_version_has_single_source(client):
     record=run(client,plan)
     assert record["result"]["defaults_version"]==version
     assert record["catalog_snapshot"]["params_effective"]["version"]==version
+
+
+def test_demo_plan_global_chip_matches_scenarios(client):
+    """示例方案的全局芯片必须与场景取值一致。
+
+    已配置场景的芯片以场景自身 `inference.chip_key` 为准，`business_defaults`
+    只做展示与旧场景兜底。两者不一致时页面顶部显示全局芯片（如 910C），实际
+    却按场景芯片（如 950DT）出卡数，且没有任何提示。
+    """
+    r=client.post("/api/v1/demo")
+    assert r.status_code==200,r.text
+    payload=r.json()["plan"]["payload"]
+    global_chip=payload["business_defaults"]["chip_key"]
+    scenario_chips=[s["inference"]["chip_key"] for s in payload["scenarios"] if s.get("inference")]
+    assert scenario_chips, "示例方案应包含已配置场景"
+    assert set(scenario_chips)=={global_chip}
