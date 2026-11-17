@@ -122,6 +122,15 @@ def current() -> dict:
     return _merge(defaults(), _OVERRIDES)
 
 
+def version() -> str:
+    """参数口径版本的唯一来源（`catalogs/inference_params.json` 的 `version`）。
+
+    `/defaults`、`/inference/catalog`、`/inference/params` 与计算快照都从这里取，
+    避免同一套参数在不同接口回报三个不同的版本字符串。覆盖层只改数值，不改版本。
+    """
+    return str(defaults().get("version") or "inference-params-v2")
+
+
 def overrides() -> dict:
     return copy.deepcopy(_OVERRIDES)
 

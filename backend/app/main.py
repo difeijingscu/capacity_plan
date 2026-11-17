@@ -132,7 +132,7 @@ def create_app(data_dir=None):
             "development_defaults":Development().model_dump(mode="json",exclude={"models"}),
             "planning_defaults":PlanInput().model_dump(mode="json",include={"headroom","memory_reserve"}),
             "intensities":INTENSITIES,
-            "defaults_version":"defaults-v1",
+            "defaults_version": inference_params.version(),
         }
 
     @app.get("/api/v1/projects")
@@ -424,7 +424,7 @@ def create_app(data_dir=None):
             "scenes": inference_catalog.scenes(),
             "tiers": [{"key": k, "label": v.get("label") or k} for k, v in tiers.items()],
             "precision": ["auto", "bf16", "w8a8", "w4a8"],
-            "defaults_version": "inference-v2",
+            "defaults_version": inference_params.version(),
         }
 
     @app.post("/api/v1/inference/estimate")
@@ -495,7 +495,7 @@ def create_app(data_dir=None):
         overrides = inference_params.overrides()
         tiers = effective.get("tiers") or {}
         return clean({
-            "defaults_version": effective.get("version"),
+            "defaults_version": inference_params.version(),
             "defaults_updated": effective.get("updated"),
             "notes": effective.get("notes", []),
             "effective": effective,

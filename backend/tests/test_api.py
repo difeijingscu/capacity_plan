@@ -342,3 +342,27 @@ def test_plan_calculation_uses_parameter_snapshot_from_submission(client):
         assert effective["chip_profiles"]["910c"]["mfu_prefill"]==0.2
     finally:
         client.post("/api/v1/inference/params/reset")
+
+
+def test_parameter_version_has_single_source(client):
+    """参数口径版本只有一个来源（catalog 的 version），接口与快照不再各报一套。
+
+    修复前：/defaults 报 "defaults-v1"、/inference/catalog 报 "inference-v2"、
+    参数页报 "inference-params-v2"，而 PlanInput.defaults_version 恒为该常量且
+    从不随调参变化，快照无法回答「这次算用的是哪版参数」。
+    """
+    from app.engine import params as engine_params
+    from app.schemas import PlanInput
+
+    version=engine_params.version()
+    assert client.get("/api/v1/defaults").json()["defaults_version"]==version
+    assert client.get("/api/v1/inference/catalog").json()["defaults_version"]==version
+    state=client.get("/api/v1/inference/params").json()
+    assert state["defaults_version"]==version
+    assert state["effective"]["version"]==version
+    # 兼容字段不再冒充版本号：新 payload 里为空，计算快照记实际使用的参数版本
+    assert PlanInput().defaults_version==""
+    plan=make_plan(client)
+    record=run(client,plan)
+    assert record["result"]["defaults_version"]==version
+    assert record["catalog_snapshot"]["params_effective"]["version"]==version

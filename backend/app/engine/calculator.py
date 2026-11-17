@@ -347,8 +347,12 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
     """
     from app.catalogs import inference_catalog
     from app.engine import business
+    from app.engine import params as params_store
 
     started = perf_counter()
+    # 快照里的参数版本才是本次计算真正用到的版本；旧调用未传 params 时才回退到当前默认值，
+    # 不再读取 PlanInput.defaults_version（那是历史兼容字段，恒为空，见 schemas）。
+    defaults_version = (params or {}).get("version") or params_store.version()
     inf_models = inference_models if inference_models is not None else inference_catalog.models()
     base_inf_chips = list(inference_chips if inference_chips is not None else inference_catalog.chips())
     inf_chips = base_inf_chips + list(custom_inference_chips or [])
@@ -527,7 +531,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
     counted = sum(p["counted_tasks"] for p in pools)
     total = sum((p["base_p"] or ZERO for p in pools), ZERO)
     complete = "PARTIAL" if missing_items and counted else "BLOCKED" if missing_items or counted == 0 else "COMPLETE"
-    report = dict(engine_version=ENGINE_VERSION, defaults_version=plan.defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=total*(1+plan.headroom) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
+    report = dict(engine_version=ENGINE_VERSION, defaults_version=defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=total*(1+plan.headroom) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
     if sensitivity and counted:
         variations = []
         scene_default = {s["key"]: s for s in inf_scenes}
