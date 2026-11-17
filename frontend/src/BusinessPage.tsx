@@ -26,7 +26,7 @@ import './business-eval.css';
 
 /** 场景未配置推理时的兜底口径：芯片与档位跟随全局默认（business_defaults）。 */
 const DEFAULT_INFERENCE: Obj = {
-  scene_key: 'rag', weight_precision: 'bf16', prefix_hit: 0,
+  scene_key: 'rag', weight_precision: 'bf16',
 };
 /**
  * 精度档：与推理评估页同一套三段式（BF16 / W8A8 / W4A8），
@@ -64,12 +64,15 @@ const WARNING_LABELS: Obj = {
 };
 const BOTTLENECK_LABELS: Obj = { mem: '显存', prefill: 'Prefill', decode: 'Decode' };
 
-/** 场景档位里可以一键带入的规模参数（并发在场景主行，其余收进「调整参数」）。 */
+/**
+ * 场景档位里可以一键带入的规模参数（并发在场景主行，其余收进「调整参数」）。
+ * 不含 max_ctx：estimate 不消费该字段，界面留输入框会让人以为能调上下文窗口。
+ * 同名兼容字段仍保留在 payload 与快照里，供旧方案读取。
+ */
 const SCENE_FIELDS: [string, string, string][] = [
   ['concurrency', '并发会话', '路'],
   ['prompt_len', '输入长度', 'tok'],
   ['output_len', '输出长度', 'tok'],
-  ['max_ctx', '最大上下文', 'tok'],
   ['ttft_target_ms', '首 Token 目标', 'ms'],
   ['tpot_target_ms', '逐 Token 目标', 'ms'],
 ];
@@ -154,6 +157,14 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
     ? (PROFILE_TIER[defaults.profile] || defaults.profile)
     : (derivedTiers.length === 1 ? derivedTiers[0] : 'standard');
   const mixedChip = !defaults.chip_key && derivedChips.length > 1;
+  /**
+   * 全局芯片与场景芯片分裂：正常路径下 applyChipGlobal 会把已配置场景一起改写，
+   * 只有外部脚本直接写 payload 才会出现。此时已配置场景按各自的 chip_key 出卡数，
+   * 页面顶部显示的全局芯片并不代表实际口径，必须提示，不能静默。
+   */
+  const driftedChips: string[] = defaults.chip_key
+    ? (derivedChips.filter((c: string) => c !== defaults.chip_key) as string[])
+    : [];
   const globalProfile = TIER_TO_PROFILE[globalTier] || 'neutral';
   const globalChipInfo: Obj = chips.find(c => c.key === globalChip) || {};
   /**
@@ -478,19 +489,13 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
                 <div className="field" key={field}>
                   <label>{label}</label>
                   <InputNumber style={{ width: '100%' }} aria-label={label + '-' + s.name}
-                    min={field === 'tpot_target_ms' ? 1 : field === 'ttft_target_ms' ? 50 : field === 'max_ctx' ? 512 : 1}
+                    min={field === 'tpot_target_ms' ? 1 : field === 'ttft_target_ms' ? 50 : 1}
                     value={spec[field] == null ? null : Number(spec[field])}
                     placeholder={String(presetField(sceneOf(spec), field) ?? '')}
                     addonAfter={unit}
                     onChange={v => write(s, { [field]: v ?? null })} />
                 </div>
               ))}
-              <div className="field">
-                <label>Prefix 命中率</label>
-                <InputNumber style={{ width: '100%' }} aria-label={'Prefix命中率-' + s.name} min={0} max={90}
-                  value={Number(spec.prefix_hit || 0) * 100} addonAfter="%"
-                  onChange={v => write(s, { prefix_hit: Number(v) / 100 })} />
-              </div>
               <div className="field" style={{ gridColumn: '1 / -1' }}>
                 <label>场景描述</label>
                 <Input.TextArea value={s.description} rows={2} aria-label={'场景描述-' + s.name}
@@ -500,7 +505,7 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
             <div className="note-line" style={{ marginTop: 10 }}>
               <InfoCircleOutlined aria-hidden="true" />
               留空的字段取场景档位默认值；并发按业务同时在线会话估算，不用人数直接代替；
-              Prefix 命中只减少 Prefill 计算，不减少已写入的 KV 显存。
+              最大上下文与前缀命中率不参与当前计算，界面不再提供入口，旧方案取值原样保留。
             </div>
             <Button size="small" icon={<ThunderboltFilled aria-hidden="true" />} style={{ marginTop: 8 }}
               onClick={() => {
@@ -573,6 +578,19 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
             <div className="be-chip-hint">{TIER_NOTES[globalTier] || '基准值 × 档位系数，作用于下方生效系数'}</div>
           </div>
         </div>
+        {/* 外部写入 payload 才会出现芯片分裂：页面顶部显示的全局值此时不代表实际出卡口径 */}
+        {driftedChips.length > 0 && (
+          <Alert type="warning" showIcon
+            message={'全局算力卡与 ' + driftedChips.length + ' 类场景芯片不一致'}
+            description={<Space wrap>
+              <span>
+                已配置场景按各自的芯片出卡数：{driftedChips.map((k: string) =>
+                  chips.find((x: Obj) => x.key === k)?.label || k).join('、')}；
+                顶部全局值只对未配置场景与后续新增场景生效。
+              </span>
+              <Button size="small" onClick={() => applyChipGlobal(globalChip || driftedChips[0])}>统一为全局算力卡</Button>
+            </Space>} />
+        )}
         {/* 工程系数：默认收起，用户需要时再展开（与推理评估集成页同一交互层级） */}
         <details className="be-fold be-fold-sub">
           <summary>

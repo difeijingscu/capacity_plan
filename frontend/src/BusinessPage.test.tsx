@@ -284,3 +284,45 @@ describe('业务场景 · 新增场景位置', () => {
     expect(names.slice(1)).toEqual(['企业知识问答', '第二个场景']);
   }, 20000);
 });
+
+/**
+ * 全局芯片与场景芯片分裂：正常 UI 操作会由 applyChipGlobal 一起改写，
+ * 只有外部脚本直接写 payload 才会出现。此时已配置场景按各自芯片出卡数，
+ * 顶部全局值不再代表实际口径，必须提示而不是静默。
+ */
+describe('业务场景 · 全局芯片与场景芯片不一致', () => {
+  const chipsTwo: Obj[] = [
+    { key: '910c', label: '昇腾910C · 128GB', bf16_tflops: 560, memory_gb: 128, native_int4: false },
+    { key: '950dt36', label: '昇腾950DT · 36 Cube', bf16_tflops: 547, memory_gb: 144, native_int4: true },
+  ];
+
+  it('外部数据造成不一致时给出警示，并可一键统一为全局芯片', async () => {
+    const plan: Obj = JSON.parse(JSON.stringify(payload));
+    plan.business_defaults = { chip_key: '910c', profile: 'neutral' };
+    plan.scenarios[0].inference.chip_key = '950dt36';
+    render(
+      <AntApp>
+        <BusinessPage payload={plan} edit={(fn: (p: Obj) => void) => fn(plan)}
+          catalog={{ ...catalog, chips: chipsTwo }} preview={preview}
+          refreshCatalog={async () => {}} onImport={() => {}} />
+      </AntApp>,
+    );
+    expect(screen.getByText('全局算力卡与 1 类场景芯片不一致')).toBeTruthy();
+    expect(screen.getByText(/昇腾950DT · 36 Cube/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '统一为全局算力卡' }));
+    // 统一前会二次确认；antd 给两个汉字的按钮插空格（"统 一"）
+    fireEvent.click(await screen.findByRole('button', { name: /^统\s*一$/ }));
+    expect(plan.business_defaults.chip_key).toBe('910c');
+    expect(plan.scenarios[0].inference.chip_key).toBe('910c');
+  }, 30000);
+
+  it('全局与场景一致时不显示该警示', () => {
+    render(
+      <AntApp>
+        <BusinessPage payload={payload} edit={() => {}} catalog={catalog} preview={preview}
+          refreshCatalog={async () => {}} onImport={() => {}} />
+      </AntApp>,
+    );
+    expect(screen.queryByText(/类场景芯片不一致/)).toBeNull();
+  }, 20000);
+});

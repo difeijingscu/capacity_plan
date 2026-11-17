@@ -223,6 +223,8 @@ class InferenceRequest(StrictModel):
     concurrency: Positive | None = None
     prompt_len: Annotated[int, Field(ge=100, le=1048576)] | None = None
     output_len: Annotated[int, Field(ge=100, le=131072)] | None = None
+    # 兼容保留：v2 引擎按 prompt_len / output_len 计算，不消费最大上下文。
+    # 保留字段是为了旧 payload 能通过校验、旧快照的原值可读；页面已移除该输入。
     max_ctx: Annotated[int, Field(ge=512, le=1048576)] | None = None
     ttft_target_ms: Positive | None = None
     tpot_target_ms: Positive | None = None

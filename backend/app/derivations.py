@@ -367,7 +367,7 @@ def describe_scenario(item):
         field("量化口径", v.get("precision")),
         field("输入长度", v.get("prompt_len"), "Token"),
         field("输出长度", v.get("output_len"), "Token"),
-        field("最大上下文", v.get("max_ctx"), "Token"),
+        # 最大上下文 / 前缀命中率不再是引擎输入，展示出来会让读者以为它们参与了计算。
         field("并发会话", v.get("concurrency"), "路"),
         field("首Token目标", v.get("ttft_target_ms"), "ms"),
         field("逐Token目标", v.get("tpot_target_ms"), "ms"),

@@ -349,6 +349,19 @@ def test_context_window_must_cover_prompt_and_output():
     assert report["cards"]>=1
 
 
+def test_max_ctx_and_prefix_hit_do_not_change_result():
+    """max_ctx / prefix_hit 是兼容保留字段，不得影响结果。
+
+    页面已移除这两项输入，引擎也不消费；保留字段只为旧 payload 通过校验、旧快照
+    原值可读。若哪天它们重新参与计算，这条断言会失败，提醒同步界面与口径说明。
+    """
+    base=result(spec(prompt_len=2000,output_len=500))["pools"][0]
+    wider=result(spec(prompt_len=2000,output_len=500,max_ctx=1048576,prefix_hit=0.5))["pools"][0]
+    assert wider["cards"]==base["cards"]
+    assert wider["base_p"]==base["base_p"]
+    assert wider["planned_p"]==base["planned_p"]
+
+
 def test_1000_scenarios_under_5_seconds():
     config=plan(*(spec() for _ in range(1000)))
     start=time.perf_counter()
