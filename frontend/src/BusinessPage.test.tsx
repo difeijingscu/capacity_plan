@@ -60,10 +60,14 @@ const payload: Obj = {
 const catalog: Obj = {
   models: [{ key: 'glm5_3_flash', label: 'GLM-5.3 Flash', total_b: 30, active_b: 3, arch: 'MoE' }],
   custom_models: [],
-  chips: [{ key: '910c', label: '昇腾 910C · 预设', bf16_tflops: 800 }],
+  chips: [{ key: '910c', label: '昇腾910C · 128GB', bf16_tflops: 560, memory_gb: 128, native_int4: false }],
   custom_chips: [],
   scenes: [{ key: 'rag', name: '知识问答', group: '问答', concurrency: 100 }],
-  tiers: [{ key: 'standard', label: '均衡' }],
+  tiers: [
+    { key: 'conservative', label: '保守' },
+    { key: 'standard', label: '均衡' },
+    { key: 'aggressive', label: '激进' },
+  ],
 };
 
 /** 与后端 /preview-calculation 的 business pool 同构：items 完整、scenarios 精简。 */
@@ -142,8 +146,8 @@ describe('业务场景 · 计算过程', () => {
 describe('业务场景 · 全局量化精度', () => {
   it('场景行不再提供逐场景推理精度选择，只在全局配置里选一次', () => {
     renderPage(preview);
-    // 全局下拉存在
-    expect(screen.getByRole('combobox', { name: '全局推理量化精度' })).toBeTruthy();
+    // 全局是分段按钮（三档并列），不是下拉
+    expect(screen.getByRole('radiogroup', { name: '全局推理量化精度' })).toBeTruthy();
     // 场景行里不应再有「推理精度」控件：精度是方案级设置
     expect(screen.queryAllByRole('combobox', { name: /权重精度/ })).toHaveLength(0);
     expect(screen.queryByText('推理精度')).toBeNull();
@@ -154,11 +158,11 @@ describe('业务场景 · 全局量化精度', () => {
     const plan: Obj = JSON.parse(JSON.stringify(payload));
     plan.business_defaults = { chip_key: '910c', profile: 'neutral', weight_precision: 'w8a8' };
     renderPage(preview, plan);
-    expect(screen.getByText(/昇腾 910C · W8A8/)).toBeTruthy();
-    expect(screen.queryByText(/昇腾 910C · BF16/)).toBeNull();
+    expect(screen.getByText(/910C · 128GB · W8A8/)).toBeTruthy();
+    expect(screen.queryByText(/910C · 128GB · BF16/)).toBeNull();
   });
 
-  it('全局下拉可选，并把精度写入全局默认与已配置场景', async () => {
+  it('分段按钮选中即写入全局默认与已配置场景', async () => {
     const plan: Obj = JSON.parse(JSON.stringify(payload));
     render(
       <AntApp>
@@ -166,16 +170,10 @@ describe('业务场景 · 全局量化精度', () => {
           preview={preview} refreshCatalog={async () => {}} onImport={() => {}} />
       </AntApp>,
     );
-    // 与推理评估页对齐：全局硬件配置里必须有可操作的量化精度选择，而不是一段说明文字
-    const combo = screen.getByRole('combobox', { name: '全局推理量化精度' });
-    fireEvent.mouseDown(combo);
-    // rc-select 的选项在弹层挂载后才可点，等一拍再取
-    await new Promise(r => setTimeout(r, 300));
-    // 选项要命中 .ant-select-item-option 本身，点内部 content 不会触发 rc-select 的选中
-    const option = Array.from(document.querySelectorAll('.ant-select-item-option'))
-      .find(node => (node.textContent || '').includes('W8A8'));
-    expect(option).toBeTruthy();
-    fireEvent.click(option!);
+    // 与推理评估页对齐：精度是 W8A8 这类并列分段按钮，不是下拉列表
+    const group = screen.getByRole('radiogroup', { name: '全局推理量化精度' });
+    expect(group.textContent).toContain('BF16');
+    fireEvent.click(screen.getByText('W8A8'));
     // 统一全部场景前会二次确认；antd 会在两个汉字间自动插入空格（"统 一"），按正则匹配
     fireEvent.click(await screen.findByRole('button', { name: /统\s*一/ }));
     expect(plan.business_defaults.weight_precision).toBe('w8a8');
@@ -201,4 +199,51 @@ describe('业务场景 · 旧字段迁移只认后端结果', () => {
     expect(screen.getByText('待解析')).toBeTruthy();
     expect(screen.getByText('未选择模型')).toBeTruthy();
   });
+});
+
+describe('业务场景 · 全局硬件配置与推理评估页对齐', () => {
+  const chips950: Obj[] = [
+    { key: '950pr32', label: '昇腾950PR · 32 Cube', family: '950', bf16_tflops: 486, memory_gb: 128, native_int4: true },
+    { key: '950pr', label: '昇腾950PR · 28 Cube', family: '950', bf16_tflops: 425, memory_gb: 112, native_int4: true },
+    { key: '950dt36', label: '昇腾950DT · 36 Cube', family: '950', bf16_tflops: 547, memory_gb: 144, native_int4: true },
+    { key: '950dt32', label: '昇腾950DT · 32 Cube', family: '950', bf16_tflops: 486, memory_gb: 96, native_int4: true },
+    { key: '950dt', label: '昇腾950DT · 28 Cube', family: '950', bf16_tflops: 425, memory_gb: 96, native_int4: true },
+  ];
+
+  function renderWith(chips: Obj[]) {
+    const plan: Obj = JSON.parse(JSON.stringify(payload));
+    plan.business_defaults = { chip_key: '950dt32', profile: 'neutral' };
+    return render(
+      <AntApp>
+        <BusinessPage payload={plan} edit={() => {}} catalog={{ ...catalog, chips }}
+          preview={preview} refreshCatalog={async () => {}} onImport={() => {}} />
+      </AntApp>,
+    );
+  }
+
+  it('算力卡选项显示「型号 + 档位 +（FP16 峰值/显存）」，同款多档不再重名', async () => {
+    renderWith(chips950);
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: '全局算力卡' }));
+    await new Promise(r => setTimeout(r, 300));
+    const labels = Array.from(document.querySelectorAll('.ant-select-item-option'))
+      .map(node => (node.textContent || '').trim());
+    expect(labels.some(l => l.includes('昇腾950DT · 32 Cube（FP16 486T/96G）'))).toBe(true);
+    expect(labels.some(l => l.includes('昇腾950PR · 28 Cube（FP16 425T/112G）'))).toBe(true);
+    // 关键：5 个 950 档位各有唯一文案，不能再出现两个「昇腾950PR」
+    expect(new Set(labels).size).toBe(labels.length);
+  }, 20000);
+
+  it('精度与工程档位是分段按钮而非下拉', () => {
+    renderWith(chips950);
+    const prec = screen.getByRole('radiogroup', { name: '全局推理量化精度' });
+    expect(prec.querySelectorAll('.ant-segmented-item')).toHaveLength(3);
+    expect(prec.textContent).toContain('BF16');
+    expect(prec.textContent).toContain('W4A8');
+    const tier = screen.getByRole('radiogroup', { name: '全局工程档位' });
+    expect(tier.textContent).toContain('均衡');
+    expect(tier.textContent).toContain('×0.8');
+    // 两块都不再是下拉：分组内不应出现 combobox（全局仅算力卡仍是下拉）
+    expect(prec.querySelector('[role="combobox"]')).toBeNull();
+    expect(tier.querySelector('[role="combobox"]')).toBeNull();
+  }, 20000);
 });

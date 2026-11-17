@@ -12,6 +12,11 @@
 .be-global-grid .field>label{display:block;font-size:12px;color:#6e806f;margin-bottom:8px}
 .be-global-grid .field>label .anticon{color:#a8b6a2;margin-left:4px}
 .be-chip-hint{font-size:11px;color:#8b9a80;margin-top:6px;line-height:1.6}
+/* 精度与档位用分段按钮（与推理评估页 .seg 同形态），三档并列可比，不用下拉 */
+.be-global-grid .ant-segmented{background:#eef2e9;border:1px solid #e2e8dc;border-radius:8px;padding:2px}
+.be-global-grid .ant-segmented-item{font-size:12px;color:#5d6f57}
+.be-global-grid .ant-segmented-item-selected{background:#fff;color:#2f5941;font-weight:600;box-shadow:0 1px 2px rgba(47,89,65,.12)}
+.be-global-grid .ant-segmented-item-disabled{color:#b6c1ae}
 
 /* ---------- 工程系数面板 ---------- */
 .cf-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}

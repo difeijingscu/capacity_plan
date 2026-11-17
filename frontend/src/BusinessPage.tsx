@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Alert, Button, Card, Checkbox, Empty, Input, InputNumber, Popconfirm,
-  Select, Space, Spin, Table, Tag, Tooltip, App as AntApp,
+  Segmented, Select, Space, Spin, Table, Tag, Tooltip, App as AntApp,
 } from 'antd';
 import {
   CloudUploadOutlined, DeleteOutlined, InfoCircleOutlined, PlusOutlined, ThunderboltFilled,
@@ -25,15 +25,22 @@ import './business-eval.css';
 
 /** 场景未配置推理时的兜底口径：芯片与档位跟随全局默认（business_defaults）。 */
 const DEFAULT_INFERENCE: Obj = {
-  scene_key: 'rag', weight_precision: 'auto', prefix_hit: 0,
+  scene_key: 'rag', weight_precision: 'bf16', prefix_hit: 0,
 };
-/** v2 精度档：W4A8 只在原生支持 INT4 的芯片（950 系列）可选。 */
+/**
+ * 精度档：与推理评估页同一套三段式（BF16 / W8A8 / W4A8），
+ * 分段控件的文字、说明与字节口径都照搬该页，避免两页说不同的话。
+ * W4A8 只在原生支持 INT4 的芯片（950 系列）可选。
+ */
 const PRECISIONS = [
-  { value: 'auto', label: '自动推荐' },
-  { value: 'bf16', label: 'BF16（全精度）' },
-  { value: 'w8a8', label: 'W8A8（INT8 量化）' },
-  { value: 'w4a8', label: 'W4A8（INT4 量化）' },
+  { value: 'bf16', label: 'BF16', hint: 'BF16/FP16 峰值 · 权重 2B · KV 2B/token' },
+  { value: 'w8a8', label: 'W8A8', hint: 'INT8/FP8 峰值 · 权重 1B · KV 1B/token' },
+  { value: 'w4a8', label: 'W4A8', hint: 'INT8 激活峰值 · 权重 0.5B · KV 1B/token' },
 ];
+/** 旧数据里的 `auto` 在引擎里等价 BF16，页面统一按 BF16 呈现与回写。 */
+const PRECISION_NORMALIZE: Obj = { auto: 'bf16' };
+const normPrecision = (value: unknown): string =>
+  PRECISION_NORMALIZE[String(value ?? '')] || String(value ?? '');
 /** 旧 schema 档位值 ↔ 页面档位（与后端 engine.PROFILE_TIER 同一套映射）。 */
 const PROFILE_TIER: Obj = { optimistic: 'aggressive', neutral: 'standard', conservative: 'conservative' };
 const TIER_TO_PROFILE: Obj = { aggressive: 'optimistic', standard: 'neutral', conservative: 'conservative' };
@@ -43,6 +50,12 @@ const TIER_FALLBACK = [
   { value: 'aggressive', label: '激进' },
 ];
 const TIER_COEF: Obj = { conservative: '×0.8', standard: '×1', aggressive: '×1.2' };
+/** 档位说明：与推理评估页一致的三句。 */
+const TIER_NOTES: Obj = {
+  conservative: '未调优引擎，结果偏安全',
+  standard: '中位数工程经验值，估算结果适中',
+  aggressive: '深度优化后，需实测支撑',
+};
 /** 引擎告警类型与主导因素的中文标签。 */
 const WARNING_LABELS: Obj = {
   longInput: '长输入', longOutput: '长输出', crossNode: '跨节点切分',
@@ -76,7 +89,17 @@ function groupOptions(items: Obj[], groupOf: (item: Obj) => string, toOption: (i
   return groups;
 }
 const modelGroup = (m: Obj) => m.custom ? '自定义' : (String(m.label || m.key).match(/^[A-Za-z]+/)?.[0] || '其他');
-const chipGroup = (c: Obj) => c.custom ? '自定义' : (c.family ? '昇腾' + c.family + ' 系列' : '其他');
+const chipGroup = (c: Obj) => c.custom ? '自定义' : (c.family ? `昇腾 ${c.family} 系列` : '其他');
+/**
+ * 选卡文案与推理评估页保持一致：型号 + 档位 +（FP16 峰值/显存）。
+ * 950PR / 950DT 各有多个 Cube 档，只显示「昇腾950DT」会让三档重名，无法区分。
+ */
+function chipOptionLabel(c: Obj): string {
+  const spec = c.bf16_tflops && c.memory_gb ? `（FP16 ${c.bf16_tflops}T/${c.memory_gb}G）` : '';
+  return `${c.label || c.key}${spec}${c.custom ? ' · 自定义' : ''}`;
+}
+/** 场景行等窄位置用短名：去掉「昇腾」前缀但保留档位，仍可区分同款各档。 */
+const chipShortLabel = (c: Obj): string => String(c.label || c.key || '').replace(/^昇腾\s*/, '');
 
 /** 把池内逐场景结果按模型归类：场景数、卡数与算力合计、主导因素分布。 */
 function summarizeByModel(scenarios: Obj[]): Obj[] {
@@ -131,7 +154,7 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
   const configured = payload.scenarios.filter((s: Obj) => s.inference);
   const derivedChips = [...new Set(configured.map((s: Obj) => s.inference.chip_key).filter(Boolean))] as string[];
   const derivedTiers = [...new Set(configured.map((s: Obj) => PROFILE_TIER[s.inference.profile] || s.inference.profile).filter(Boolean))] as string[];
-  const derivedPrecisions = [...new Set(configured.map((s: Obj) => s.inference.weight_precision).filter(Boolean))] as string[];
+  const derivedPrecisions = [...new Set(configured.map((s: Obj) => normPrecision(s.inference.weight_precision)).filter(Boolean))] as string[];
   const defaults = payload.business_defaults || {};
   const globalChip: string | undefined = defaults.chip_key
     ?? (derivedChips.length === 1 ? derivedChips[0] : derivedChips.length === 0 ? '910c' : undefined);
@@ -143,25 +166,27 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
   const globalChipInfo: Obj = chips.find(c => c.key === globalChip) || {};
   /**
    * 全局量化精度：场景清单不再提供逐场景选择，这里是唯一入口。
-   * 显式写入（含 auto）即以全局为准；老方案没有该字段时按各场景历史值推导，
-   * 不一致则给「各场景不一致」提示，等用户选定后统一，避免静默改掉历史结果。
+   * 显式写入即以全局为准；老方案没有该字段时按各场景历史值推导，
+   * 不一致则提示「各场景不一致」，等用户选定后统一，避免静默改掉历史结果。
    */
-  const storedPrecision: string | undefined = defaults.weight_precision || undefined;
+  const storedPrecision: string | undefined = defaults.weight_precision ? normPrecision(defaults.weight_precision) : undefined;
   const globalPrecision: string = storedPrecision
-    || (derivedPrecisions.length === 1 ? derivedPrecisions[0] : 'auto');
+    || (derivedPrecisions.length === 1 ? derivedPrecisions[0] : 'bf16');
   const mixedPrecision = !storedPrecision && derivedPrecisions.length > 1;
   /** 只有「老方案无全局字段且各场景精度不一致」时才不强制取全局值。 */
   const precisionIsGlobal = !!storedPrecision || derivedPrecisions.length <= 1;
+  const precisionHint = (PRECISIONS.find(p => p.value === globalPrecision) || PRECISIONS[0]).hint;
 
   /** 三个下拉都按目录分组：场景按业务组、芯片按系列、模型按厂商（label 前缀）。 */
   const sceneOptions = groupOptions(scenes, (s: Obj) => String(s.group || '其他'),
     x => ({ value: x.key, label: x.name, title: x.hint }));
   const chipOptions = groupOptions(chips, chipGroup,
-    c => ({ value: c.key, label: c.label.split(' · ')[0] + (c.custom ? ' · 自定义' : ''), title: c.label }));
+    c => ({ value: c.key, label: chipOptionLabel(c), title: c.label }));
   const modelOptions = groupOptions(models, modelGroup,
     m => ({ value: m.key, label: (m.label || m.key) + (m.custom ? ' · 自定义' : '') }));
-  const tierOptions: Obj[] = (catalog?.tiers ?? []).map((t: Obj) => ({ value: t.key, label: t.label }));
-  /** W4A8 需要芯片原生 INT4；其余档位始终可选。 */
+  const tierOptions: { value: string; label: string }[] = (catalog?.tiers ?? []).map((t: Obj) =>
+    ({ value: String(t.key), label: t.label + ' ' + (TIER_COEF[t.key] || '') }));
+  /** 与推理评估页一致的分段控件选项：W4A8 需芯片原生 INT4，其余档位始终可选。 */
   const precisionOptions = (chip: Obj) => PRECISIONS.map(p =>
     p.value === 'w4a8' && !chip.native_int4 ? { ...p, disabled: true } : p);
 
@@ -189,10 +214,11 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
   /**
    * 全局量化精度：与算力卡同样处理——写入全局默认并同步已配置场景，
    * 只有存在「精度与目标值不同」的场景时才确认，避免无谓弹窗。
+   * 比较时先归一：旧值 auto 与 bf16 是同一口径，不该触发"有场景要改"。
    */
   function applyPrecisionGlobal(value: string) {
     const label = PRECISIONS.find(p => p.value === value)?.label || value;
-    const affected = configured.filter((s: Obj) => s.inference.weight_precision !== value);
+    const affected = configured.filter((s: Obj) => normPrecision(s.inference.weight_precision) !== value);
     const doit = () => edit(plan => {
       // 只改精度，顺带保留已有的 chip_key/profile；不在这里重写全局芯片默认
       plan.business_defaults = { ...(plan.business_defaults || {}), weight_precision: value };
@@ -446,7 +472,7 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
             </span>
           </Tooltip>
           <span className="right">
-            <small className="muted">{chip.label ? `${chip.label.split(' · ')[0]}` : ''}{off ? '' : ` · ${PRECISIONS.find(p => p.value === globalPrecision)?.label.split('（')[0] || '自动'}`}</small>
+            <small className="muted">{chip.label ? chipShortLabel(chip) : ''}{off ? '' : ` · ${(PRECISIONS.find(p => p.value === globalPrecision) || PRECISIONS[0]).label}`}</small>
             <Popconfirm title="移除此场景？保存后仍可撤销。"
               onConfirm={() => edit(p => { p.scenarios = p.scenarios.filter((x: Obj) => x.id !== s.id); })}>
               <Button size="small" type="text" aria-label={'移除-' + s.name} icon={<DeleteOutlined aria-hidden="true" />} />
@@ -538,11 +564,14 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
                 <InfoCircleOutlined aria-hidden="true" />
               </Tooltip>
             </label>
-            <Select aria-label="全局推理量化精度" style={{ width: '100%' }} value={globalPrecision}
-              placeholder={mixedPrecision ? '各场景不一致（选择后统一）' : '待选择'}
+            {/* 与推理评估页同一套三段式按钮，不用下拉：三档并列，一眼可比 */}
+            <Segmented block aria-label="全局推理量化精度"
+              value={mixedPrecision ? undefined : globalPrecision}
               options={precisionOptions(globalChipInfo)}
-              onChange={applyPrecisionGlobal} />
-            <div className="be-chip-hint">KV 精度随档位自动跟随：BF16 2 字节、W8A8/W4A8 1 字节；仍可在下方场景清单逐场景单独调整</div>
+              onChange={v => applyPrecisionGlobal(String(v))} />
+            <div className="be-chip-hint">
+              {mixedPrecision ? '各场景当前不一致，点选后统一' : precisionHint}
+            </div>
           </div>
           <div className="field">
             <label>工程开销档位（全局）
@@ -550,10 +579,10 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
                 <InfoCircleOutlined aria-hidden="true" />
               </Tooltip>
             </label>
-            <Select aria-label="全局工程档位" style={{ width: '100%' }} value={globalTier}
-              options={tierOptions.length ? tierOptions : TIER_FALLBACK}
-              onChange={applyTierGlobal} />
-            <div className="be-chip-hint">保守 ×0.8 / 均衡 ×1 / 激进 ×1.2，作用于下方生效系数</div>
+            <Segmented block aria-label="全局工程档位" value={globalTier}
+              options={tierOptions.length ? tierOptions : TIER_FALLBACK.map(t => ({ ...t, label: t.label + ' ' + TIER_COEF[t.value] }))}
+              onChange={v => applyTierGlobal(String(v))} />
+            <div className="be-chip-hint">{TIER_NOTES[globalTier] || '基准值 × 档位系数，作用于下方生效系数'}</div>
           </div>
         </div>
         {/* 工程系数：默认收起，用户需要时再展开（与推理评估集成页同一交互层级） */}
