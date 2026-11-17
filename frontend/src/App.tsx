@@ -134,6 +134,10 @@ export default function App() {
   const [baselineDraft, setBaselineDraft] = useState('');
   const [openGroups, setOpenGroups] = useState<string[]>(['planning']);
 
+  // 方案上下文令牌：切换方案、重新加载或发起新计算时自增。异步请求返回后先比对令牌，
+  // 过期响应一律不写 state，避免慢响应把上一个方案的 plan / runs / 结果页盖到当前视图。
+  const planContext = useRef(0);
+
   const guard = async (action: () => Promise<any>) => { try { return await action(); } catch (error) { message.error((error as Error).message); return undefined; } };
   const refreshProjects = async () => setProjects(await api('/projects?archived=' + archived));
   const refreshCatalog = async () => {
@@ -163,23 +167,38 @@ export default function App() {
 
   function edit(mutator: (p: Obj) => void) { if (!payload) return; const p = clone(payload); mutator(p); setPayload(p); setDirty(true); }
   async function loadPlan(id: string) {
+    const token = ++planContext.current;
     setLoading(true);
-    try { if (dirty && plan?.id !== id) await save(); const p = await api('/plans/' + id); const projectRuns = await api('/projects/' + p.project_id + '/calculations'); const historicalCosts = p.calculations[0] ? await api('/calculations/' + p.calculations[0].id + '/costs') : []; setPlan(p); setPayload(p.payload); setDirty(false); setRuns(projectRuns);  setCosts(historicalCosts[0] || null); setActiveRun(p.calculations[0] || null); setCompareIds([]); setComparison(null); }
-    finally { setLoading(false); }
+    try {
+      if (dirty && plan?.id !== id) await save();
+      const p = await api('/plans/' + id);
+      if (token !== planContext.current) return;
+      const projectRuns = await api('/projects/' + p.project_id + '/calculations');
+      const historicalCosts = p.calculations[0] ? await api('/calculations/' + p.calculations[0].id + '/costs') : [];
+      if (token !== planContext.current) return;
+      setPlan(p); setPayload(p.payload); setDirty(false); setRuns(projectRuns);  setCosts(historicalCosts[0] || null); setActiveRun(p.calculations[0] || null); setCompareIds([]); setComparison(null);
+    }
+    finally { if (token === planContext.current) setLoading(false); }
   }
   async function save() {
     if (!plan || !payload) return null;
     if (!dirty) return plan;
+    const token = planContext.current;
     const p = await api('/plans/' + plan.id, 'PATCH', { expected_revision: plan.revision, payload });
-    setPlan(p); setPayload(p.payload); setDirty(false); void refreshProjects(); return p;
+    // 保存本身已落库，但若期间已切到别的方案，就不能再把它写回当前视图
+    if (token === planContext.current) { setPlan(p); setPayload(p.payload); setDirty(false); }
+    void refreshProjects(); return p;
   }
   async function calculate() {
+    const token = ++planContext.current;
     setCalculating(true);
     try {
       const p = await save(); if (!p) return;
       const response = await api('/plans/' + p.id + '/calculate', 'POST', { plan_revision: p.revision });
       const done = response.run_id ? response : await waitJob(response.job_id);
-      const r = await api('/calculations/' + done.run_id); setActiveRun(r); setRuns(old => [r, ...old.filter(x => x.id !== r.id)]); setCosts(null); setPage('results');
+      const r = await api('/calculations/' + done.run_id);
+      if (token !== planContext.current) { message.info('已切换到其他方案，本次测算结果已保存在原方案'); return; }
+      setActiveRun(r); setRuns(old => [r, ...old.filter(x => x.id !== r.id)]); setCosts(null); setPage('results');
       message.success(r.result.completeness === 'COMPLETE' ? '测算完成，结果已保存' : '已保存可计算部分，请补充未计入任务');
     } finally { setCalculating(false); }
   }
