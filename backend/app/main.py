@@ -167,6 +167,14 @@ def create_app(data_dir=None):
 
     @app.post("/api/v1/demo")
     def demo():
+        # 幂等：示例项目只应存在一份。已有未归档的示例方案时直接打开它，避免每点
+        # 一次「载入示例项目」就在概览里多出一个同名项目，把用户自己的项目挤下去。
+        for candidate in store.list("plan"):
+            if not (candidate.get("payload") or {}).get("is_demo"):
+                continue
+            owner = store.get(candidate["project_id"], "project")
+            if owner and not owner.get("archived_at"):
+                return {"project": owner, "plan": candidate, "reused": True}
         catalog = models()
         text_task = suggest_task("知识问答","查询制度与知识",catalog)
         text_task.online_users=Decimal(100)
@@ -187,7 +195,8 @@ def create_app(data_dir=None):
             payload.innovation.allocations=[Allocation(model_id=text_task.model_id,share=1)]
             payload.development.enabled=True
             payload.development.models=[DevModel(model_id=text_task.model_id)]
-        return create_project({"name":"示例 · 组织AI算力规划","payload":payload.model_dump(mode="json")})
+        created = create_project({"name":"示例 · 组织AI算力规划","payload":payload.model_dump(mode="json")})
+        return {**created, "reused": False}
 
     @app.get("/api/v1/plans/{plan_id}")
     def get_plan(plan_id:str):

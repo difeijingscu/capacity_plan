@@ -219,6 +219,7 @@ export default function App() {
   async function createProject(isDemo = false) {
     const response = isDemo ? await api('/demo', 'POST', {}) : await api('/projects', 'POST', { name: projectName });
     await refreshProjects(); await loadPlan(response.plan.id); setProjectModal(false); setProjectName(''); setPage('business');
+    if (isDemo) message.info(response.reused ? '已打开现有示例项目' : '示例项目已创建');
   }
   async function previewImport() {
     const form = new FormData();

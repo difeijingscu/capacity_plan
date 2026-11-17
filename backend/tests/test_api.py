@@ -382,3 +382,20 @@ def test_demo_plan_global_chip_matches_scenarios(client):
     scenario_chips=[s["inference"]["chip_key"] for s in payload["scenarios"] if s.get("inference")]
     assert scenario_chips, "示例方案应包含已配置场景"
     assert set(scenario_chips)=={global_chip}
+
+
+def test_demo_reuses_the_existing_example_project(client):
+    """重复载入示例只应打开同一份示例，不能每次新建一个同名项目。"""
+    first=client.post("/api/v1/demo").json()
+    assert first["reused"] is False
+    second=client.post("/api/v1/demo").json()
+    assert second["reused"] is True
+    assert second["plan"]["id"]==first["plan"]["id"]
+    assert second["project"]["id"]==first["project"]["id"]
+    assert len(client.get("/api/v1/projects").json())==1
+    # 用户把示例归档后，再次载入应新建一份，而不是打开已归档的旧示例。
+    archived=client.patch("/api/v1/projects/"+first["project"]["id"],json={"archived":True,"expected_revision":first["project"]["revision"]})
+    assert archived.status_code==200,archived.text
+    third=client.post("/api/v1/demo").json()
+    assert third["reused"] is False
+    assert third["plan"]["id"]!=first["plan"]["id"]
