@@ -119,6 +119,21 @@ def model_needs_migration(model_id: str | None, key: str) -> bool:
     return bool(model_id) and _norm(model_id) != _norm(key)
 
 
+def _global_precision(defaults: dict | None) -> str | None:
+    """方案级全局精度归一：旧别名（int8/fp8…）先映射，`auto` 统一写成 `bf16`。
+
+    auto 在引擎里本来就等价 bf16；统一写成一个值，页面分段控件（只有 BF16 /
+    W8A8 / W4A8 三档）与实际计算才不会各说一套。
+    """
+    if not defaults:
+        return None
+    value = defaults.get("weight_precision")
+    if not value:
+        return None
+    precision = PRECISION_ALIASES.get(str(value), str(value))
+    return "bf16" if precision == "auto" else precision
+
+
 def resolve_spec(scenario, models: list[dict], chips: list[dict], scenes: list[dict],
                  defaults: dict | None = None) -> dict:
     """把场景翻成引擎入参，返回 {spec, origin, warnings}。
@@ -132,23 +147,25 @@ def resolve_spec(scenario, models: list[dict], chips: list[dict], scenes: list[d
     同步写入各场景，推导旧场景时才需要这里的兜底。
     """
     warnings: list[str] = []
+    precision = _global_precision(defaults)
     configured = getattr(scenario, "inference", None)
     if configured is not None:
         spec = configured.to_engine()
         spec["scene_key"] = configured.scene_key
         warnings.extend(_migrate_spec(spec))
-        # 全局精度优先于场景里的历史值；旧别名（int8/fp8 等）先归一再写入。
-        if defaults and defaults.get("weight_precision"):
-            precision = str(defaults["weight_precision"])
-            spec["weight_precision"] = PRECISION_ALIASES.get(precision, precision)
+        # 全局精度优先于场景里的历史值，避免同一方案并存两套精度口径。
+        if precision:
+            spec["weight_precision"] = precision
         return dict(spec=spec, origin="configured", warnings=warnings)
 
     spec = dict(DEFAULT_SPEC)
     if defaults:
         # 全局硬件默认：算力卡、量化精度与工程档位；旧字段场景与新场景都跟随这里。
-        for key in ("chip_key", "profile", "weight_precision"):
+        for key in ("chip_key", "profile"):
             if defaults.get(key):
                 spec[key] = defaults[key]
+    if precision:
+        spec["weight_precision"] = precision
     components = list(getattr(scenario, "components", []) or [])
     enabled = [c for c in components if c.enabled]
     if not components:

@@ -431,7 +431,8 @@ def test_global_weight_precision_applies_to_migrated_scenarios():
     assert w8a8_prec=="w8a8"
     # W8A8 权重减半：显存主导的场景卡数必须下降，不能与 BF16 同值
     assert w8a8_cards < bf16_cards
-    assert cards("auto")[1]=="auto"
+    # 旧值 auto 一律归一为 bf16：页面分段控件只有三档，不能再回显 auto 造成口径分裂
+    assert cards("auto")[1]=="bf16"
 
 
 def test_global_weight_precision_overrides_configured_scenario():
@@ -451,8 +452,8 @@ def test_global_weight_precision_overrides_configured_scenario():
     w8a8_cards,w8a8_prec=cards("w8a8","bf16")
     assert w8a8_prec=="w8a8"
     assert w8a8_cards < cards("bf16","bf16")[0]
-    # 全局选「自动推荐」也覆盖场景值：下拉是唯一入口，不能只对部分取值生效
-    assert cards("auto","w8a8")[1]=="auto"
+    # 旧值 auto 等价 BF16，同样覆盖场景值并归一为 bf16（分段控件只有三档）
+    assert cards("auto","w8a8")[1]=="bf16"
 
     # 老方案没有该全局字段时保持原行为，历史结果不漂移
     legacy=PlanInput(business_defaults={"chip_key":"910c","profile":"neutral"},
