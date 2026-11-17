@@ -157,12 +157,13 @@ class BusinessDefaults(StrictModel):
     """业务池全局硬件默认：算力卡、量化精度与工程档位。
 
     量化精度是纯方案级设置：页面已取消逐场景精度选择，全局值对全部场景生效。
-    `None` 表示「本方案还没设定过」——老方案都属于这种，继续沿用各场景自身的历史值，
-    避免升级后结果漂移；显式写入（含 "auto"）才覆盖场景值。
+    缺省 `"w8a8"`（2026-11-17 起为平台默认精度）：新建方案、示例方案都按 W8A8 出卡。
+    `None` 表示「本方案没设定过」，只出现在显式写了 null 的历史 payload 里——这类
+    老方案继续沿用各场景自身的历史值，避免升级后结果漂移。
     算力卡与工程档位由页面在改全局值时同步写入各场景，旧字段场景推导时也以这里兜底。
     """
     chip_key: str = "910c"
-    weight_precision: Precision | None = None
+    weight_precision: Precision | None = "w8a8"
     profile: str = "neutral"
 
 

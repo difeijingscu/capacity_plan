@@ -478,10 +478,29 @@ def test_global_weight_precision_overrides_configured_scenario():
     # 旧值 auto 等价 BF16，同样覆盖场景值并归一为 bf16（分段控件只有三档）
     assert cards("auto","w8a8")[1]=="bf16"
 
-    # 老方案没有该全局字段时保持原行为，历史结果不漂移
-    legacy=PlanInput(business_defaults={"chip_key":"910c","profile":"neutral"},
+    # 老方案没有该全局字段（显式 null）时保持原行为，历史结果不漂移
+    legacy=PlanInput(business_defaults={"chip_key":"910c","profile":"neutral","weight_precision":None},
                      scenarios=[Scenario(name="老方案场景",inference=spec(weight_precision="w8a8"))])
     assert calculate(legacy,[])["pools"][0]["items"][0]["inference_spec"]["weight_precision"]=="w8a8"
+
+
+def test_new_plan_defaults_to_w8a8_precision():
+    """平台默认推理精度是 W8A8：新建方案不写该字段时也按 W8A8 出卡。
+
+    页面「全局配置 · 推理量化精度」的默认档必须与引擎一致。若只在界面上默认
+    W8A8、后端仍按 BF16 解析，就会回到「页面显示一套、实际算另一套」。
+    """
+    assert PlanInput().business_defaults.weight_precision=="w8a8"
+    plan_input=PlanInput(scenarios=[Scenario(name="默认精度场景",inference=spec())])
+    default_item=calculate(plan_input,[])["pools"][0]["items"][0]
+    assert default_item["inference_spec"]["weight_precision"]=="w8a8"
+    explicit=PlanInput(business_defaults={"chip_key":"910c","profile":"neutral","weight_precision":"w8a8"},
+                       scenarios=[Scenario(name="默认精度场景",inference=spec())])
+    bf16=PlanInput(business_defaults={"chip_key":"910c","profile":"neutral","weight_precision":"bf16"},
+                   scenarios=[Scenario(name="默认精度场景",inference=spec())])
+    # 默认值必须与显式选 W8A8 逐字段一致，且严格优于 BF16
+    assert default_item["cards"]==calculate(explicit,[])["pools"][0]["items"][0]["cards"]
+    assert default_item["cards"]<=calculate(bf16,[])["pools"][0]["items"][0]["cards"]
 
 
 def test_disabled_scenario_still_exposes_resolved_spec_for_display():
@@ -499,9 +518,11 @@ def test_disabled_scenario_still_exposes_resolved_spec_for_display():
 
 
 def test_sensitivity_recalculates():
-    # v2 口径按并发缩放：低并发档位有卡数对齐的量化死区（100↔80 同卡数），
-    # 用高并发场景保证 ±20% 负载缩放能拉开卡数差异。
-    report=calculate(plan(spec(concurrency=500)),[],True)
+    # v2 口径按并发缩放：卡数按 8 卡粒度对齐，±20% 负载缩放可能落在同一档里
+    # （100↔80 同卡数）。默认精度改为 W8A8 后单位卡产能翻倍，旧的 500 并发
+    # 恰好压在一个档位边界上（16 卡 → 仍是 16 卡），故取 800 并发，保证高负载
+    # 档位确实跨到下一档（16 → 24 卡），这条用例才真的在检验「重新计算」。
+    report=calculate(plan(spec(concurrency=800)),[],True)
     assert D(report["sensitivity"][0]["total_planned_p"])<D(report["total_planned_p"])
     assert D(report["sensitivity"][1]["total_planned_p"])>D(report["total_planned_p"])
 

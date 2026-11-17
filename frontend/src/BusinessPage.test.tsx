@@ -145,6 +145,19 @@ describe('业务场景 · 计算过程', () => {
 });
 
 describe('业务场景 · 全局量化精度', () => {
+  it('空白方案默认选中 W8A8（平台默认精度）', () => {
+    // 既没有 business_defaults.weight_precision，场景也没写过精度：按平台默认 W8A8
+    const plan: Obj = JSON.parse(JSON.stringify(payload));
+    plan.business_defaults = { chip_key: '910c', profile: 'neutral' };
+    delete plan.scenarios[0].inference.weight_precision;
+    renderPage(preview, plan);
+    const group = screen.getByRole('radiogroup', { name: '全局推理量化精度' });
+    const selected = group.querySelector('.ant-segmented-item-selected');
+    expect(selected?.textContent).toContain('W8A8');
+    // 场景行按全局值展示，不再出现 BF16
+    expect(screen.getByText(/910C · 128GB · W8A8/)).toBeTruthy();
+  });
+
   it('场景行不再提供逐场景推理精度选择，只在全局配置里选一次', () => {
     renderPage(preview);
     // 全局是分段按钮（三档并列），不是下拉

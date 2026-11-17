@@ -26,7 +26,7 @@ import './business-eval.css';
 
 /** 场景未配置推理时的兜底口径：芯片与档位跟随全局默认（business_defaults）。 */
 const DEFAULT_INFERENCE: Obj = {
-  scene_key: 'rag', weight_precision: 'bf16',
+  scene_key: 'rag', weight_precision: 'w8a8',
 };
 /**
  * 精度档：与推理评估页同一套三段式（BF16 / W8A8 / W4A8），
@@ -173,8 +173,10 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
    * 不一致则提示「各场景不一致」，等用户选定后统一，避免静默改掉历史结果。
    */
   const storedPrecision: string | undefined = defaults.weight_precision ? normPrecision(defaults.weight_precision) : undefined;
+  // 平台默认精度是 W8A8（2026-11-17 起），与后端 BusinessDefaults 的缺省值一致：
+  // 既不存储也不推导的空白方案，展示与出卡都按 W8A8，不出现「页面 BF16、引擎 W8A8」。
   const globalPrecision: string = storedPrecision
-    || (derivedPrecisions.length === 1 ? derivedPrecisions[0] : 'bf16');
+    || (derivedPrecisions.length === 1 ? derivedPrecisions[0] : 'w8a8');
   const mixedPrecision = !storedPrecision && derivedPrecisions.length > 1;
   /** 只有「老方案无全局字段且各场景精度不一致」时才不强制取全局值。 */
   const precisionIsGlobal = !!storedPrecision || derivedPrecisions.length <= 1;

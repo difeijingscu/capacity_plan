@@ -384,6 +384,20 @@ def test_demo_plan_global_chip_matches_scenarios(client):
     assert set(scenario_chips)=={global_chip}
 
 
+def test_new_and_demo_plans_default_to_w8a8(client):
+    """新建方案与示例方案的全局推理精度都应是 W8A8（平台默认值）。"""
+    created=client.post("/api/v1/projects",json={"name":"默认精度项目"}).json()
+    assert created["plan"]["payload"]["business_defaults"]["weight_precision"]=="w8a8"
+    demo=client.post("/api/v1/demo").json()
+    payload=demo["plan"]["payload"]
+    assert payload["business_defaults"]["weight_precision"]=="w8a8"
+    # 场景自身仍可留 auto/历史值，解析时以全局值为准
+    calc=client.post("/api/v1/preview-calculation",json={"payload":payload})
+    assert calc.status_code==200,calc.text
+    business=[p for p in calc.json()["pools"] if p["id"]=="business"][0]
+    assert business["items"][0]["inference_spec"]["weight_precision"]=="w8a8"
+
+
 def test_demo_reuses_the_existing_example_project(client):
     """重复载入示例只应打开同一份示例，不能每次新建一个同名项目。"""
     first=client.post("/api/v1/demo").json()

@@ -50,7 +50,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
     <Card title="怎样阅读 T / P、显存与余量">
       <Descriptions column={1} items={[
         { key: 'units', label: 'T / P', children: '1 TFLOPS = 每秒10¹²次浮点运算；1 PFLOPS = 每秒10¹⁵次；1 P = 1000 T。FLOP是工作量，FLOPS是速度。' },
-        { key: 'precision', label: '精度基准', children: '本产品的算力以 BF16 稠密算力为基准折算（业务池按卡数×芯片BF16峰值折算为等效参考）。推理精度档为 BF16（全精度）/ W8A8 / W4A8，KV 缓存字节数随精度档自动确定；量化峰值与 BF16 容量不能按位宽直接换算或混加。' },
+        { key: 'precision', label: '精度基准', children: '本产品的算力以 BF16 稠密算力为基准折算（业务池按卡数×芯片BF16峰值折算为等效参考）。推理精度档为 BF16（全精度）/ W8A8 / W4A8，页面默认 W8A8；KV 缓存字节数随精度档自动确定；量化峰值与 BF16 容量不能按位宽直接换算或混加。' },
         { key: 'effective', label: '有效需求', children: '模型执行算法所需的计算工作量速率，尚未考虑实际运行效率。' },
         { key: 'base', label: '基础规划算力', children: '将有效需求按阶段效率折算为参考容量，效率越低，相同业务需要的参考容量越大。' },
         { key: 'planned', label: '建议规划算力', children: <>在基础容量上增加一次余量，初始默认 {percent(planning.headroom)}。余量是容量预留，不等于高可用副本。</> },
