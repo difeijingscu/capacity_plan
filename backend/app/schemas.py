@@ -115,8 +115,6 @@ class Allocation(StrictModel):
 # 创新池与开发测试池都只规划一个模型，新建方案时由缺省值直接带一条记录，
 # 页面下拉即显示该模型；换成别的模型只是覆盖这一条，不改变「单模型」口径。
 DEFAULT_MODEL = "deepseek_v4_flash"
-# 旧名保留：main.py / 测试里的历史引用不必跟着改名，语义与 DEFAULT_MODEL 相同。
-DEFAULT_INNOVATION_MODEL = DEFAULT_MODEL
 
 
 def default_innovation_allocations() -> list[Allocation]:

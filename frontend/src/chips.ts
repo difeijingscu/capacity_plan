@@ -63,11 +63,6 @@ export function modelSelectOptions(models: Obj[]): { label: string; options: Obj
     (m: Obj) => ({ value: m.key, label: (m.label || m.key) + (m.custom ? ' · 自定义' : '') }));
 }
 
-/** 目录里某条模型的展示名（取不到时原样返回 id，避免空白单元格）。 */
-export function modelDisplayName(models: Obj[], id?: string | null): string {
-  return matchModel(models, id)?.label || String(id ?? '');
-}
-
 /**
  * 展示层模型匹配：旧方案的 `model_id` 常是别名（`qwen3.6-35b-a3b` 对目录 key
  * `qwen3_6_35b_a3b`），引擎侧由 `business.match_model_key` 归一。
