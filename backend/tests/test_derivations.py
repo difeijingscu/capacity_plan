@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.catalogs import SYNTHETIC, seeds
-from app.engine.calculator import calculate, clean
+from app.engine.calculator import ENGINE_VERSION, calculate, clean
 from app.derivations import build_derivation
 from app.main import create_app
 from app.schemas import (Allocation, Development, DevModel, InferenceRequest, Innovation,
@@ -265,8 +265,11 @@ def test_legacy_snapshot_keeps_headroom_wording():
     assert "1 + 0.2" in margin["expr"]
     assert by_title(view["steps"], "增加一次容量余量")["value"] == str(pool["planned_p"])
     assert D(by_title_input(view["inputs"], "容量余量")["value"]) == 20
+    # 前端按快照版本决定文案：推导结果必须带出 engine_version，否则旧快照会被写成「补偶后」
+    assert view["engine_version"] == "engine-v2.1.0"
     # 新快照（engine-v2.1.1）不出现余量步骤
     fresh = build_derivation(run, "business")
+    assert fresh["engine_version"] == ENGINE_VERSION
     assert all(s["title"] != "增加一次容量余量" for s in fresh["steps"])
 
 

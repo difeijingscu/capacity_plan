@@ -339,3 +339,19 @@ describe('业务场景 · 全局芯片与场景芯片不一致', () => {
     expect(screen.queryByText(/类场景芯片不一致/)).toBeNull();
   }, 20000);
 });
+
+describe('业务场景 · 卡数口径跟随快照版本', () => {
+  // 旧快照（engine-v2.1.0）的 cards_planned 是「×(1+h) 后对齐 8 卡」的产物；
+  // 若沿用新口径写成「补偶后」，70 张会显示成「补偶后 88 张」，把余量讲成补偶。
+  it('engine-v2.1.0 的快照按含余量口径描述，不冒充补偶', () => {
+    renderPage({ ...preview, engine_version: 'engine-v2.1.0' });
+    expect(screen.getAllByText(/含余量对齐 8 卡后 26 张/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/补偶后 26 张/)).toBeNull();
+  }, 20000);
+
+  it('engine-v2.1.1 起的快照按补偶口径描述', () => {
+    renderPage({ ...preview, engine_version: 'engine-v2.1.1' });
+    expect(screen.getAllByText(/补偶后 26 张/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/含余量对齐 8 卡后/)).toBeNull();
+  }, 20000);
+});

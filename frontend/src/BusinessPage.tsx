@@ -14,6 +14,7 @@ import CoefPanel from './CoefPanel';
 import FxTree from './FxTree';
 import { chipSelectOptions, chipSpecHint, groupOptions, modelGroup } from './chips';
 import { METHOD_HTML, BASIS_HTML } from './businessEvalContent';
+import { businessHasHeadroom } from './engineVersion';
 import './business-eval.css';
 
 /**
@@ -132,6 +133,8 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
   const scenes: Obj[] = catalog?.scenes ?? [];
   /** 预览结果按池 id 定位业务池，不依赖 pools 的返回顺序。 */
   const pool = preview?.pools?.find((p: Obj) => p.id === 'business') ?? preview?.pools?.[0];
+  /** engine-v2.1.1 起业务池不再乘方案余量；更早的快照仍含余量，文案不能按新口径写。 */
+  const legacyMargin = businessHasHeadroom(preview);
 
   /** 全局硬件：以 business_defaults 为准；老方案没有该字段时从已配置场景推导。 */
   const configured = payload.scenarios.filter((s: Obj) => s.inference);
@@ -436,7 +439,9 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
                   <span className="cards">{num(row.cards_planned, 0)}<small>张</small></span>
                   <small className="muted">{row.cards_planned === row.cards
                     ? `三维最小 ${num(row.cards, 0)} 张`
-                    : `三维最小 ${num(row.cards, 0)} 张 · 补偶后 ${num(row.cards_planned, 0)} 张`} · {capacity(row.base_p)}{row.sla_passed === false || row.latency_status === 'NOT_MET' ? ' · 时延未达标' : ''}</small>
+                    : legacyMargin
+                      ? `三维最小 ${num(row.cards, 0)} 张 · 含余量对齐 8 卡后 ${num(row.cards_planned, 0)} 张`
+                      : `三维最小 ${num(row.cards, 0)} 张 · 补偶后 ${num(row.cards_planned, 0)} 张`} · {capacity(row.base_p)}{row.sla_passed === false || row.latency_status === 'NOT_MET' ? ' · 时延未达标' : ''}</small>
                 </>
               : <span className="pending">{off ? '不适用' : '待补充'}</span>}
             {stateTag(s)}
@@ -509,7 +514,9 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
           </div>
         )}
         {fold === 'fx' && tree && (
-          <div className="scen-fold"><FxTree tree={tree} /></div>
+          <div className="scen-fold"><FxTree tree={tree} footer={legacyMargin
+            ? '口径：容量按十进制 GB（1 GB = 10⁹ B）；最终卡数取 max(A 显存, B Prefill, C Decode)。该场景所属快照保存于 engine-v2.1.1 之前，池层规划卡数仍按方案余量放大后向上对齐到 8 卡部署单元。'
+            : '口径：容量按十进制 GB（1 GB = 10⁹ B）；最终卡数取 max(A 显存, B Prefill, C Decode) → 奇数补偶；业务池不加方案余量，规划卡数只做奇数补偶、不足 8 卡补到一个部署单元。'} /></div>
         )}
       </div>
     );
@@ -646,11 +653,13 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
               <div className="v">{num(pool.cards_planned, 0)}<small>张</small></div>
               <div className="sub">{pool.cards_planned === pool.cards
                 ? `三维最小 ${num(pool.cards, 0)} 张`
-                : `三维最小 ${num(pool.cards, 0)} 张 · 补偶后 ${num(pool.cards_planned, 0)} 张`} · 约 {num(Math.ceil(Number(pool.cards_planned || 0) / 8), 0)} 台服务器（8 卡/台）</div>
+                : legacyMargin
+                  ? `三维最小 ${num(pool.cards, 0)} 张 · 含余量对齐 8 卡后 ${num(pool.cards_planned, 0)} 张`
+                  : `三维最小 ${num(pool.cards, 0)} 张 · 补偶后 ${num(pool.cards_planned, 0)} 张`} · 约 {num(Math.ceil(Number(pool.cards_planned || 0) / 8), 0)} 台服务器（8 卡/台）</div>
             </div>
             <div className="be-kpi">
               <div className="k">需求算力（BF16 等效）</div>
-              <div className="v">{capacity(pool.planned_p)}</div>
+              <div className="v">{capacity(pool.base_p)}</div>
               <div className="sub">卡数 × 芯片 BF16 峰值折算的等效参考，与卡数不同量纲</div>
             </div>
             <div className="be-kpi">

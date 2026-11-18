@@ -550,6 +550,7 @@ def build_derivation(run, scope):
     pools = report["pools"]
     pool = next((p for p in pools if p["id"] == scope), None)
     result = dict(run_id=run["id"], plan_id=run["plan_id"], plan_revision=run["plan_revision"], created_at=run["created_at"],
+                  engine_version=report.get("engine_version"),
                   scope=scope, title=NAMES[scope] + " · 计算推导", completeness=report["completeness"] if scope == "total" else pool["completeness"],
                   base_p=report["total_base_p"] if scope == "total" else pool["base_p"],
                   planned_p=report["total_planned_p"] if scope == "total" else pool["planned_p"],

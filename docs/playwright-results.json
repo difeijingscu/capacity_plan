@@ -4,6 +4,7 @@
       "C:\\Users\\difeijing\\.workbuddy\\binaries\\node\\versions\\22.22.2-6\\node.exe",
       "D:\\10.Coding\\ComputePlanner\\frontend\\node_modules\\@playwright\\test\\cli.js",
       "test",
+      "e2e/calculation-derivation.spec.ts",
       "e2e/planner.spec.ts"
     ],
     "configFile": "D:\\10.Coding\\ComputePlanner\\frontend\\playwright.config.ts",
@@ -102,11 +103,155 @@
       "timeout": 30000,
       "reuseExistingServer": false,
       "env": {
-        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794966822012"
+        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794968299530"
       }
     }
   },
   "suites": [
+    {
+      "title": "calculation-derivation.spec.ts",
+      "file": "calculation-derivation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "四张容量卡片展示真实代入过程及研发最大任务聚合",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7208,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T02:18:23.802Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-8e0f29785af663f5aac6",
+          "file": "calculation-derivation.spec.ts",
+          "line": 26,
+          "column": 1
+        },
+        {
+          "title": "创新和研发配置页可展开最近测算的杜邦树",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5550,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T02:18:31.462Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-5dcf13a04ec60e8b20f1",
+          "file": "calculation-derivation.spec.ts",
+          "line": 85,
+          "column": 1
+        },
+        {
+          "title": "修改输入后推导保留历史口径，重新测算后展示新输入",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6557,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T02:18:37.035Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-e4558c7396c5254a1d1f",
+          "file": "calculation-derivation.spec.ts",
+          "line": 102,
+          "column": 1
+        },
+        {
+          "title": "缺失任务和未启用资源池说明清楚，手机抽屉可阅读",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4428,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T02:18:43.614Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-81c152d96e634961c6d4",
+          "file": "calculation-derivation.spec.ts",
+          "line": 131,
+          "column": 1
+        }
+      ]
+    },
     {
       "title": "planner.spec.ts",
       "file": "planner.spec.ts",
@@ -129,12 +274,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 11442,
+                  "duration": 11024,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T01:53:44.816Z",
+                  "startTime": "2026-11-18T02:18:48.082Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -163,12 +308,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 6260,
+                  "duration": 6278,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T01:53:56.608Z",
+                  "startTime": "2026-11-18T02:18:59.124Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -197,12 +342,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1082,
+                  "duration": 1118,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T01:54:02.889Z",
+                  "startTime": "2026-11-18T02:19:05.425Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -220,9 +365,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-18T01:53:42.019Z",
-    "duration": 23635.579,
-    "expected": 3,
+    "startTime": "2026-11-18T02:18:19.537Z",
+    "duration": 49074.848,
+    "expected": 7,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
