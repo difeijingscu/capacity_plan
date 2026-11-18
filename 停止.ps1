@@ -80,12 +80,28 @@ if ($appState) {
 }
 
 # 端口监听者是最终依据：状态文件里的 pid 可能已失效、被系统复用或格式过旧。
+# 没有状态文件时才回退检查默认端口 8000（兼容早期只写 pid 的旧记录）；
+# 有状态文件时不再检查 8000，否则本机别的实例占用 8000 会被误判成「本目录停不掉」。
+$portsToCheck = @($recordedPort)
+if (-not $appState) { $portsToCheck = @(8000) }
 $candidates = New-Object System.Collections.ArrayList
 foreach ($id in $recordedIds) { [void]$candidates.Add($id) }
-foreach ($port in @($recordedPort, 8000) | Select-Object -Unique) {
+foreach ($port in $portsToCheck) {
     $listenerId = Get-ListenerProcessId $port
     if ($listenerId -gt 0) { [void]$candidates.Add($listenerId) }
 }
+
+# 状态文件丢失、端口被改或手工启动时，按命令行兜底：只认命令行里含本目录的同类服务，
+# 不会误杀其他目录的算力沙盘实例。
+try {
+    foreach ($proc in (Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
+        if (-not $proc.CommandLine) { continue }
+        if ($proc.CommandLine -notmatch 'app\.main:app') { continue }
+        if ((Get-NormalizedText $proc.CommandLine).Contains((Get-NormalizedText $root))) {
+            [void]$candidates.Add([int]$proc.ProcessId)
+        }
+    }
+} catch { }
 
 $killIds = New-Object System.Collections.ArrayList
 $notes = New-Object System.Collections.ArrayList
@@ -108,10 +124,13 @@ foreach ($killId in ($killIds | Sort-Object -Descending)) {
 }
 
 # 端口彻底释放才算停好；进程退出到端口释放之间会有短暂延迟。
-$portsToCheck = @($recordedPort, 8000) | Select-Object -Unique
+# 只把「本目录的服务」仍占端口算失败：端口若已被别的程序接管，不属于本次停止的残留。
 for ($attempt = 0; $attempt -lt 15; $attempt++) {
     $busy = @()
-    foreach ($port in $portsToCheck) { if ((Get-ListenerProcessId $port) -gt 0) { $busy += $port } }
+    foreach ($port in $portsToCheck) {
+        $listenerId = Get-ListenerProcessId $port
+        if ($listenerId -gt 0 -and (Get-ServerKind $listenerId) -eq 'ours') { $busy += $port }
+    }
     if ($busy.Count -eq 0) { break }
     Start-Sleep -Milliseconds 200
 }
@@ -120,7 +139,7 @@ $remaining = @()
 $remainingIds = @()
 foreach ($port in $portsToCheck) {
     $listenerId = Get-ListenerProcessId $port
-    if ($listenerId -gt 0) {
+    if ($listenerId -gt 0 -and (Get-ServerKind $listenerId) -eq 'ours') {
         $remaining += ('端口' + $port + '仍被 pid ' + $listenerId + ' 占用')
         $remainingIds += $listenerId
     }

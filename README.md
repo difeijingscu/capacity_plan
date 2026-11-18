@@ -8,7 +8,7 @@
 
 ## 启动
 
-迁移到另一台Windows机器，请优先阅读根目录的《项目说明与Windows部署指南.html》或同名Markdown文档。Windows运行包内置Python运行环境和已构建网页，完整解压后双击启动.bat即可，无需安装Python、Node.js或Git。检查环境.bat与停止.bat分别用于诊断和退出。
+迁移到另一台Windows机器，请优先阅读根目录的《部署.md》或同名《部署.html》。Windows运行包内置Python运行环境和已构建网页，完整解压后双击启动.bat即可，无需安装Python、Node.js或Git。检查环境.bat与停止.bat分别用于诊断和退出。
 
 当前工作区的依赖与网页构建已准备完成。双击根目录的 **启动.bat**，浏览器将打开：
 

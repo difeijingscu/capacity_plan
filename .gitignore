@@ -22,3 +22,6 @@ ppt/**/.slidep/
 .archify/
 docs/*test-results*
 docs/backend-test-results.xml
+
+# 部署说明的 HTML 由 tools/package_windows.py 在打包时生成，不纳入版本库
+部署.html

@@ -16,7 +16,10 @@ from pathlib import Path
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE = ROOT / "releases/算力沙盘-Windows-x64-20261021.zip"
+ARCHIVES = sorted((ROOT / "releases").glob("算力沙盘-Windows-x64-*.zip"))
+if not ARCHIVES:
+    raise SystemExit("No release archive found under releases/; run package_windows.py --all first.")
+ARCHIVE = ARCHIVES[-1]
 DEST = ROOT / ".release-build" / ("迁移 验证-" + uuid4().hex[:8])
 APP = DEST / "CapacitySandbox"
 REPORT = ROOT / "releases/迁移验证结果.json"
@@ -82,7 +85,7 @@ def verify():
 
     class BusyHandler(BaseHTTPRequestHandler):
         def do_GET(self):
-            content = b'{"status":"ok","engine_version":"engine-v1.0.0"}'
+            content = b'{"status":"ok","engine_version":"engine-unknown"}'
             self.send_response(200)
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()

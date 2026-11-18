@@ -162,4 +162,9 @@ if (-not $alreadyRunning) {
 }
 [ordered]@{process_id=$listenerId;launcher_id=$launcherId;port=$Port;python_path=$pythonPath;workspace=$root;engine_version=$health.engine_version} | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
 Write-Output ('算力沙盘已启动：' + $appUrl)
-if (-not $NoBrowser) { Start-Process $appUrl -WindowStyle Hidden }
+if ($health -and $health.engine_version) { Write-Output ('计算引擎：' + $health.engine_version) }
+Write-Output ('运行环境：' + $pythonPath)
+Write-Output ('数据目录：' + (Join-Path $root 'data') + '；退出请双击 停止.bat')
+if (-not $NoBrowser) {
+    try { Start-Process $appUrl -WindowStyle Hidden } catch { Write-Output ('未能自动打开浏览器，请手动访问 ' + $appUrl) }
+}
