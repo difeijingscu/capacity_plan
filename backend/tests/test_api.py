@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
+from app.engine.calculator import ENGINE_VERSION
 from app.main import create_app
 from app.schemas import PlanInput, Scenario, Task
 from app.store import Store
@@ -444,6 +445,20 @@ def test_new_plan_defaults_to_deepseek_v4_flash_in_development(client):
     # 示例方案同样用平台默认模型
     demo=client.post("/api/v1/demo").json()
     assert [m["model_id"] for m in demo["plan"]["payload"]["development"]["models"]]==["deepseek_v4_flash"]
+
+
+def test_demo_refreshes_a_stale_engine_snapshot(client):
+    """示例是给人看口径的：引擎升级后打开示例应补一条当前口径快照，而不是停在旧算法。"""
+    first=client.post("/api/v1/demo").json()
+    plan_id=first["plan"]["id"]
+    assert client.get("/api/v1/plans/"+plan_id).json()["calculations"]==[]
+    client.post("/api/v1/demo")
+    runs=client.get("/api/v1/plans/"+plan_id).json()["calculations"]
+    assert len(runs)==1
+    assert runs[0]["result"]["engine_version"]==ENGINE_VERSION
+    # 已有当前口径快照时不再重复算
+    client.post("/api/v1/demo")
+    assert len(client.get("/api/v1/plans/"+plan_id).json()["calculations"])==1
 
 
 def test_demo_reuses_the_existing_example_project(client):

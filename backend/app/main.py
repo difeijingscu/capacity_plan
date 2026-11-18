@@ -165,6 +165,32 @@ def create_app(data_dir=None):
             raise ValueError("项目名称不能为空")
         return store.replace(project_id,{**record,"name":name,"archived_at":now() if body.get("archived") else None},body.get("expected_revision",record["revision"]))
 
+    def calculation_snapshot(record, catalog, custom_models, custom_chips, params_snapshot, fingerprint=None):
+        """按给定目录与参数量化一次并落库，返回结果快照记录。
+
+        指纹包含 ENGINE_VERSION：引擎升级后同一份 payload 的指纹会变，因此新增一条
+        结果快照而不是复用旧口径那条。示例项目据此自愈（见 demo）。
+        """
+        if fingerprint is None:
+            canonical = json.dumps({"payload": record["payload"], "catalog": catalog, "engine": ENGINE_VERSION,
+                                    "custom_models": custom_models, "custom_chips": custom_chips,
+                                    "params": params_snapshot}, sort_keys=True, ensure_ascii=False)
+            fingerprint = hashlib.sha256(canonical.encode()).hexdigest()
+        report = calculate(PlanInput.model_validate(readable_payload(record["payload"])), catalog, True,
+                           custom_inference_models=custom_models, custom_inference_chips=custom_chips,
+                           params=params_snapshot)
+        # v2.0.0：快照含新目录与生效参数（新口径可复现）；旧快照结构不动
+        return store.insert("calculation", {"plan_id": record["id"], "project_id": record["project_id"],
+                                            "plan_revision": record["revision"], "input_hash": fingerprint,
+                                            "input_snapshot": record["payload"],
+                                            "catalog_snapshot": {"inference_models": inference_catalog.models(),
+                                                                  "inference_chips": inference_catalog.chips(),
+                                                                  "inference_scenes": inference_catalog.scenes(),
+                                                                  "custom_models": custom_models,
+                                                                  "custom_chips": custom_chips,
+                                                                  "params_effective": params_snapshot},
+                                            "result": report, "status": "SUCCEEDED"})
+
     @app.post("/api/v1/demo")
     def demo():
         # 幂等：示例项目只应存在一份。已有未归档的示例方案时直接打开它，避免每点
@@ -174,6 +200,13 @@ def create_app(data_dir=None):
                 continue
             owner = store.get(candidate["project_id"], "project")
             if owner and not owner.get("archived_at"):
+                runs = sorted((r for r in store.list("calculation") if r.get("plan_id") == candidate["id"]),
+                              key=lambda r: r.get("created_at") or "")
+                if not runs or (runs[-1].get("result") or {}).get("engine_version") != ENGINE_VERSION:
+                    # 示例是给人看口径的：引擎升级后旧快照仍是老算法（例如业务池还在乘 20% 余量），
+                    # 打开示例会看到与页面说明矛盾的数字。这里按当前引擎补一条新快照，历史快照保留。
+                    calculation_snapshot(candidate, models(), custom_inference_models(),
+                                         custom_inference_chips(), inference_params.current())
                 return {"project": owner, "plan": candidate, "reused": True}
         catalog = models()
         text_task = suggest_task("知识问答","查询制度与知识",catalog)
@@ -270,12 +303,8 @@ def create_app(data_dir=None):
         if cached:
             return {"run_id":cached["id"],"status":"SUCCEEDED"}
         def work():
-            report=calculate(PlanInput.model_validate(readable_payload(record["payload"])),catalog,True,
-                             custom_inference_models=custom_models,custom_inference_chips=custom_chips,
-                             params=params_snapshot)
-            # v2.0.0：快照含新目录与生效参数（新口径可复现）；旧快照结构不动
-            calculation=store.insert("calculation",{"plan_id":plan_id,"project_id":record["project_id"],"plan_revision":record["revision"],"input_hash":fingerprint,"input_snapshot":record["payload"],"catalog_snapshot":{"inference_models":inference_catalog.models(),"inference_chips":inference_catalog.chips(),"inference_scenes":inference_catalog.scenes(),"custom_models":custom_models,"custom_chips":custom_chips,"params_effective":params_snapshot},"result":report,"status":"SUCCEEDED"})
-            return {"run_id":calculation["id"]}
+            calculation = calculation_snapshot(record, catalog, custom_models, custom_chips, params_snapshot, fingerprint)
+            return {"run_id": calculation["id"]}
         with calculation_lock:
             existing_run=next((r for r in store.list("calculation") if r.get("input_hash")==fingerprint and r["plan_id"]==plan_id and r["plan_revision"]==record["revision"]),None)
             if existing_run:
