@@ -73,27 +73,32 @@ def _cache(model: dict) -> dict:
 
 
 def _model(model: dict, order: int) -> dict:
-    """把业务场景页模型条目翻成模型基线库条目（结构字段直接透传）。"""
+    """把模型基线库种子条目翻成基线记录（结构字段直接透传）。
+
+    `inference` 保留种子的完整页面口径条目：三池页面只认这一份结构，避免基线库
+    再维护一套字段映射后与引擎对不上（见 app/model_registry.py）。
+    """
     total = float(model["total_b"])
     active = float(model["active_b"])
     arch = model.get("arch") or ("MoE" if model.get("experts") else "Dense")
-    attn = model.get("attn_span") or None
+    ctx = model.get("ctx_limit") or model.get("attn_span") or None
     return {
         "id": model["key"],
         "order": order,
         "display_name": model.get("label") or model["key"],
         "publisher": _publisher(model.get("label") or ""),
         "revision": "page-sync-v1",
-        "source_url": SYNC_SOURCE,
-        "checked_at": SYNC_DATE,
-        "license": "未登记",
-        "modalities": ["text"],
+        "source_url": model.get("source_url") or SYNC_SOURCE,
+        "checked_at": model.get("checked_at") or SYNC_DATE,
+        "license": model.get("license") or "未登记",
+        "modalities": list(model.get("modalities") or ["text"]),
         "tasks": ["text"],
         "architecture": arch,
         "resident_parameters": int(total * 1e9),
         "active_parameters_prefill": int(active * 1e9),
-        "active_parameters_decode": int(active * 1e9),
-        "context_limit": attn,
+        # 生成阶段激活参数可与输入不同（如 CED 结构），缺省沿用同一数值
+        "active_parameters_decode": int(float(model.get("active_b_decode") or active) * 1e9),
+        "context_limit": ctx,
         "cache": _cache(model),
         # 结构字段：显存折算按页面同式推导 KV cache（MLA 走低秩维、GQA 走 KV 头数）
         "layers": model.get("layers"), "hid": model.get("hid"),
@@ -102,13 +107,16 @@ def _model(model: dict, order: int) -> dict:
         "latent_dim": model.get("latent_dim"), "rope_dim": model.get("rope_dim"),
         "experts": model.get("experts"), "top_k": model.get("top_k"),
         "gqa_kv_fraction": model.get("gqa_kv_fraction"),
+        "kv_bpt": model.get("kv_bpt"), "kv_bpt_elem_bytes": model.get("kv_bpt_elem_bytes"),
         "flop_per_unit": None,
         "input_size": None,
         "eligible_training_methods": ["lora", "qlora"],
         "evidence_grade": "C",
-        "notes": (
-            f"来自业务场景页模型清单（{model['key']}）：驻留 {total:g}B、激活 {active:g}B、{arch}；"
-            "参数与结构字段与页面同源，未单独核验许可证与权重来源。"
+        # 页面口径原文，供三池读取（model_registry.page_models）
+        "inference": model,
+        "notes": model.get("notes") or (
+            f"来自模型基线库（{model['key']}）：驻留 {total:g}B、激活 {active:g}B、{arch}；"
+            "参数与结构字段与三池页面同源，未单独核验许可证与权重来源。"
         ),
     }
 

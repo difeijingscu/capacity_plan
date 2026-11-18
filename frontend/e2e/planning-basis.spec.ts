@@ -23,10 +23,10 @@ test('无需项目即可阅读规划依据，首页和侧栏入口一致', async
   await expect(page.getByText('ktrain 初始 4，ηtrain 初始 25%。', { exact: false })).toBeVisible();
   await page.getByRole('tab', { name: '依据与来源' }).click();
   await expect(page.getByRole('link', { name: /Scaling Laws/ })).toHaveAttribute('href', /arxiv\.org/);
-  // 模型清单与业务场景页同源：来源不再是外部模型卡，而是页面内规格库
+  // 模型清单直接来自模型基线库：来源不再是外部模型卡，而是基线库记录
   await expect(page.getByRole('cell', { name: 'DeepSeek-V4-Pro（1600B/A49B）' })).toBeVisible();
   const modelRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'DeepSeek-V4-Pro（1600B/A49B）' }) });
-  await expect(modelRow).toContainText('业务场景页规格库');
+  await expect(modelRow).toContainText('模型基线库');
   await expect(modelRow.getByRole('link')).toHaveCount(0);
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await page.getByRole('button', { name: '规划依据', exact: true }).click();

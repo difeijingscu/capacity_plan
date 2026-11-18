@@ -358,7 +358,7 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
       </Tooltip>;
     }
     if (legacy === 'missing') {
-      return <Tooltip title="旧字段里的模型为空或不在推理模型清单中，无法推导等价配置。请在「模型」列选择模型。">
+      return <Tooltip title="旧字段里的模型为空或不在模型基线库中，无法推导等价配置。请在「模型」列选择模型。">
         <Tag color="red">待补模型</Tag>
       </Tooltip>;
     }

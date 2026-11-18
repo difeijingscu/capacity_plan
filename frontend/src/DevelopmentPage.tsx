@@ -303,7 +303,7 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
         <div className="form-grid">
           <div className="field">
             <label>需要微调的模型
-              <Tooltip title="模型清单与业务场景页「场景清单」共用同一份分类（按厂商标识分组，含自定义模型）；本池只规划一个模型。">
+              <Tooltip title="模型清单取自「模型基线库」，与业务场景、创新服务共用同一份分类（按厂商标识分组，含自定义模型）；本池只规划一个模型。">
                 <InfoCircleOutlined aria-hidden="true" />
               </Tooltip>
             </label>

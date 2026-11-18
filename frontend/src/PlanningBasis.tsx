@@ -211,11 +211,11 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
         { title: '类型', dataIndex: 'kind', width: 120 }, { title: '支持的内容与边界', dataIndex: 'purpose' },
       ]} />
     </Card>
-    <Card title="当前模型目录的结构来源">
-      <p className="basis-caption">模型清单与业务场景页同源（32 条 LLM，含参数、层数与注意力结构），本表只做只读展示；如需新增自定义模型，到「基线与设置 → 模型基线库」。</p>
+    <Card title="模型基线库（三池共用）">
+      <p className="basis-caption">模型清单取自「基线与设置 → 模型基线库」，业务场景、创新服务、开发测试三页与推理评估共用这一份（当前 {referenceModels.length} 条，含参数、层数与注意力结构）。本表只做只读展示，新增或修改模型到基线库操作。</p>
       <Table<Obj> rowKey="id" dataSource={referenceModels} pagination={{ pageSize: 6 }} scroll={{ x: 780 }} columns={[
         { title: '模型', dataIndex: 'display_name' }, { title: '固定版本', dataIndex: 'revision', render: (v: string) => <code title={v}>{v?.slice(0, 12)}</code> },
-        { title: '资料核对日期', dataIndex: 'checked_at', width: 135 }, { title: '原始资料', render: (_, m) => m.source_url && m.source_url.startsWith('http') ? <a href={m.source_url} target="_blank" rel="noreferrer">模型卡 / 配置 / 规格 ↗</a> : <span className="muted">业务场景页规格库</span> },
+        { title: '资料核对日期', dataIndex: 'checked_at', width: 135 }, { title: '原始资料', render: (_, m) => m.source_url && m.source_url.startsWith('http') ? <a href={m.source_url} target="_blank" rel="noreferrer">模型卡 / 配置 / 规格 ↗</a> : <span className="muted">模型基线库</span> },
       ]} expandable={{ expandedRowRender: m => <p>{m.notes}</p> }} />
       <p className="basis-caption">参数来源用于解释结构，不能替代真实吞吐测试。MoE 计算使用阶段激活参数，权重显存使用完整驻留口径；上下文配置上限也不等于实际响应保证。</p>
     </Card>

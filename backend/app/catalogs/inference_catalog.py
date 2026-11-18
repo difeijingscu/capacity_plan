@@ -3,7 +3,11 @@
 v2.0.0 切换（docs/切换计划-推理评估逻辑统一-v2.0.md）：页面为唯一数据源。
 - `chips()`：8 张昇腾芯片（910×3 / 950×5，含 family 分组、灵衢互联、板卡级功耗）；
 - `scenes()`：29 档场景（7 分组 + 每档默认模型 default_model_key + hint）；
-- `models()`：32 条模型清单（key 与数值与页面 MODELS 同源）。
+- `models()`：模型清单的**种子**（key 与数值与页面 MODELS 同源）。
+
+2026-11-17 起模型数据源收敛到「模型基线库」：`models()` 只在启动时喂给
+`catalogs.seeds("models")`，运行期一律经 `app.model_registry.page_models()` 从基线库
+读取（三池、推理评估、快照同一份）。增删模型改基线库，不再直接改这里。
 
 数据来源：frontend/public/inference-eval.html（经 tools/gen_catalog_from_page.mjs 生成，
 勿手工增删条目）。纯数据读取，不联网、不写盘，可在测试中直接替换。

@@ -247,3 +247,38 @@ def test_custom_chip_profile_overridable():
     assert eng["mfuP"] == pytest.approx(0.30)
     # 其余字段仍取通用经验值
     assert eng["bwUtilD"] == pytest.approx(engine.CUSTOM_CHIP_PROFILE["bw_decode"])
+
+
+# ---------------------------------------------------------------- 压缩式 KV（V4.1 Flash）
+
+def test_kv_bytes_follow_model_card_when_registered():
+    """模型卡登记了压缩后每 token KV 时，不再按层数 × KV头 × 头维累加。
+
+    DeepSeek-V4.1-Flash 模型卡：FP4 主 KV + CSA2 跨层共享 → 890 B/token
+    （若按 40 层 × 1 KV 头 × 512 头维逐层累加是 40,960 B/token，差 46 倍）。
+    """
+    view = _MODEL_VIEWS["deepseek_v41_flash"]
+    assert engine.kv_per_token_gb(view, 0.5) == pytest.approx(890 / 1e9)
+    # 精度跟着量化档等比放大：W8A8 的 KV 是 1B/元素，登记值是 FP4 的 0.5B
+    assert engine.kv_per_token_gb(view, 1.0) == pytest.approx(1780 / 1e9)
+    assert engine.kv_per_token_gb(view, 2.0) == pytest.approx(3560 / 1e9)
+
+
+def test_kv_node_explains_registered_compression():
+    """推导树要写清「按模型卡登记值换算」，不能让读者以为还是逐层累加。"""
+    node = engine._kv_source_node(_MODEL_VIEWS["deepseek_v41_flash"], 1.0, "W8A8")
+    assert "890" in node["expr"] and "1780" in node["expr"]
+    assert "跨层共享" in node["relation"] or "压缩" in node["relation"]
+    assert "890" in node["note"]
+
+
+def test_v41_flash_estimate_keeps_kv_small_relative_to_weights():
+    """V4.1-Flash 552B 权重是主瓶颈，KV 不应把卡数推到离谱的量级。"""
+    result = engine.estimate(
+        {"model_key": "deepseek_v41_flash", "chip_key": "910c", "scene_key": "rag",
+         "weight_precision": "w8a8", "concurrency": 32,
+         "prompt_len": 2048, "output_len": 512,
+         "ttft_target_ms": 2000, "tpot_target_ms": 50},
+        inference_catalog.models(), inference_catalog.chips(), inference_catalog.scenes())
+    assert result["bottleneck"] == "mem"
+    assert result["cards"] <= 16

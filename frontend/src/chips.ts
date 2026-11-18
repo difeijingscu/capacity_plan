@@ -56,7 +56,7 @@ export const modelGroup = (m: Obj): string =>
  *
  * 分类按厂商标识分组（GLM / Qwen / DeepSeek …），自定义模型单独归到「自定义」。
  * 三处都调这里而不是各写一份 groupOptions，避免同一条模型在不同页面归属不同分组、
- * 或某页漏掉自定义模型。新增模型只需改目录（catalogs/inference_models.json 或登记自定义模型）。
+ * 或某页漏掉自定义模型。模型统一来自模型基线库（设置页维护），页面不再读种子文件。
  */
 export function modelSelectOptions(models: Obj[]): { label: string; options: Obj[] }[] {
   return groupOptions(models, modelGroup,

@@ -87,6 +87,11 @@ def _model_view(m: dict) -> dict:
         "qkHeadDim": m.get("qk_head_dim"),
         "vHeadDim": m.get("v_head_dim"),
         "gqaKvFraction": m.get("gqa_kv_fraction") or 0,
+        # 模型卡直接登记的每 token KV 字节数（如 CSA2/FP4 压缩的跨层共享缓存），
+        # 给了它就覆盖「层数 × KV头 × 头维」的逐层累加；elem 是登记值对应的元素字节数。
+        "kvBpt": m.get("kv_bpt"),
+        "kvBptElem": m.get("kv_bpt_elem_bytes") or 0.5,
+        "ctxLimit": m.get("ctx_limit"),
         "arch": m.get("arch"),
     }
 
@@ -212,10 +217,13 @@ def _eff_span(m: dict, seq_len: float) -> float:
 def kv_per_token_gb(m: dict, kv_bytes: float) -> float:
     """每 token KV 字节数（GB/token）。
 
-    GQA/MHA：2 × 层数 × KV头数 × KV头维 × KV精度字节；
+    模型卡登记了每 token KV（kvBpt）时直接采用，并按当前 KV 精度/登记精度的比例换算；
+    否则 GQA/MHA：2 × 层数 × KV头数 × KV头维 × KV精度字节；
     MLA：层数 × (低秩维 + rope维) × KV精度字节（rope 缺省 64）；
     混合注意力（gqaKvFraction）再乘全注意力层占比。
     """
+    if m.get("kvBpt"):
+        return m["kvBpt"] * (kv_bytes / (m.get("kvBptElem") or 0.5)) / 1e9
     if m.get("latentDim"):
         g = m["lay"] * (m["latentDim"] + (m.get("ropeDim") or 64)) * kv_bytes
     else:
@@ -310,6 +318,21 @@ def _kv_source_node(m: dict, kv_bytes: float, prec_label: str) -> dict:
     """每 token KV 的来源代入式（页面 kvSourceNode 同口径）：还原成「架构参数 × 精度字节」。"""
     rope = m.get("ropeDim") or 64
     frac = m.get("gqaKvFraction") or 0
+    if m.get("kvBpt"):
+        # 跨层共享 / 压缩式 KV（CSA2、FP4 主 KV）：模型卡给的是压缩后的每 token 字节数，
+        # 不能再按层累加，只能按 KV 精度与登记精度的比例换算。
+        native = float(m["kvBpt"])
+        elem = m.get("kvBptElem") or 0.5
+        byte_count = native * (kv_bytes / elem)
+        return _mk_node(
+            "每token KV · 来源",
+            "模型卡登记的压缩后每 token KV × KV精度换算",
+            f"{_jnum(native)} B/tok ÷ {_jnum(elem)}B（登记精度）× {_jnum(kv_bytes)}B = {round(byte_count)} B/tok",
+            _jexp(byte_count / 1e9, 3) + " GB/tok",
+            note=("该模型的 KV 采用跨层共享 / 压缩式布局（如 CSA2 + FP4 主 KV），模型卡直接给出"
+                  f"压缩后 {_jnum(native)} B/token，因此不再按层数 × KV头 × 头维累加；"
+                  f"当前精度档「{prec_label or '量化档'}」按 {_jnum(kv_bytes)}B/元素等比换算。"
+                  "结构与显存口径见底部「延伸阅读」：PagedAttention 2309.06180。"))
     if m.get("latentDim"):
         byte_count = m["lay"] * (m["latentDim"] + rope) * kv_bytes
         relation = "MLA 低秩压缩：层数 × (低秩维 + RoPE维) × KV精度字节"

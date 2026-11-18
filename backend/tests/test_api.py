@@ -129,7 +129,8 @@ def test_model_baseline_mirrors_business_models(client):
         row=listed[key]
         assert row["display_name"]==source["label"]
         assert float(row["resident_parameters"])==pytest.approx(source["total_b"]*1e9,rel=1e-6)
-        assert float(row["active_parameters_decode"])==pytest.approx(source["active_b"]*1e9,rel=1e-6)
+        decode=source.get("active_b_decode") or source["active_b"]
+        assert float(row["active_parameters_decode"])==pytest.approx(decode*1e9,rel=1e-6)
         assert row["layers"]==source["layers"]
         assert row["architecture"]==source["arch"]
     # 设置页与业务页的模型 key 一致（业务页读 /inference/catalog）
@@ -524,3 +525,50 @@ def test_demo_reuses_the_existing_example_project(client):
     third=client.post("/api/v1/demo").json()
     assert third["reused"] is False
     assert third["plan"]["id"]!=first["plan"]["id"]
+
+
+def test_pages_read_models_from_the_baseline_library(client):
+    """三池与推理评估的模型清单直接来自模型基线库记录，不再读种子文件。"""
+    baseline = {m["id"]: m for m in client.get("/api/v1/catalog/models").json()}
+    pages = {m["key"]: m for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert set(pages) == {k for k, m in baseline.items()
+                          if m["status"] == "PUBLISHED" and not m.get("is_demo")}
+    # 合成验收模型留在基线库，但不进三池下拉
+    assert "synthetic-dense-8b" in baseline and "synthetic-dense-8b" not in pages
+
+    store = client.app.state.store
+    new = {**baseline["qwen3_8b"], "display_name": "基线库新增模型",
+           "inference": {**baseline["qwen3_8b"]["inference"], "key": "baseline_added",
+                         "label": "基线库新增模型"}}
+    new.pop("id", None)
+    store.insert("model", {**new, "status": "PUBLISHED"}, "baseline_added")
+    pages = {m["key"]: m for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert pages["baseline_added"]["label"] == "基线库新增模型"
+
+    # 基线库改名，三页跟着改
+    store.replace("baseline_added", {**store.get("baseline_added", "model"),
+                                     "display_name": "改名后的模型"}, store.get("baseline_added", "model")["record_revision"])
+    pages = {m["key"]: m for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert pages["baseline_added"]["label"] == "改名后的模型"
+
+    # 退役后从三池消失，但记录保留
+    store.replace("baseline_added", {**store.get("baseline_added", "model"), "status": "RETIRED"},
+                  store.get("baseline_added", "model")["record_revision"])
+    assert "baseline_added" not in {m["key"] for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert store.get("baseline_added", "model")["status"] == "RETIRED"
+
+
+def test_deepseek_v41_flash_models_are_in_the_baseline_library(client):
+    """新增的两个 V4.1 Flash 模型在基线库与三页清单同时可见，结构取自官方 config。"""
+    baseline = {m["id"]: m for m in client.get("/api/v1/catalog/models").json()}
+    pages = {m["key"]: m for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    for key in ("deepseek_v41_flash", "deepseek_v41_flash_1017"):
+        assert key in baseline and key in pages
+        row, page = baseline[key], pages[key]
+        assert row["resident_parameters"] == 552 * 10**9
+        assert row["context_limit"] == 1048576        # 1M 上下文
+        assert row["cache"]["layers"] == 40
+        assert page["total_b"] == 552 and page["layers"] == 40
+        assert page["experts"] == 384 and page["top_k"] == 6
+        assert page["kv_bpt"] == 890 and page["kv_bpt_elem_bytes"] == 0.5
+        assert page["source_url"].startswith("https://huggingface.co/deepseek-ai/")

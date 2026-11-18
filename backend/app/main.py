@@ -22,6 +22,7 @@ from app.assistant import Proposal, ask_provider, check_changes, local_proposal
 from app.derivations import build_derivation
 from app.catalogs import seeds, superseded
 from app.catalogs import inference_catalog
+from app import model_registry
 from app.engine.calculator import ENGINE_VERSION, CalculationIssue, calculate, clean, cost_estimate, resolved, INTENSITIES, TEMPLATES
 from app.engine import inference as inference_engine
 from app.engine import params as inference_params
@@ -88,6 +89,10 @@ def create_app(data_dir=None):
 
     def models():
         return [m for m in store.list("model") if m.get("status")=="PUBLISHED"]
+
+    def page_models():
+        """三池与推理评估共用的模型清单：一律从模型基线库读取，不再直连种子文件。"""
+        return model_registry.page_models(store.list("model"))
 
     def plan_record(key):
         return need(key,"plan")
@@ -180,13 +185,14 @@ def create_app(data_dir=None):
                                     "params": params_snapshot}, sort_keys=True, ensure_ascii=False)
             fingerprint = hashlib.sha256(canonical.encode()).hexdigest()
         report = calculate(PlanInput.model_validate(readable_payload(record["payload"])), catalog, True,
+                           inference_models=page_models(),
                            custom_inference_models=custom_models, custom_inference_chips=custom_chips,
                            params=params_snapshot)
         # v2.0.0：快照含新目录与生效参数（新口径可复现）；旧快照结构不动
         return store.insert("calculation", {"plan_id": record["id"], "project_id": record["project_id"],
                                             "plan_revision": record["revision"], "input_hash": fingerprint,
                                             "input_snapshot": record["payload"],
-                                            "catalog_snapshot": {"inference_models": inference_catalog.models(),
+                                            "catalog_snapshot": {"inference_models": page_models(),
                                                                   "inference_chips": inference_catalog.chips(),
                                                                   "inference_scenes": inference_catalog.scenes(),
                                                                   "custom_models": custom_models,
@@ -281,6 +287,7 @@ def create_app(data_dir=None):
         if body.get("plan_revision",record["revision"]) != record["revision"]:
             raise RevisionConflict(plan_id)
         report=calculate(PlanInput.model_validate(record["payload"]),models(),
+                         inference_models=page_models(),
                          custom_inference_models=custom_inference_models(),
                          custom_inference_chips=custom_inference_chips(),
                          params=inference_params.current())
@@ -321,6 +328,7 @@ def create_app(data_dir=None):
     @app.post("/api/v1/preview-calculation")
     def preview_calculation(body:dict):
         return calculate(PlanInput.model_validate(body["payload"]),models(),
+                         inference_models=page_models(),
                          custom_inference_models=custom_inference_models(),
                          custom_inference_chips=custom_inference_chips(),
                          params=inference_params.current())
@@ -468,7 +476,8 @@ def create_app(data_dir=None):
         """推理评估所需的全部模板：模型结构、芯片规格、场景档位、档位定义。"""
         tiers = inference_params.current().get("tiers") or {}
         return {
-            "models": inference_catalog.models(),
+            # 三池页面与推理评估页共用模型基线库这一份清单
+            "models": page_models(),
             "custom_models": custom_inference_models(),
             "chips": inference_catalog.chips(),
             "custom_chips": custom_inference_chips(),
@@ -488,7 +497,7 @@ def create_app(data_dir=None):
         try:
             result = inference_engine.estimate(
                 request.to_engine(),
-                inference_catalog.models() + custom_inference_models(),
+                page_models() + custom_inference_models(),
                 inference_catalog.chips() + custom_inference_chips(),
                 inference_catalog.scenes(),
                 request.profile,
@@ -502,8 +511,8 @@ def create_app(data_dir=None):
     def inference_model_create(body: dict):
         """登记自定义模型结构，供清单外模型复用。"""
         data = InferenceModelInput.model_validate(body)
-        if inference_catalog.find_model(data.key):
-            raise ValueError("该模型标识已存在于内置清单，请换一个标识")
+        if model_registry.find(store.list("model"), data.key):
+            raise ValueError("该模型标识已在模型基线库中，请换一个标识")
         existing = next((m for m in store.list("inference-model") if m["id"] == data.key), None)
         if existing:
             raise ValueError("该自定义模型已登记，可直接选用")

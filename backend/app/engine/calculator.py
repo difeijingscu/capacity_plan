@@ -115,7 +115,7 @@ def inference_model_view(m: dict) -> dict:
         "active_parameters_decode": active,
         "active_parameters_train": active,
         "resident_parameters": D(m["total_b"]) * D("1e9"),
-        "context_limit": D(m["attn_span"]) if m.get("attn_span") else None,
+        "context_limit": D(m.get("ctx_limit") or m["attn_span"]) if (m.get("ctx_limit") or m.get("attn_span")) else None,
         # 结构字段：供 memory_for 按页面公式推导 KV cache
         "layers": m.get("layers"), "hid": m.get("hid"), "heads": m.get("heads"),
         "kv_heads": m.get("kv_heads"), "head_dim": m.get("head_dim"),

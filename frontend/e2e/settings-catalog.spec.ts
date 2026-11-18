@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * 基线与设置页的两份全局数据都必须与业务场景页同源：
- * 模型基线库 = 32 条 LLM，参考卡 = 8 张昇腾卡（含页面登记的参考单价）。
+ * 基线与设置页是全局数据的唯一入口：
+ * 模型基线库 = 34 条 LLM（三池与推理评估共用），参考卡 = 8 张昇腾卡（含页面登记的参考单价）。
  */
-test('基线与设置：模型基线库与参考卡取自业务场景页目录', async ({ page }) => {
+test('基线与设置：模型基线库与参考卡', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
@@ -12,7 +12,7 @@ test('基线与设置：模型基线库与参考卡取自业务场景页目录',
   await page.getByRole('button', { name: '基线与设置', exact: true }).click();
 
   const pane = page.locator('.ant-tabs-tabpane-active');
-  // 目录从 9 条训练基线换成页面同源的 32 条 + 1 条合成验收模型：10 条/页共 4 页
+  // 34 条模型 + 1 条合成验收模型：10 条/页共 4 页（末页 5 条）
   await expect(pane.locator('.ant-table-tbody tr.ant-table-row')).toHaveCount(10);
   await expect(pane.locator('.ant-pagination-item')).toHaveCount(4);
   // 表格按登记时间倒序，逐页收集后核对总量与关键条目
@@ -21,11 +21,16 @@ test('基线与设置：模型基线库与参考卡取自业务场景页目录',
     await pane.locator('.ant-pagination-item').nth(i).click();
     rows.push(...await pane.locator('.ant-table-tbody tr.ant-table-row').allInnerTexts());
   }
-  expect(rows).toHaveLength(33);
+  expect(rows).toHaveLength(35);
   const pro = rows.find(r => r.includes('DeepSeek-V4-Pro（1600B/A49B）'));
   expect(pro).toBeTruthy();
   // 结构列来自页面：层数、注意力形态（该模型无 latent_dim，页面按 GQA 的 KV 头维口径计算）
   expect(pro).toContain('MoE · 61 层 · GQA');
+  // 新增的两条 V4.1 Flash：40 层、1M 上下文、按模型卡登记值走压缩 KV
+  const v41 = rows.filter(r => r.includes('DeepSeek-V4.1-Flash'));
+  expect(v41).toHaveLength(2);
+  expect(v41.every(r => r.includes('MoE · 40 层 · 压缩KV'))).toBe(true);
+  expect(v41.every(r => r.includes('1 M'))).toBe(true);
   // 旧的训练基线目录不再出现
   expect(rows.some(r => r.includes('YOLO'))).toBe(false);
 
