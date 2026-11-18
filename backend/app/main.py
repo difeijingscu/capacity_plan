@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from app.assistant import Proposal, ask_provider, check_changes, local_proposal
 from app.derivations import build_derivation
-from app.catalogs import seeds
+from app.catalogs import seeds, superseded
 from app.catalogs import inference_catalog
 from app.engine.calculator import ENGINE_VERSION, CalculationIssue, calculate, clean, cost_estimate, resolved, INTENSITIES, TEMPLATES
 from app.engine import inference as inference_engine
@@ -35,8 +35,8 @@ PROJECT_ROOT = ROOT.parent
 
 def create_app(data_dir=None):
     store = Store(data_dir or os.getenv("PLANNER_DATA_DIR", str(PROJECT_ROOT/"data")))
-    store.publish_seeds("model", seeds("models"))
-    store.publish_seeds("card", seeds("cards"))
+    store.publish_seeds("model", seeds("models"), superseded("models"))
+    store.publish_seeds("card", seeds("cards"), superseded("cards"))
     store.recover()
     saved_params = store.get("active", "inference-params")
     # 覆盖层含旧结构（v1）时 params.load 内部自动迁移进 v2 结构并记日志

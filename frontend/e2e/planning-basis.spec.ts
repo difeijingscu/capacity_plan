@@ -23,10 +23,11 @@ test('无需项目即可阅读规划依据，首页和侧栏入口一致', async
   await expect(page.getByText('ktrain 初始 4，ηtrain 初始 25%。', { exact: false })).toBeVisible();
   await page.getByRole('tab', { name: '依据与来源' }).click();
   await expect(page.getByRole('link', { name: /Scaling Laws/ })).toHaveAttribute('href', /arxiv\.org/);
-  await page.locator('.planning-basis .ant-pagination-next button').click();
-  await expect(page.getByRole('cell', { name: 'Qwen3-8B', exact: true })).toBeVisible();
-  const modelRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Qwen3-8B', exact: true }) });
-  await expect(modelRow.getByRole('link')).toHaveAttribute('href', /b968826d9c46dd6066d109eabc6255188de91218/);
+  // 模型清单与业务场景页同源：来源不再是外部模型卡，而是页面内规格库
+  await expect(page.getByRole('cell', { name: 'DeepSeek-V4-Pro（1600B/A49B）' })).toBeVisible();
+  const modelRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'DeepSeek-V4-Pro（1600B/A49B）' }) });
+  await expect(modelRow).toContainText('业务场景页规格库');
+  await expect(modelRow.getByRole('link')).toHaveCount(0);
   await page.getByRole('button', { name: '项目概览', exact: true }).click();
   await page.getByRole('button', { name: '规划依据', exact: true }).click();
   await expect(page.getByRole('heading', { name: '规划依据', exact: true })).toBeVisible();

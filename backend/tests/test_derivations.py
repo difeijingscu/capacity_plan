@@ -76,7 +76,7 @@ def tree_child(node, label):
 
 
 def test_innovation_large_quota_matches_26p_snapshot(client):
-    model = next(m for m in seeds("models") if m["id"] == "deepseek-v4-flash")
+    model = next(m for m in seeds("models") if m["id"] == "deepseek_v4_flash")
     payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=50_000_000,
                                             allocations=[Allocation(model_id=model["id"], share=1)]))
     run = save_run(client, payload, [model])
@@ -214,13 +214,13 @@ def test_legacy_innovation_tree_keeps_margin_and_redundancy_wording():
 
 
 def test_non_llm_scenarios_are_blocked_with_reasons(client):
-    cv = next(m for m in seeds("models") if m["id"] == "yolo26s")
+    # v2.0.0 起目录里只有 LLM，CV 模型不再登记；用合成模型配 cv 任务即可触发同一分支。
     payload = PlanInput(scenarios=[
-        Scenario(name="检测", components=[Task(task_type="cv", model_id=cv["id"], online_users=100, request_rate=9)]),
+        Scenario(name="检测", components=[Task(task_type="cv", model_id=SYNTHETIC["id"], online_users=100, request_rate=9)]),
         Scenario(name="未知任务", components=[Task(task_type="unit", units_per_second=3)]),
         Scenario(name="未映射", components=[Task(task_type="native", native_capacity=5, native_precision="INT8")]),
     ])
-    run = save_run(client, payload, [cv])
+    run = save_run(client, payload, [SYNTHETIC])
     explanation = get(client, run, "business")
     assert explanation["completeness"] == "BLOCKED"
     assert len(explanation["missing_items"]) == 3

@@ -72,10 +72,37 @@ class Store:
                 raise RevisionConflict(key)
         return self.get(key)
 
-    def publish_seeds(self, kind, values):
+    # 目录种子的比对口径：这些字段由存储层维护，不参与「内容是否变化」的判定
+    SYSTEM_FIELDS = ("status", "created_at", "updated_at", "record_revision")
+
+    def publish_seeds(self, kind, values, superseded=()):
+        """目录种子：不存在则插入，内容变了就地更新，废弃条目删除。
+
+        目录改成由业务场景页派生后，种子内容会随页面数据一起变；只在首次插入
+        会让老库永远停在旧目录上。这里按内容比对更新，并保留本地改过的 status
+        （已退役的不复活）。superseded 列的是被取代的旧条目，直接删除种子记录。
+        """
         for value in values:
-            if not self.get(value["id"]):
-                self.insert(kind, {**value, "status": "PUBLISHED"}, value["id"])
+            current = self.get(value["id"], kind)
+            body = {**value, "status": (current or {}).get("status", "PUBLISHED")}
+            if current is None:
+                self.insert(kind, body, value["id"])
+            elif not self.same(current, body):
+                self.replace(value["id"], body)
+        for key in superseded:
+            if self.get(key, kind):
+                self.delete(key, kind)
+
+    def same(self, current, body):
+        """按新种子里的键逐项比对：存储层字段与存储记录版本号不参与。"""
+        return all(current.get(k) == v for k, v in body.items() if k not in self.SYSTEM_FIELDS)
+
+    def delete(self, key, kind=None):
+        with self.engine.begin() as conn:
+            query = self.records.delete().where(self.records.c.id == key)
+            if kind:
+                query = query.where(self.records.c.kind == kind)
+            return conn.execute(query).rowcount
 
     def recover(self):
         for job in self.list("job"):

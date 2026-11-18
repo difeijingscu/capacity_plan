@@ -51,7 +51,8 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
 
   const percent = (value: unknown) => value == null ? '以当前配置为准' : num(Number(value) * 100) + '%';
   const value = (raw: unknown, fallback: string) => raw == null ? fallback : num(Number(raw), 4);
-  const referenceModels = models.filter(m => !m.is_demo);
+  // 按页面清单顺序展示（接口按登记时间倒序返回），与业务场景页的模型下拉一致
+  const referenceModels = models.filter(m => !m.is_demo).sort((a, b) => ((a as Obj).order ?? 1e9) - ((b as Obj).order ?? 1e9));
   const presetRows = Object.entries(defaults.templates || {}).map(([key, item]) => {
     const names: Obj = { qa: '知识问答', extract: '抽取/分类', document: '文档分析', report: '长报告/复杂推理', vision: '图文问答' };
     return { id: key, name: names[key] || key, ...(item as Obj) };
@@ -211,9 +212,10 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
       ]} />
     </Card>
     <Card title="当前模型目录的结构来源">
+      <p className="basis-caption">模型清单与业务场景页同源（32 条 LLM，含参数、层数与注意力结构），本表只做只读展示；如需新增自定义模型，到「基线与设置 → 模型基线库」。</p>
       <Table<Obj> rowKey="id" dataSource={referenceModels} pagination={{ pageSize: 6 }} scroll={{ x: 780 }} columns={[
         { title: '模型', dataIndex: 'display_name' }, { title: '固定版本', dataIndex: 'revision', render: (v: string) => <code title={v}>{v?.slice(0, 12)}</code> },
-        { title: '资料核对日期', dataIndex: 'checked_at', width: 135 }, { title: '原始资料', render: (_, m) => <a href={m.source_url} target="_blank" rel="noreferrer">模型卡 / 配置 / 规格 ↗</a> },
+        { title: '资料核对日期', dataIndex: 'checked_at', width: 135 }, { title: '原始资料', render: (_, m) => m.source_url && m.source_url.startsWith('http') ? <a href={m.source_url} target="_blank" rel="noreferrer">模型卡 / 配置 / 规格 ↗</a> : <span className="muted">业务场景页规格库</span> },
       ]} expandable={{ expandedRowRender: m => <p>{m.notes}</p> }} />
       <p className="basis-caption">参数来源用于解释结构，不能替代真实吞吐测试。MoE 计算使用阶段激活参数，权重显存使用完整驻留口径；上下文配置上限也不等于实际响应保证。</p>
     </Card>

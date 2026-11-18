@@ -49,7 +49,9 @@ def suggest_task(name, description, models):
     else:
         kind = "text"
         template = "report" if "报告" in combined else "document" if "文档" in combined else "extract" if re.search("分类|抽取", combined) else "qa"
-    preferred = {"text": "qwen3.6-35b-a3b", "vlm": "qwen3.6-27b", "cv": "yolo26s"}.get(kind)
+    # 模型标识与业务场景页目录同源（inference_models.json 的 key）；CV 已在 v2.0.0 移除，
+    # 这里不给 CV 预设模型，让场景显式报「待补模型」而不是悄悄换成文本模型。
+    preferred = {"text": "qwen36_35b_a3b", "vlm": "qwen38_27b"}.get(kind)
     eligible = [m for m in models if kind in m.get("tasks", []) and not m.get("is_demo") and m.get("status") == "PUBLISHED"]
     chosen = next((m for m in eligible if m["id"].lower() == preferred), eligible[0] if eligible else None)
     return Task(task_type=kind, template=template, model_id=chosen["id"] if chosen else None)

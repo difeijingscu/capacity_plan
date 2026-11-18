@@ -181,9 +181,8 @@ def test_golden_development():
 
 def test_non_llm_scenario_is_reported_not_guessed():
     """视频检测/批量任务已在 v2.0.0 移除：进 missing_items 报 MODEL_RETIRED，不按默认档硬算。"""
-    cv_model=next(m for m in seeds("models") if m["id"]=="yolo26s")
     config=legacy_plan(legacy_task(),Task(model_id="yolo26s",task_type="cv",streams=10,analysis_fps=5),innovation=innovation(),development=dev())
-    report=calculate(config,[SYNTHETIC,cv_model],custom_inference_models=[as_inference(SYNTHETIC)])
+    report=calculate(config,[SYNTHETIC],custom_inference_models=[as_inference(SYNTHETIC)])
     codes=[m["code"] for m in report["missing_items"] if m["pool_id"]=="business"]
     assert "MODEL_RETIRED" in codes
     assert report["completeness"]=="PARTIAL"

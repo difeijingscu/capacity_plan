@@ -118,6 +118,54 @@ def test_calculation_cache_idempotent(client):
     assert first["id"]==second["id"]
 
 
+def test_model_baseline_mirrors_business_models(client):
+    """模型基线库与业务场景页模型清单逐字段同源，不再维护第二份模型目录。"""
+    from app.catalogs import inference_catalog
+    page={m["key"]:m for m in inference_catalog.models()}
+    models=client.get("/api/v1/catalog/models").json()
+    listed={m["id"]:m for m in models}
+    assert set(page)<=set(listed), "业务场景页的模型必须全部出现在模型基线库"
+    for key,source in page.items():
+        row=listed[key]
+        assert row["display_name"]==source["label"]
+        assert float(row["resident_parameters"])==pytest.approx(source["total_b"]*1e9,rel=1e-6)
+        assert float(row["active_parameters_decode"])==pytest.approx(source["active_b"]*1e9,rel=1e-6)
+        assert row["layers"]==source["layers"]
+        assert row["architecture"]==source["arch"]
+    # 设置页与业务页的模型 key 一致（业务页读 /inference/catalog）
+    business={m["key"] for m in client.get("/api/v1/inference/catalog").json()["models"]}
+    assert business==set(page)
+
+
+def test_reference_cards_mirror_business_chips(client):
+    """参考卡与报价取业务场景页的昇腾卡：BF16 由 T 折算 P，单价取登记参考价。"""
+    from app.catalogs import inference_catalog
+    chips={c["key"]:c for c in inference_catalog.chips()}
+    cards={c["id"]:c for c in client.get("/api/v1/catalog/cards").json()}
+    assert set(cards)==set(chips)
+    for key,chip in chips.items():
+        card=cards[key]
+        assert card["name"]==chip["label"]
+        assert card["memory_gb"]==chip["memory_gb"]
+        assert card["dense_p16"]==pytest.approx(chip["bf16_tflops"]/1000,rel=1e-6)
+        assert card["ref_price_wan"]==chip["ref_price_wan"]
+
+
+def test_catalog_seeds_refresh_and_drop_superseded(tmp_path):
+    """旧库：种子按内容更新、被取代的条目清掉，用户自己新增的模型不动。"""
+    first=create_app(tmp_path)
+    first.state.store.insert("model",{"display_name":"本地新增","status":"PUBLISHED"}, "local-model-x")
+    first.state.store.insert("card",{"id":"l40s","name":"旧参考卡"}, "l40s")
+    stale=first.state.store.get("qwen3_8b","model")
+    first.state.store.replace("qwen3_8b",{**stale,"resident_parameters":1})
+    with TestClient(create_app(tmp_path)) as client:
+        models={m["id"]:m for m in client.get("/api/v1/catalog/models").json()}
+        cards={c["id"]:c for c in client.get("/api/v1/catalog/cards").json()}
+    assert "l40s" not in cards
+    assert "local-model-x" in models
+    assert float(models["qwen3_8b"]["resident_parameters"])>1e9
+
+
 def test_model_publish_does_not_rewrite_history(client):
     p=make_plan(client);old=run(client,p)
     models=client.get("/api/v1/catalog/models").json()

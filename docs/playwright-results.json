@@ -3,8 +3,7 @@
     "argv": [
       "C:\\Users\\difeijing\\.workbuddy\\binaries\\node\\versions\\22.22.2-6\\node.exe",
       "D:\\10.Coding\\ComputePlanner\\frontend\\node_modules\\@playwright\\test\\cli.js",
-      "test",
-      "e2e/planning-basis.spec.ts"
+      "test"
     ],
     "configFile": "D:\\10.Coding\\ComputePlanner\\frontend\\playwright.config.ts",
     "rootDir": "D:/10.Coding/ComputePlanner/frontend/e2e",
@@ -102,11 +101,663 @@
       "timeout": 30000,
       "reuseExistingServer": false,
       "env": {
-        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794971735826"
+        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794974477701"
       }
     }
   },
   "suites": [
+    {
+      "title": "calculation-derivation.spec.ts",
+      "file": "calculation-derivation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "四张容量卡片展示真实代入过程及研发最大任务聚合",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7064,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:22.760Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-8e0f29785af663f5aac6",
+          "file": "calculation-derivation.spec.ts",
+          "line": 26,
+          "column": 1
+        },
+        {
+          "title": "创新和研发配置页可展开最近测算的杜邦树",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4766,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:30.255Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-5dcf13a04ec60e8b20f1",
+          "file": "calculation-derivation.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "修改输入后推导保留历史口径，重新测算后展示新输入",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5832,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:35.042Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-e4558c7396c5254a1d1f",
+          "file": "calculation-derivation.spec.ts",
+          "line": 104,
+          "column": 1
+        },
+        {
+          "title": "缺失任务和未启用资源池说明清楚，手机抽屉可阅读",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3581,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:40.891Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "efb813057c26d203475a-81c152d96e634961c6d4",
+          "file": "calculation-derivation.spec.ts",
+          "line": 133,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "inference-params.spec.ts",
+      "file": "inference-params.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "推理参数：显示默认值、保存覆盖值并恢复默认",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2980,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:44.517Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "76979da560898bca3fa7-6db0997f6cfe70711aa5",
+          "file": "inference-params.spec.ts",
+          "line": 13,
+          "column": 1
+        },
+        {
+          "title": "推理参数改动影响引擎出卡",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2179,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:47.518Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "76979da560898bca3fa7-63e3df3007c5121d2f4b",
+          "file": "inference-params.spec.ts",
+          "line": 52,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "inference.spec.ts",
+      "file": "inference.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "推理评估：侧栏入口分隔且带小字标注",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 926,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:49.729Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-04930ef8929ff4938412",
+          "file": "inference.spec.ts",
+          "line": 25,
+          "column": 1
+        },
+        {
+          "title": "推理评估：预置场景出卡数，汇总与明细可读",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2172,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:50.672Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-28fa5113f9af56a116c5",
+          "file": "inference.spec.ts",
+          "line": 44,
+          "column": 1
+        },
+        {
+          "title": "推理评估：添加并删除场景行",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2165,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:52.863Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-1adcb2e68a3b9c169f18",
+          "file": "inference.spec.ts",
+          "line": 67,
+          "column": 1
+        },
+        {
+          "title": "推理评估：切换算力卡后卡数与统计更新",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1649,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:55.050Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-48419cba5784922dd4b4",
+          "file": "inference.spec.ts",
+          "line": 85,
+          "column": 1
+        },
+        {
+          "title": "推理评估：展开计算过程可见杜邦式拆解",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1892,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:56.714Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5df9f794228634c72dd0-10119d9bbe1910420a6c",
+          "file": "inference.spec.ts",
+          "line": 102,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "navigation.spec.ts",
+      "file": "navigation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "侧栏默认展开算力规划，七个二级入口齐全且已路由",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1123,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:58.644Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d2868f7d23420c27cca-8b706f184c542fdc859e",
+          "file": "navigation.spec.ts",
+          "line": 14,
+          "column": 1
+        },
+        {
+          "title": "机房布局展开后二级入口完成路由",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 16411,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:01:59.783Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d2868f7d23420c27cca-9dbd6a07ef7a30d9d6d4",
+          "file": "navigation.spec.ts",
+          "line": 44,
+          "column": 1
+        },
+        {
+          "title": "机柜布局与 ROI 分析为单页大类，机柜进入嵌入工具页、ROI 进入占位页",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2022,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:16.213Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d2868f7d23420c27cca-63923edec5e848f258d1",
+          "file": "navigation.spec.ts",
+          "line": 104,
+          "column": 1
+        },
+        {
+          "title": "从机房布局跳回算力规划会自动展开分组",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1794,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:18.253Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d2868f7d23420c27cca-277d671b9c62ff5ce4a5",
+          "file": "navigation.spec.ts",
+          "line": 132,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "planner.spec.ts",
+      "file": "planner.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "完整规划：示例、编辑、保存、计算、依据、费用和历史对比",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 10483,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:20.083Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d42237028e62295b8dc-a0987dd79d3680379344",
+          "file": "planner.spec.ts",
+          "line": 19,
+          "column": 1
+        },
+        {
+          "title": "文字导入、缺失任务与手动流程",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5911,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:30.587Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d42237028e62295b8dc-9f43d9346d7e5f0e1a0b",
+          "file": "planner.spec.ts",
+          "line": 67,
+          "column": 1
+        },
+        {
+          "title": "移动端可访问且没有横向页面溢出",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 955,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:36.518Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "5d42237028e62295b8dc-75c618eb593fda96b015",
+          "file": "planner.spec.ts",
+          "line": 92,
+          "column": 1
+        }
+      ]
+    },
     {
       "title": "planning-basis.spec.ts",
       "file": "planning-basis.spec.ts",
@@ -129,12 +780,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3182,
+                  "duration": 1892,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T03:15:40.213Z",
+                  "startTime": "2026-11-18T04:02:37.505Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -163,12 +814,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 3041,
+                  "duration": 2778,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T03:15:43.803Z",
+                  "startTime": "2026-11-18T04:02:39.416Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -178,7 +829,7 @@
           ],
           "id": "4901a388905384d88a3e-32afa92449f3a8e51380",
           "file": "planning-basis.spec.ts",
-          "line": 36,
+          "line": 37,
           "column": 1
         },
         {
@@ -197,12 +848,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1854,
+                  "duration": 1486,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T03:15:46.868Z",
+                  "startTime": "2026-11-18T04:02:42.209Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -212,7 +863,159 @@
           ],
           "id": "4901a388905384d88a3e-7869489bd4bb9ea2c6fa",
           "file": "planning-basis.spec.ts",
-          "line": 54,
+          "line": 55,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "planning-organization.spec.ts",
+      "file": "planning-organization.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "概览两个说明入口平级，组织设计无需项目即可阅读并可返回",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1879,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:43.728Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3037cb8f4a7b7c1ffd0f-4f97c7c1f0e19b5d7a86",
+          "file": "planning-organization.spec.ts",
+          "line": 3,
+          "column": 1
+        },
+        {
+          "title": "阅读组织设计保留当前方案的未保存内容",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2356,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:45.626Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3037cb8f4a7b7c1ffd0f-54f0e487c27807588d19",
+          "file": "planning-organization.spec.ts",
+          "line": 29,
+          "column": 1
+        },
+        {
+          "title": "窄屏组织关系图和说明表格不撑开页面",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1334,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:47.995Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "3037cb8f4a7b7c1ffd0f-ef9be8d5f85ac54d924a",
+          "file": "planning-organization.spec.ts",
+          "line": 44,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "settings-catalog.spec.ts",
+      "file": "settings-catalog.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "基线与设置：模型基线库与参考卡取自业务场景页目录",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1827,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T04:02:49.355Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "1d977562c8394c5b92c6-48d820d47f09b592d1d5",
+          "file": "settings-catalog.spec.ts",
+          "line": 7,
           "column": 1
         }
       ]
@@ -220,9 +1023,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-18T03:15:35.833Z",
-    "duration": 14163.108,
-    "expected": 3,
+    "startTime": "2026-11-18T04:01:17.721Z",
+    "duration": 95307.785,
+    "expected": 25,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0
