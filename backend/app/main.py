@@ -26,7 +26,7 @@ from app.engine.calculator import ENGINE_VERSION, CalculationIssue, calculate, c
 from app.engine import inference as inference_engine
 from app.engine import params as inference_params
 from app.imports import preview, suggest_task
-from app.schemas import DEFAULT_MODEL, BusinessDefaults, Development, InferenceChipInput, InferenceModelInput, InferenceRequest, PlanInput, Scenario, Task, prune_payload
+from app.schemas import DEFAULT_MODEL, BusinessDefaults, Development, InferenceChipInput, InferenceModelInput, InferenceRequest, Innovation, PlanInput, Scenario, Task, prune_payload
 from app.store import RevisionConflict, Store, now
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,6 +130,10 @@ def create_app(data_dir=None):
             "templates":TEMPLATES,
             "task_defaults":Task().model_dump(mode="json",exclude={"id","provenance"}),
             "development_defaults":Development().model_dump(mode="json",exclude={"models"}),
+            # 三个池的方案级默认值：规划依据页直接读这里展示「新建方案默认用什么」，
+            # 不再把 22 日 / 8 小时 / 3 倍 / W8A8 之类写死在说明页上。
+            "business_defaults":BusinessDefaults().model_dump(mode="json"),
+            "innovation_defaults":Innovation().model_dump(mode="json"),
             # 显存预留已停用（v2.0.5）、方案余量已停用（v2.2.0），两者都不再作为可配置默认值下发。
             "intensities":INTENSITIES,
             "defaults_version": inference_params.version(),

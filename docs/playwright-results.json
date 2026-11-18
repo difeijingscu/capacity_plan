@@ -4,7 +4,7 @@
       "C:\\Users\\difeijing\\.workbuddy\\binaries\\node\\versions\\22.22.2-6\\node.exe",
       "D:\\10.Coding\\ComputePlanner\\frontend\\node_modules\\@playwright\\test\\cli.js",
       "test",
-      "e2e/_tmp_visual.spec.ts"
+      "e2e/planning-basis.spec.ts"
     ],
     "configFile": "D:\\10.Coding\\ComputePlanner\\frontend\\playwright.config.ts",
     "rootDir": "D:/10.Coding/ComputePlanner/frontend/e2e",
@@ -102,19 +102,19 @@
       "timeout": 30000,
       "reuseExistingServer": false,
       "env": {
-        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794970578564"
+        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794971735826"
       }
     }
   },
   "suites": [
     {
-      "title": "_tmp_visual.spec.ts",
-      "file": "_tmp_visual.spec.ts",
+      "title": "planning-basis.spec.ts",
+      "file": "planning-basis.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [
         {
-          "title": "visual check of innovation and development pages",
+          "title": "无需项目即可阅读规划依据，首页和侧栏入口一致",
           "ok": true,
           "tags": [],
           "tests": [
@@ -129,12 +129,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5418,
+                  "duration": 3182,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-18T02:56:21.806Z",
+                  "startTime": "2026-11-18T03:15:40.213Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -142,9 +142,77 @@
               "status": "expected"
             }
           ],
-          "id": "855503f05057b894eb38-fa5bbb282c38b453afca",
-          "file": "_tmp_visual.spec.ts",
+          "id": "4901a388905384d88a3e-1e37a1339ae4cebcedce",
+          "file": "planning-basis.spec.ts",
           "line": 3,
+          "column": 1
+        },
+        {
+          "title": "业务场景移除助手并使用全宽，切换规划依据保留未保存输入",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3041,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T03:15:43.803Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "4901a388905384d88a3e-32afa92449f3a8e51380",
+          "file": "planning-basis.spec.ts",
+          "line": 36,
+          "column": 1
+        },
+        {
+          "title": "规划依据在窄屏可阅读，公式与表格不撑开页面",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1854,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-18T03:15:46.868Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "4901a388905384d88a3e-7869489bd4bb9ea2c6fa",
+          "file": "planning-basis.spec.ts",
+          "line": 54,
           "column": 1
         }
       ]
@@ -152,9 +220,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-18T02:56:18.568Z",
-    "duration": 10016.211,
-    "expected": 1,
+    "startTime": "2026-11-18T03:15:35.833Z",
+    "duration": 14163.108,
+    "expected": 3,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

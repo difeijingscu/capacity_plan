@@ -7,11 +7,12 @@ test('无需项目即可阅读规划依据，首页和侧栏入口一致', async
   await page.getByRole('button', { name: '规划思路和依据' }).click();
   await expect(page.getByRole('heading', { name: '规划依据', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: '整体规划思路' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('C总建议 = C业务建议 + C创新建议 + C研发建议')).toBeVisible();
+  await expect(page.getByText('C总建议 = C业务 + C创新 + C研发')).toBeVisible();
   await expect(page.locator('.plan-meta')).toHaveCount(0);
   await page.getByRole('tab', { name: '业务场景计算依据' }).click();
-  await expect(page.getByText('卡数 = 补偶( max(A, B, C) )')).toBeVisible();
-  await expect(page.getByText('C基础 = 卡数 × 芯片BF16峰值 ÷ 1000（P）')).toBeVisible();
+  await expect(page.getByText('卡数场景 = max(8, 补偶( max(A, B, C) ))')).toBeVisible();
+  await expect(page.getByText('C基础 = Σ 各场景')).toBeVisible();
+  await expect(page.getByText('C建议 = C基础')).toBeVisible();
   await expect(page.getByRole('cell', { name: '2048', exact: true }).first()).toBeVisible();
   await page.getByRole('tab', { name: '创新服务计算依据' }).click();
   await expect(page.getByText('Q月 = U × q × u', { exact: false }).first()).toBeVisible();
@@ -19,7 +20,7 @@ test('无需项目即可阅读规划依据，首页和侧栏入口一致', async
   await page.getByRole('tab', { name: '开发测试计算依据' }).click();
   await expect(page.getByText('F训练 = ktrain × Ntrain × D × E', { exact: false })).toBeVisible();
   await expect(page.getByRole('cell', { name: '标准（默认）', exact: true })).toBeVisible();
-  await expect(page.getByText('ktrain 初始 4，ηtrain 初始 0.25。', { exact: false })).toBeVisible();
+  await expect(page.getByText('ktrain 初始 4，ηtrain 初始 25%。', { exact: false })).toBeVisible();
   await page.getByRole('tab', { name: '依据与来源' }).click();
   await expect(page.getByRole('link', { name: /Scaling Laws/ })).toHaveAttribute('href', /arxiv\.org/);
   await page.locator('.planning-basis .ant-pagination-next button').click();
