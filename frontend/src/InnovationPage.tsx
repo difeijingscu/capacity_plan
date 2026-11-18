@@ -86,7 +86,6 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
     ? (monthlyTotal == null ? null : monthlyTotal * share)
     : Number(item.monthly_tokens);
   const requestRate = item?.trace?.variables?.request_rate;
-  const headroomPct = num(Number(payload.headroom ?? 0) * 100, 0);
   // 缺键按 0：与后端 PlanInput._legacy_cache_hit 的判据一致（v2.1.0 之前的方案没有缓存
   // 折算）。回落到 30% 会让页面显示与引擎出数分裂——预览按 0 算、页面说 30%。
   const cacheHit = Number(c.cache_hit_rate ?? 0);
@@ -239,7 +238,6 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
             <span className="be-fold-t">当前生效的工程系数（可调）</span>
             <span className="be-fold-hint">
               ηprefill {num(Number(c.eta_prefill ?? ETA_DEFAULTS.eta_prefill))} · ηdecode {num(Number(c.eta_decode ?? ETA_DEFAULTS.eta_decode))}
-              · 方案余量 +{headroomPct}% · 故障冗余 +1 张
             </span>
             <span className="be-fold-btn" aria-hidden="true"><i /></span>
           </summary>
@@ -266,13 +264,6 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
                   value={Number(c.eta_decode ?? ETA_DEFAULTS.eta_decode)}
                   onChange={v => change('eta_decode', v ?? ETA_DEFAULTS.eta_decode)} />
                 <div className="be-chip-hint">默认 {ETA_DEFAULTS.eta_decode} · 经验效率，需实测校准</div>
-              </div>
-              <div className="field">
-                <label>余量与故障冗余（方案级，只读）</label>
-                <div className="be-chip-hint" style={{ marginTop: 0, fontSize: 12 }}>
-                  +{headroomPct}% 方案余量 · +1 张故障冗余
-                  <br />余量比例在方案设置中调整，对本池与业务池同时生效。
-                </div>
               </div>
             </div>
             <div className="note-line" style={{ marginBottom: 0 }}>
@@ -419,13 +410,13 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
         <div className="be-sec-h">
           <h2>算力汇总</h2>
           <span>{!c.enabled ? '本池未启用，不计入规划总量'
-            : multi ? `${allocations.length} 个模型分别出卡后汇总：需求算力与显存约束取大，再按余量与冗余补卡`
-              : '单模型独立出卡：需求算力与显存约束取大，再按余量与冗余补卡'}</span>
+            : multi ? `${allocations.length} 个模型分别出卡后汇总：需求算力与显存约束取大即规划卡数`
+              : '单模型独立出卡：需求算力与显存约束取大即规划卡数'}</span>
           <span className="act">
             <Space>
               <span className="muted">
                 {derivationReady
-                  ? (derivationStale ? '输入已变更，展开内容仍来自最近保存的测算快照' : '从月度额度、模型吞吐逐层展开到显存、余量与物理卡数')
+                  ? (derivationStale ? '输入已变更，展开内容仍来自最近保存的测算快照' : '从月度额度、模型吞吐逐层展开到显存与物理卡数')
                   : '完成一次正式测算后可展开计算过程'}
               </span>
               <Button icon={<ApartmentOutlined aria-hidden="true" />} disabled={!derivationReady}
@@ -443,7 +434,7 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
                     <div className="v">{num(pool.cards_planned, 0)}<small>张</small></div>
                     <div className="sub">
                       {multi ? `${allocations.length} 个模型合计 · ` : ''}
-                      物理 {num(pool.cards, 0)} 张 · 含余量约 {num(pool.servers_planned, 0)} 台服务器（8 卡/台）
+                      物理 {num(pool.cards, 0)} 张 · 约 {num(pool.servers, 0)} 台服务器（8 卡/台）
                     </div>
                   </div>
                   <div className="be-kpi">
@@ -451,7 +442,7 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
                     <div className="v">{capacity(pool.planned_p)}</div>
                     <div className="sub">
                       {multi ? `${allocations.length} 个模型合计 · ` : ''}
-                      基础 {capacity(pool.base_p)} · 已含 {headroomPct}% 余量
+                      基础 {capacity(pool.base_p)} · 不含方案余量
                     </div>
                   </div>
                   <div className="be-kpi">
@@ -504,7 +495,7 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
                     },
                     { title: '物理卡数', width: 100, render: () => num(pool.cards, 0) + ' 张' },
                     {
-                      title: '含余量卡数', width: 110,
+                      title: '规划卡数', width: 110,
                       render: () => <strong>{num(pool.cards_planned, 0)} 张</strong>,
                     },
                   ]} />
@@ -519,8 +510,8 @@ export default function InnovationPage({ payload, edit, catalog, catalogLoading,
                   { key: 'memory', label: '显存约束卡数', children: detail.memory_cards == null ? '—' : num(detail.memory_cards, 0) + ' 张' },
                   { key: 'bottleneck', label: '主导约束', children: detail.bottleneck || '—' },
                   { key: 'cache', label: '缓存命中率', children: `${num(cacheHit * 100)}% · 只折算 Prefill 输入` },
-                  { key: 'headroom', label: '余量与冗余', children: `+${num(Number(detail.headroom ?? payload.headroom ?? 0) * 100, 0)}% 余量 · +${num(detail.redundancy_cards ?? 1, 0)} 张冗余` },
-                  { key: 'servers', label: '服务器台数', children: `${num(pool.servers, 0)} 台物理 · ${num(pool.servers_planned, 0)} 台含余量` },
+                  { key: 'margin', label: '余量与冗余', children: '不叠加（engine-v2.2.0 起）' },
+                  { key: 'servers', label: '服务器台数', children: `${num(pool.servers, 0)} 台` },
                 ]} />
               </>
             : <Empty description={

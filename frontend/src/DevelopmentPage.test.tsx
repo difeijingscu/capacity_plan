@@ -60,7 +60,6 @@ const intensityDefaults: Obj = {
 
 function planWith(models: Obj[]): Obj {
   return {
-    headroom: 0.2,
     development: {
       enabled: true, intensity: 'standard', models, chip_key: '910c',
       train_data_tokens: null, epochs: null, train_deadline_hours: null,
@@ -71,16 +70,15 @@ function planWith(models: Obj[]): Obj {
 
 /** 与后端 /preview-calculation 的 development pool 同构（单模型）。 */
 const preview: Obj = {
-  headroom: 0.2,
   pools: [{
-    id: 'development', cards: 12, cards_planned: 13, servers: 2, servers_planned: 2,
-    base_p: '8', planned_p: '9.6', completeness: 'COMPLETE',
+    id: 'development', cards: 12, cards_planned: 12, servers: 2, servers_planned: 2,
+    base_p: '8', planned_p: '8', completeness: 'COMPLETE',
     memory: { memory_gb: '120', status: 'PROXY', train_slot_gb: '120' },
     intensity_parameters: intensityDefaults.standard,
     missing_items: [],
     cards_detail: {
       chip_label: '昇腾910C', compute_cards: 12, memory_cards: 1,
-      bottleneck: '算力', headroom: 0.2, redundancy_cards: 1, rule: '卡数 = max(cards+1, 余量卡数)',
+      bottleneck: '算力', rule: '规划卡数 = max(算力卡数, 显存卡数)',
     },
     items: [{
       id: 'train-glm5_3_flash', model_id: 'glm5_3_flash', name: 'GLM-5.3 Flash · LORA',
@@ -128,11 +126,11 @@ describe('开发测试页', () => {
 
   it('汇总读取本池卡数、槽位与显存', () => {
     const { container } = renderPage(planWith(single));
-    // 含余量 13 张出现在 KPI 与折算说明里；用 KPI 结构定位，避免和表格撞车
+    // 卡数 12 张出现在 KPI 与折算说明里；用 KPI 结构定位，避免和表格撞车
     const kpis = [...container.querySelectorAll('.be-kpi')];
-    expect(kpis.some(k => k.querySelector('.k')?.textContent === '所需卡数' && /13/.test(k.textContent || ''))).toBe(true);
+    expect(kpis.some(k => k.querySelector('.k')?.textContent === '所需卡数' && /12/.test(k.textContent || ''))).toBe(true);
     expect(kpis.some(k => k.querySelector('.k')?.textContent === '并行微调槽位')).toBe(true);
-    expect(screen.getByText(/含余量约 2 台服务器/)).toBeTruthy();
+    expect(screen.getByText(/约 2 台服务器/)).toBeTruthy();
     expect(screen.getByText('算力约束卡数')).toBeTruthy();
   });
 
@@ -173,7 +171,10 @@ describe('开发测试页', () => {
     const { container } = renderPage(planWith(single));
     const folds = [...container.querySelectorAll('details.be-fold')] as HTMLDetailsElement[];
     expect(folds.length).toBeGreaterThanOrEqual(2);
-    // 首屏只有算力卡与「余量与冗余」两个入口
+    // 首屏只有算力卡一个入口；「余量与故障冗余」只读块已随方案余量一起移除
+    expect(screen.queryByText(/余量与故障冗余/)).toBeNull();
+    expect(screen.queryByText(/故障冗余/)).toBeNull();
+    expect(screen.queryByText(/\+20% 方案余量/)).toBeNull();
     expect(folds[0].open).toBe(false);
     expect(folds[0].textContent).toContain('当前生效的训练系数');
     expect(folds[0].querySelector('[aria-label="训练工作量系数"]')).toBeTruthy();

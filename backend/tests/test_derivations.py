@@ -82,7 +82,9 @@ def test_innovation_large_quota_matches_26p_snapshot(client):
     run = save_run(client, payload, [model])
     explanation = get(client, run, "innovation")
     # 默认缓存命中率 30%：Prefill 输入工作量按 0.7 折算，Decode 与显存不变。
-    assert float(explanation["planned_p"]) == pytest.approx(26.0)
+    # engine-v2.2.0 起创新池不再乘方案余量，建议容量与基础容量同为 21.667 P。
+    assert float(explanation["planned_p"]) == pytest.approx(21.666666666666668)
+    assert explanation["planned_p"] == explanation["base_p"]
     assert D(by_title(explanation["steps"], "得到全池实际月度Token预算")["value"]) == 50_000_000_000
     assert D(by_title(explanation["steps"], "得到有效服务时间")["value"]) == 633600
     task = explanation["items"][0]
@@ -157,21 +159,24 @@ def test_development_uses_largest_candidate_and_slots_not_sum(client):
     assert all(t["steps"] for t in explanation["items"])
 
 
-def test_innovation_tree_explains_workload_memory_and_single_margin():
+def test_innovation_tree_explains_workload_memory_and_cards():
     payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=1_000_000,
                                             allocations=[Allocation(model_id=SYNTHETIC["id"], share=1)]))
     explanation, run = direct_explanation(payload, "innovation")
     tree = explanation["tree"]
     assert tree["label"] == "创新池规划结果"
-    assert [c["label"] for c in tree["children"]] == ["需求与工作量", "显存需求", "余量与物理卡数"]
+    assert [c["label"] for c in tree["children"]] == ["需求与工作量", "显存需求", "物理卡数"]
     assert tree_child(tree, "得到全池实际月度Token预算")
     assert tree_child(tree, "单任务基础容量")
     assert tree_child(tree, "KV cache")
     compute = tree_child(tree, "算力约束卡数")
-    assert "不重复" in compute["relation"]
     pool = run["result"]["pools"][1]
     assert compute["value"] == f"{pool['cards_detail']['planned_compute_cards']} 张"
-    assert tree_child(tree, "独立故障冗余")["value"] == f"{pool['cards'] + 1} 张"
+    # 不再出现一次容量余量与 +1 故障冗余两个节点
+    assert tree_child(tree, "一次容量余量") is None
+    assert tree_child(tree, "独立故障冗余") is None
+    assert tree["expr"] == "不含方案余量与冗余"
+    assert tree_child(tree, "最终规划卡数")["value"] == f"{pool['cards_planned']} 张"
 
 
 def test_development_tree_explains_slots_training_memory_and_cards():
@@ -186,14 +191,26 @@ def test_development_tree_explains_slots_training_memory_and_cards():
     assert tree_child(tree, "最终规划卡数")
 
 
-def test_legacy_tree_keeps_historical_double_margin_explanation():
-    payload = PlanInput(innovation=Innovation(enabled=True, users=1000, quota_per_user_month=1_000_000,
+def test_legacy_innovation_tree_keeps_margin_and_redundancy_wording():
+    """engine-v2.1.1 及更早的快照里创新池仍含余量与 +1 冗余，推导必须按当时口径还原。"""
+    payload = PlanInput(headroom=".2", innovation=Innovation(enabled=True, users=1000, quota_per_user_month=1_000_000,
                                             allocations=[Allocation(model_id=SYNTHETIC["id"], share=1)]))
     explanation, run = direct_explanation(payload, "innovation")
-    detail = run["result"]["pools"][1]["cards_detail"]
-    del detail["headroom_applications"]
-    tree = build_derivation(run, "innovation")["tree"]
-    assert "再次乘" in tree_child(tree, "算力约束卡数")["relation"]
+    legacy = deepcopy(run)
+    legacy["result"]["engine_version"] = "engine-v2.1.1"
+    legacy["result"]["headroom"] = ".2"
+    pool = legacy["result"]["pools"][1]
+    pool["planned_p"] = D(pool["base_p"]) * D("1.2")
+    view = build_derivation(legacy, "innovation")
+    tree = view["tree"]
+    assert tree["expr"] == "headroom = 20%"
+    assert tree_child(tree, "独立故障冗余")
+    assert by_title(view["steps"], "增加一次容量余量")
+    assert D(by_title_input(view["inputs"], "容量余量")["value"]) == 20
+    # 新快照不再出现这两步
+    fresh = build_derivation(run, "innovation")
+    assert all(s["title"] != "增加一次容量余量" for s in fresh["steps"])
+    assert tree_child(fresh["tree"], "独立故障冗余") is None
 
 
 def test_non_llm_scenarios_are_blocked_with_reasons(client):
@@ -254,6 +271,8 @@ def test_legacy_snapshot_keeps_headroom_wording():
     explanation, run = direct_explanation(payload, "business")
     legacy = deepcopy(run)
     legacy["result"]["engine_version"] = "engine-v2.1.0"
+    # 旧快照自带 headroom，新快照已不再记录该字段
+    legacy["result"]["headroom"] = ".2"
     pool = legacy["result"]["pools"][0]
     pool["planned_p"] = D(pool["base_p"]) * D("1.2")
     pool["cards_planned"] = 104  # 旧口径：×(1+h) 后按 8 卡向上对齐

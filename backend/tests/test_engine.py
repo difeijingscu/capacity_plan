@@ -70,7 +70,8 @@ def test_golden_business(case_id):
     for key in ("base_p","effective_p"):
         if key in case["expected"]:
             near(actual[key],case["expected"][key])
-    near(actual["base_p"]*D("1.2"),case["expected"]["planned_p"])
+    # v2.1.1 起业务池不再乘方案余量：样例里的 planned_p 与 base_p 同值
+    near(actual["base_p"],case["expected"]["planned_p"])
 
 
 def test_business_pool_reports_cards_and_compute():
@@ -256,7 +257,7 @@ def test_high_intensity_and_candidate_invariance():
 
 
 def test_disabled_and_missing_dev():
-    assert result(spec())["pools"][2]["planned_p"]=="0.00"
+    assert D(result(spec())["pools"][2]["planned_p"])==0
     # 缺省已带一条默认微调模型（schemas.DEFAULT_MODEL），所以「未选模型」要显式清空才出现
     missing=result(spec(),development=Development(enabled=True,models=[]))
     assert missing["pools"][2]["planned_p"] is None
@@ -275,8 +276,7 @@ def test_disabled_innovation_and_development_have_zero_resources():
         assert pool["servers_planned"]==0
         assert D(pool["capacity_p"])==0
         assert D(pool["capacity_planned_p"])==0
-        assert pool["cards_detail"]["headroom_applications"]==0
-        assert pool["cards_detail"]["redundancy_cards"]==0
+        assert "headroom_applications" not in pool["cards_detail"]
 
 
 def test_missing_scenario_not_lost():
@@ -297,43 +297,48 @@ def test_vlm_same_as_text():
     assert D(vision["vision_flop_per_request"])==0
 
 
-def test_business_pool_has_no_headroom_but_other_pools_do():
-    """业务池不加方案余量：planned = base；创新池仍按 h 在池层放大一次。"""
+def test_no_pool_applies_headroom():
+    """engine-v2.2.0 起三池都不叠加方案余量：planned = base；payload 里的 headroom 不再参与计算。"""
     one=result(spec(),headroom=".2")["pools"][0]
     near(D(one["planned_p"]),float(one["base_p"]))
     two=result(spec(),spec(),headroom=".2")["pools"][0]
     near(D(two["base_p"]),float(one["base_p"])*2)
     near(D(two["planned_p"]),float(two["base_p"]))
     innov=result(innovation=innovation(),headroom=".2")["pools"][1]
-    near(D(innov["planned_p"]),float(innov["base_p"])*1.2)
+    near(D(innov["planned_p"]),float(innov["base_p"]))
+    half=result(innovation=innovation(),headroom="0")["pools"][1]
+    near(D(half["planned_p"]),float(innov["planned_p"]))
+    # 新快照不再记录 headroom：没有生效的参数不该出现在结果里
+    assert "headroom" not in result(innovation=innovation())
 
 
-def test_pool_compute_headroom_is_not_applied_twice():
-    """100P 经一次20%余量为120卡；另加的一张是冗余，不是第二次比例余量。"""
-    detail=cards_for_pool({"planned_p":D(120),"memory":{"memory_gb":0}},
-                          {"key":"1p","bf16_tflops":1000,"memory_gb":80},D(".2"))
-    assert detail["cards"]==120
-    assert detail["cards_detail"]["planned_compute_cards"]==120
-    assert detail["cards_planned"]==121
-    assert detail["cards_detail"]["headroom_applications"]==1
-    assert detail["cards_detail"]["redundancy_cards"]==1
-
-
-def test_pool_zero_headroom_keeps_only_explicit_redundancy():
+def test_pool_cards_have_no_margin_and_no_extra_card():
+    """100P ÷ 1000T = 100 卡；不乘余量、也不再补一张故障冗余。"""
     detail=cards_for_pool({"planned_p":D(100),"memory":{"memory_gb":0}},
-                          {"key":"1p","bf16_tflops":1000,"memory_gb":80},D(0))
+                          {"key":"1p","bf16_tflops":1000,"memory_gb":80})
     assert detail["cards"]==100
+    assert detail["cards_planned"]==100
+    assert detail["servers"]==13
     assert detail["cards_detail"]["planned_compute_cards"]==100
-    assert detail["cards_planned"]==101
+    assert "redundancy_cards" not in detail["cards_detail"]
 
 
-def test_pool_memory_headroom_is_applied_once():
-    """显存基础约束为10卡，20%余量后为12卡；不能再放大成15卡。"""
+def test_pool_cards_floor_at_one_card():
+    """需求不足一卡时仍按 1 卡规划；不因为去掉余量与冗余而出现 0 卡。"""
+    detail=cards_for_pool({"planned_p":D(".1"),"memory":{"memory_gb":0}},
+                          {"key":"1p","bf16_tflops":1000,"memory_gb":80})
+    assert detail["cards"]==1
+    assert detail["cards_planned"]==1
+    assert detail["servers_planned"]==1
+
+
+def test_pool_cards_take_memory_constraint_without_margin():
+    """显存 800 GB ÷ 80 GB = 10 卡，算力只要 1 卡 → 取大 10 卡，不再按余量放大成 12 卡。"""
     detail=cards_for_pool({"planned_p":D(1),"memory":{"memory_gb":800}},
-                          {"key":"1p","bf16_tflops":1000,"memory_gb":80},D(".2"))
+                          {"key":"1p","bf16_tflops":1000,"memory_gb":80})
     assert detail["cards_detail"]["memory_cards"]==10
-    assert detail["cards_detail"]["planned_memory_cards"]==12
-    assert detail["cards_planned"]==12
+    assert detail["cards_detail"]["planned_memory_cards"]==10
+    assert detail["cards_planned"]==10
 
 
 @pytest.mark.parametrize("cards,expected",[
@@ -641,9 +646,12 @@ def test_innovation_cards_beat_previous_memory_division():
 
 
 def test_innovation_cards_follow_chip_selection():
-    """换芯片必须改卡数：同算力负载，910B（280T/64G）卡数多于 910C（560T/128G）。"""
-    b=result(innovation=innovation(chip_key="910b"))["pools"][1]
-    c=result(innovation=innovation(chip_key="910c"))["pools"][1]
+    """换芯片必须改卡数：同算力负载，910B（280T/64G）卡数多于 910C（560T/128G）。
+
+    默认 1000 人时两个芯片都只要 1 张卡，看不出差异，这里用 3 万人让算力约束成为主导。
+    """
+    b=result(innovation=innovation_q(users=30000,chip_key="910b"))["pools"][1]
+    c=result(innovation=innovation_q(users=30000,chip_key="910c"))["pools"][1]
     assert b["cards"]>c["cards"]
     # 910B 算力与显存都约为 910C 的一半，卡数差应在一倍左右
     assert 1.6<=float(b["cards"])/float(c["cards"])<=2.4

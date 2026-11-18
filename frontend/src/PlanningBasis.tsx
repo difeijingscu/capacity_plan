@@ -27,7 +27,7 @@ function Provenance({ children }: { children: ReactNode }) {
 export default function PlanningBasis({ defaults, models }: { defaults: Obj; models: Obj[] }) {
   const task = defaults.task_defaults || {};
   const training = defaults.development_defaults || {};
-  const planning = defaults.planning_defaults || {};
+
   const percent = (value: unknown) => value == null ? '以当前配置为准' : num(Number(value) * 100) + '%';
   const text = (value: unknown) => value == null ? '以当前配置为准' : num(value, 4);
   const referenceModels = models.filter(m => !m.is_demo);
@@ -45,23 +45,23 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
         ['02', '创新服务', '提供灵活可用的模型服务池', '支持人数、人均月Token、使用率与服务窗口'],
         ['03', '开发测试', '按需支撑模型微调', '候选模型、微调强度与并行槽位'],
       ].map(([index, name, purpose, inputs]) => <div key={name}><span>{index}</span><h3>{name}</h3><p>{purpose}</p><small>{inputs}</small></div>)}</div>
-      <Steps className="basis-steps" responsive items={[{ title: '定义业务规模', description: '场景清单与期末需求' }, { title: '匹配模型与基线', description: '任务、参数与计量单位' }, { title: '换算工作量', description: '每秒请求或单位任务' }, { title: '形成容量', description: '效率、余量与显存' }]} />
+      <Steps className="basis-steps" responsive items={[{ title: '定义业务规模', description: '场景清单与期末需求' }, { title: '匹配模型与基线', description: '任务、参数与计量单位' }, { title: '换算工作量', description: '每秒请求或单位任务' }, { title: '形成容量', description: '效率与显存' }]} />
     </Card>
-    <Card title="怎样阅读 T / P、显存与余量">
+    <Card title="怎样阅读 T / P、显存与卡数">
       <Descriptions column={1} items={[
         { key: 'units', label: 'T / P', children: '1 TFLOPS = 每秒10¹²次浮点运算；1 PFLOPS = 每秒10¹⁵次；1 P = 1000 T。FLOP是工作量，FLOPS是速度。' },
         { key: 'precision', label: '精度基准', children: '本产品的算力以 BF16 稠密算力为基准折算（业务池按卡数×芯片BF16峰值折算为等效参考）。推理精度档为 BF16（全精度）/ W8A8 / W4A8，页面默认 W8A8；KV 缓存字节数随精度档自动确定；量化峰值与 BF16 容量不能按位宽直接换算或混加。' },
         { key: 'effective', label: '有效需求', children: '模型执行算法所需的计算工作量速率，尚未考虑实际运行效率。' },
         { key: 'base', label: '基础规划算力', children: '将有效需求按阶段效率折算为参考容量，效率越低，相同业务需要的参考容量越大。' },
-        { key: 'planned', label: '建议规划算力', children: <>创新/研发池在基础容量上增加一次余量（初始默认 {percent(planning.headroom)}）；业务池不加余量，建议值等于基础容量，卡数按三维最小卡数奇数补偶。余量是容量预留，不等于高可用副本。</> },
+        { key: 'planned', label: '建议规划算力', children: '与基础容量同值：三池都不再叠加方案余量，也不额外补故障冗余。业务池卡数按三维最小卡数奇数补偶，创新/研发池卡数取算力与显存约束的较大者。' },
         { key: 'memory', label: '显存', children: '辅助判断权重、缓存和运行状态能否容纳；同样的算力值不代表相同的模型承载能力。' },
       ]} />
-      <Formula title="三类资源池独立汇总" note="三池分别配置；相同模型不会跨资源池去重。">C总建议 = C业务建议 + C创新建议 + C研发建议<br />C创新/研发建议 = C基础 × (1 + h)；C业务建议 = C业务基础（不加余量）</Formula>
-      <p>业务池按「逐场景独立出卡」汇总：每个场景给出自己的三维约束卡数，池合计等于各场景卡数与算力直接相加，同一模型的不同场景不共享权重驻留；创新池与研发池沿用分阶段工作量近似。业务池不加方案余量，卡数只做奇数补偶（不足 8 卡补到一个部署单元）；创新/研发池的余量只在资源池层乘一次，场景层不重复加。</p>
+      <Formula title="三类资源池独立汇总" note="三池分别配置；相同模型不会跨资源池去重。">C总建议 = C业务建议 + C创新建议 + C研发建议<br />C各池建议 = C各池基础（三池都不加方案余量）</Formula>
+      <p>业务池按「逐场景独立出卡」汇总：每个场景给出自己的三维约束卡数，池合计等于各场景卡数与算力直接相加，同一模型的不同场景不共享权重驻留；创新池与研发池沿用分阶段工作量近似。三池都不加方案余量：业务池卡数只做奇数补偶（不足 8 卡补到一个部署单元），创新/研发池卡数取算力与显存约束的较大者；池层只做求和。</p>
     </Card>
     <Card title="默认值怎样使用，结果怎样验证">
       <p>填写业务人数和模型即可开始；展开“技术参数与默认值”可查看当前值，点击感叹号了解参数含义和选择原因。先接受合理默认值，再优先调整最影响结果的输入长度、总生成长度、使用频次和完成时间。</p>
-      <div className="basis-evidence-grid"><div><Tag color="green">官方事实</Tag><p>模型结构、参数、配置上限与指定任务FLOP等，保存来源和固定模型版本。</p></div><div><Tag color="blue">分析推导</Tag><p>请求换算、按时段分摊月配额、按完成窗口配置任务容量等，按明确公式计算。</p></div><div><Tag color="gold">经验默认值</Tag><p>使用频率、效率、余量、实验档位及部分显存代理，是可修改的规划假设。</p></div></div>
+      <div className="basis-evidence-grid"><div><Tag color="green">官方事实</Tag><p>模型结构、参数、配置上限与指定任务FLOP等，保存来源和固定模型版本。</p></div><div><Tag color="blue">分析推导</Tag><p>请求换算、按时段分摊月配额、按完成窗口配置任务容量等，按明确公式计算。</p></div><div><Tag color="gold">经验默认值</Tag><p>使用频率、效率、实验档位及部分显存代理，是可修改的规划假设。</p></div></div>
       <p>依据等级A表示匹配条件下的实测，B表示资料与分析公式支持，C表示含经验假设或相似代理。关键依赖中较弱的一项决定整体等级，因此当前使用经验效率的容量结果保持C级。</p>
       <p>完整性与依据等级分别展示：缺基线的任务会保留并列出，“部分已计入”不能当作完整总需求。后续用匹配模型、精度、框架与负载的吞吐、延迟和显存测试，逐步校准经验参数。<Source id="metrics" /></p>
     </Card>
@@ -69,7 +69,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
 
   const business = <div className="basis-content">
     <Card title="业务场景：三维约束出卡数">
-      <p>业务池按大模型推理服务出卡：每个场景按「显存 A / Prefill B / Decode C」三条约束分别算出所需卡数，取最大值再奇数补偶。同一批卡同时承担 Prefill 与 Decode，所以三条约束取最大而不是相加；卡数按 8 张 = 1 台对齐，余量只在资源池层乘一次。</p>
+      <p>业务池按大模型推理服务出卡：每个场景按「显存 A / Prefill B / Decode C」三条约束分别算出所需卡数，取最大值再奇数补偶。同一批卡同时承担 Prefill 与 Decode，所以三条约束取最大而不是相加；卡数是物理台数，按 8 张 = 1 台折算服务器。业务池不加方案余量。</p>
       <Variables rows={[
         ['并发', '同时在跑的会话数；按业务同时在线会话估，不用注册人数直接代替', '路'],
         ['Li / Lo', '单请求输入长度 / 输出长度', 'Token'],
@@ -168,7 +168,7 @@ export default function PlanningBasis({ defaults, models }: { defaults: Obj; mod
       <p className="basis-caption">参数来源用于解释结构，不能替代真实吞吐测试。MoE计算使用阶段激活参数，权重显存使用完整驻留口径；上下文配置上限也不等于实际响应保证。</p>
     </Card>
     <Card title="可以自行调整的规划假设">
-      <p>请求频次、输入输出预算、效率、架构工作量修正、余量、创新服务窗口、峰值倍数及研发档位，来自本产品的早期规划设计。它们的意义是让资料不完整时仍能给出透明、可修改的初步结果。</p>
+      <p>请求频次、输入输出预算、效率、架构工作量修正、创新服务窗口、峰值倍数及研发档位，来自本产品的早期规划设计。它们的意义是让资料不完整时仍能给出透明、可修改的初步结果。</p>
       <p>建议优先用业务实际量替换业务假设；用匹配条件下的测试替换性能假设。若只有整体吞吐数据，不能据此声称同时准确获得输入和生成两个阶段的效率。</p>
       <Alert type="info" showIcon message="查看某次测算的真实依据" description="进入测算结果，点击任务的“查看计算依据”，可查看该次保存的输入、公式、中间值、默认值来源和模型版本。本页解释通用方法，具体方案以当次快照为准。" />
     </Card>

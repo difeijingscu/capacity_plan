@@ -10,7 +10,9 @@
 .be-global-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:18px}
 /* 只有两个全局字段的池（创新服务：算力卡 + 缓存命中率）用两列，避免第三列留空 */
 .be-global-grid.is-2{grid-template-columns:1.4fr 1fr}
-@media(max-width:1100px){.be-global-grid,.be-global-grid.is-2{grid-template-columns:1fr}}
+/* 方案余量移除后，开发测试只剩「算力卡」一个全局字段，单列铺满，不留空位 */
+.be-global-grid.is-1{grid-template-columns:minmax(0,1fr)}
+@media(max-width:1100px){.be-global-grid,.be-global-grid.is-1,.be-global-grid.is-2{grid-template-columns:1fr}}
 .be-global-grid .field>label{display:block;font-size:12px;color:#6e806f;margin-bottom:8px}
 .be-global-grid .field>label .anticon{color:#a8b6a2;margin-left:4px}
 .be-chip-hint{font-size:11px;color:#8b9a80;margin-top:6px;line-height:1.6}

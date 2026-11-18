@@ -34,7 +34,9 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await expect(drawer.locator('.fx2-branch')).toHaveCount(3);
   await expect(drawer.locator('.fx-block')).toContainText('需求与工作量');
   await expect(drawer.locator('.fx-block')).toContainText('显存需求');
-  await expect(drawer.locator('.fx-block')).toContainText('余量与物理卡数');
+  // engine-v2.2.0：创新/研发池也不再加余量与 +1 冗余，第三个主干改叫「物理卡数」
+  await expect(drawer.locator('.fx-block')).toContainText('物理卡数');
+  await expect(drawer.locator('.fx-block')).not.toContainText('余量与物理卡数');
   await expect(drawer).toContainText('50,000,000,000');
   await expect(drawer).toContainText('633,600');
   await expect(drawer).toContainText('78,914.141414');
@@ -53,7 +55,7 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await page.getByRole('button', { name: '查看建议规划总算力计算推导', exact: true }).click();
   await expect(drawer).toContainText('汇总三类资源池基础容量');
   await expect(drawer).toContainText('三类资源池的数值组成');
-  await expect(drawer).toContainText('汇总后不再次增加');
+  await expect(drawer).toContainText('汇总后也不再增加');
   await drawer.locator('.ant-drawer-close').click();
   // 业务池：三维取最大 + 奇数补偶 + 时延预测 + 卡数与算力两套口径都要能看到
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();

@@ -4,8 +4,8 @@
   "is_demo": true,
   "description": "全部为数值合同或合成场景，不是客户测算或模型性能实测。8B为合成参数，不能误标为Qwen3-8B。",
   "tolerance": {
-    "absolute_p": 1e-9,
-    "relative": 1e-8
+    "absolute_p": 1e-09,
+    "relative": 1e-08
   },
   "common": {
     "model_id": "synthetic-dense-8b",
@@ -35,7 +35,7 @@
         "request_rate": 0.8333333333333334,
         "effective_p": 0.03754666666666667,
         "base_p": 0.13588317460317462,
-        "planned_p": 0.16305980952380952
+        "planned_p": 0.13588317460317462
       }
     },
     {
@@ -51,7 +51,7 @@
       },
       "expected": {
         "base_p": 0.27176634920634923,
-        "planned_p": 0.32611961904761905
+        "planned_p": 0.27176634920634923
       }
     },
     {
@@ -119,7 +119,7 @@
         "input_tokens_per_second": 3787.878787878788,
         "output_tokens_per_second": 946.969696969697,
         "base_p": 0.24444444444444444,
-        "planned_p": 0.29333333333333333
+        "planned_p": 0.24444444444444444
       }
     },
     {
@@ -140,7 +140,7 @@
           }
         ],
         "cache_hit_rate": 0.3,
-      "inherit_profile": "innovation_8b_monthly"
+        "inherit_profile": "innovation_8b_monthly"
       },
       "expected": {
         "monthly_allocations": [
@@ -148,7 +148,7 @@
           300000000
         ],
         "base_p": 0.31777777777777777,
-        "planned_p": 0.38133333333333336
+        "planned_p": 0.31777777777777777
       }
     },
     {
@@ -166,7 +166,7 @@
       "expected": {
         "train_base_p": 0.029629629629629627,
         "base_p": 0.02962962962962963,
-        "planned_p": 0.035555555555555556
+        "planned_p": 0.02962962962962963
       }
     },
     {
@@ -181,7 +181,7 @@
       "expected": {
         "frames_per_second": 50,
         "base_p": 0.0034833333333333335,
-        "planned_p": 0.00418
+        "planned_p": 0.0034833333333333335
       }
     },
     {
@@ -196,11 +196,11 @@
         "development_case": "development_standard_8b"
       },
       "expected": {
-        "business_planned_p": 0.16723980952380954,
-        "innovation_planned_p": 0.36190476190476195,
-        "development_planned_p": 0.035555555555555556,
-        "total_base_p": 0.47058343915343914,
-        "total_planned_p": 0.564700126984127
+        "business_planned_p": 0.13936650793650796,
+        "innovation_planned_p": 0.24444444444444444,
+        "development_planned_p": 0.02962962962962963,
+        "total_base_p": 0.41344058201058204,
+        "total_planned_p": 0.41344058201058204
       }
     },
     {

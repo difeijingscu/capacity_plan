@@ -113,10 +113,12 @@ def memory_tree(scope, pool, slots=1):
                      "每个槽位按最大候选任务配置显存，不累加全部候选模型。", children)
 
 
-def cards_tree(pool, headroom):
+def cards_tree(pool, headroom, legacy):
+    """卡数树。engine-v2.2.0 起不加余量、不加 +1 冗余；更早的快照按当时口径还原。"""
     detail = pool.get("cards_detail") or {}
     if detail.get("planned_compute_cards") is None:
-        return tree_node("余量与物理卡数", "选择规格完整的芯片后折算物理卡数", "",
+        return tree_node("余量与物理卡数" if legacy else "物理卡数",
+                         "选择规格完整的芯片后折算物理卡数", "",
                          tree_value(pool.get("cards_planned"), "张"),
                          detail.get("reason") or "本次快照没有可用的卡数明细。")
     bf16 = D(detail["bf16_tflops"])
@@ -125,6 +127,28 @@ def cards_tree(pool, headroom):
     compute = detail.get("planned_compute_cards")
     memory = detail.get("planned_memory_cards")
     cards = pool.get("cards")
+    compute_cell = f"ceil({fmt(pool.get('planned_p'))} × 1000 ÷ {fmt(bf16)})"
+    memory_cell = f"ceil({fmt(memory_gb)} ÷ {fmt(per_card_mem)})"
+    if not legacy:
+        children = [
+            tree_node("算力约束卡数", "ceil(建议容量 × 1000 ÷ 单卡 BF16 算力)",
+                      compute_cell, tree_value(compute, "张"),
+                      "建议容量 = 基础容量：本池不再乘方案余量。"),
+            tree_node("显存约束卡数", "ceil(池显存 ÷ 单卡显存)",
+                      memory_cell, tree_value(memory, "张"),
+                      "显存按权重 + KV cache + runtime 汇总，不再加比例余量。"),
+            tree_node("最终规划卡数", "max(算力卡数, 显存卡数)",
+                      f"max({fmt(compute)}, {fmt(memory)})",
+                      tree_value(pool.get("cards_planned"), "张"),
+                      "不叠加故障冗余，也不按 8 卡整机对齐：池内可混机型。"),
+            tree_node("规划服务器数", "ceil(规划卡数 ÷ 8)",
+                      f"ceil({fmt(pool.get('cards_planned'))} ÷ {fmt(detail.get('cards_per_server') or 8)})",
+                      tree_value(pool.get("servers_planned"), "台"), "仅按8卡/台估算，不代表已完成网络拓扑验证。"),
+        ]
+        return tree_node("物理卡数", "算力 / 显存双约束取大",
+                         f"芯片 {detail.get('chip_label') or detail.get('chip_key')}；单卡 {fmt(bf16)} TFLOPS / {fmt(per_card_mem)} GB",
+                         tree_value(pool.get("cards_planned"), "张"),
+                         "卡数、服务器数与P值是不同量纲；规划容量由规划卡数反算。", children)
     legacy_double_margin = detail.get("headroom_applications") != 1
     compute_relation = ("历史引擎：planned_p 在卡数阶段再次乘 (1 + h)" if legacy_double_margin else
                         "planned_p 已含一次余量，此处不重复相乘")
@@ -143,7 +167,7 @@ def cards_tree(pool, headroom):
                   tree_value(memory, "张"), "显存路径只在规划约束中应用一次比例余量。"),
         tree_node("独立故障冗余", "基础卡数 + 1 张",
                   f"{fmt(cards)} + 1", tree_value(None if cards is None else D(cards) + 1, "张"),
-                  "这是当前引擎保留的独立冗余规则，不属于比例余量；即使 h=0 也存在。"),
+                  "这是当时引擎保留的独立冗余规则，不属于比例余量；即使 h=0 也存在。"),
         tree_node("最终规划卡数", "max(基础卡数 + 1, 算力约束, 显存约束)",
                   f"max({fmt(cards)} + 1, {fmt(compute)}, {fmt(memory)})",
                   tree_value(pool.get("cards_planned"), "张"), "池层不按8卡整机对齐，避免混机型池被强制扩成整台。"),
@@ -157,7 +181,7 @@ def cards_tree(pool, headroom):
                      "卡数、服务器数与P值是不同量纲；规划容量由规划卡数反算。", children)
 
 
-def build_pool_tree(scope, pool, explanation, headroom):
+def build_pool_tree(scope, pool, explanation, headroom, legacy):
     common_steps = [s for s in explanation["steps"] if s.get("title") != "增加一次容量余量"]
     task_children = []
     for item in explanation.get("items", []):
@@ -177,15 +201,18 @@ def build_pool_tree(scope, pool, explanation, headroom):
     demand_relation = ("Σ 各模型（Prefill + Decode）需求" if scope == "innovation" else
                        "max(候选单任务需求) × 并行微调槽位")
     demand = tree_node("需求与工作量", demand_relation, "从方案输入和模型目录逐步换算",
-                       tree_value(pool.get("base_p"), "P"), "基础需求不含方案容量余量。", demand_children)
+                       tree_value(pool.get("base_p"), "P"),
+                       "基础需求不含方案容量余量。" if legacy else "基础需求即建议容量：本池不加方案余量。",
+                       demand_children)
     slots = (pool.get("intensity_parameters") or {}).get("train_slots", 1)
     memory = memory_tree(scope, pool, slots)
-    cards = cards_tree(pool, headroom)
+    cards = cards_tree(pool, headroom, legacy)
     value = (tree_value(pool.get("cards_planned"), "张") + " · " + tree_value(pool.get("planned_p"), "P")
              if pool.get("cards_planned") is not None else tree_value(pool.get("planned_p"), "P"))
     return tree_node("创新池规划结果" if scope == "innovation" else "研发池规划结果",
-                     "需求与显存双约束 → 一次容量余量 → 物理卡数与独立冗余",
-                     f"headroom = {fmt(D(headroom) * 100)}%",
+                     "需求与显存双约束 → 一次容量余量 → 物理卡数与独立冗余" if legacy
+                     else "需求与显存双约束 → 物理卡数",
+                     f"headroom = {fmt(D(headroom) * 100)}%" if legacy else "不含方案余量与冗余",
                      value, "根节点为本次保存结果；三个主干可逐层展开到原始数字与来源。",
                      [demand, memory, cards])
 
@@ -259,7 +286,7 @@ def describe_task(item, original, models, pool):
                  f"{fmt(v['request_rate'])} × {fmt(fd)} ÷ {fmt(v['eta_decode'])} ÷ 10¹⁵", decode),
             step("单任务基础容量", "C任务基础 = Cp + Cd", f"{fmt(prefill)} + {fmt(decode)}", item.get("base_p")),
         ])
-        notes.append("2N为参数主导的近似；κ和效率为本次采用的假设，不是厂商保证值。此处为单任务基础容量，余量在资源池层增加。")
+        notes.append("2N为参数主导的近似；κ和效率为本次采用的假设，不是厂商保证值。此处为单任务基础容量。")
     elif formula == "unit-work-v1":
         inputs.extend([field("每秒单位数", v.get("unit_rate"), "单位/秒"), field("每单位工作量", v.get("flop_per_unit"), "FLOP/单位"),
                        field("单位任务效率", v.get("eta_unit"), "比例")])
@@ -348,7 +375,7 @@ def _describe_scenario_v2(item, trace, v):
                       "达标" if v.get("sla_passed") else "未达标", ""))
     steps.append(step("折算等效算力", "P = 卡数 × 单卡 BF16 算力(T) ÷ 1000",
                       f"{cards} × {fmt(v.get('bf16_tflops'))} ÷ 1000", v.get("base_p"), "P，BF16 基准"))
-    notes.append("卡数为物理台数（8 卡/台），与算力（P）不是同一量纲；v2 口径输出最小卡数，容量余量由方案 headroom 在池层一次放大。")
+    notes.append("卡数为物理台数（8 卡/台），与算力（P）不是同一量纲；输出为满足 SLA 的最小卡数，池层是否叠加方案余量按该快照的引擎版本解释。")
     warnings = item.get("warnings") or []
     if "MIGRATED_INFERENCE" in warnings:
         notes.append("该场景没有推理配置，是按旧字段（模型、在线人数、Token 长度）推导的等价配置，请复核模型与并发。")
@@ -503,22 +530,25 @@ def build_business_tree(pool, explanation, headroom=None, legacy=False):
 
 
 def build_total_tree(report, pools, headroom):
-    """总量杜邦树：三池建议容量相加；业务池不含余量，创新/研发各含一次。
+    """总量杜邦树：三池建议容量相加。
 
-    engine-v2.1.1 之前的快照里业务池同样含余量，树按当时口径渲染。
+    余量口径按快照版本分三档：< v2.1.1 三池都含；v2.1.1~v2.2.0 只有创新/研发含；
+    >= v2.2.0 三池都不含（各池建议容量 = 基础容量）。
     """
-    legacy = not _engine_at_least(report, 2, 1, 1)
+    business_legacy = not _engine_at_least(report, 2, 1, 1)
+    pool_legacy = not _engine_at_least(report, 2, 2, 0)
     children = []
     for pool in pools:
-        if pool["id"] == "business" and not legacy:
-            kids = [tree_node("业务池不含容量余量", "建议容量 = 基础容量",
-                              "不乘 (1 + h)", tree_value(pool.get("planned_p"), "P"),
-                              "业务池按满足 SLA 的最小卡数取偶规划，不应用方案余量。")]
-        else:
+        legacy_pool = business_legacy if pool["id"] == "business" else pool_legacy
+        if legacy_pool:
             kids = [tree_node("一次容量余量", "建议容量 = 基础容量 × (1 + h)",
                               f"{fmt(pool.get('base_p'))} × (1 + {fmt(headroom)})",
                               tree_value(pool.get("planned_p"), "P"),
                               "余量在池内已应用一次，汇总层不重复相乘。")]
+        else:
+            kids = [tree_node("本池不含容量余量", "建议容量 = 基础容量",
+                              "不乘 (1 + h)", tree_value(pool.get("planned_p"), "P"),
+                              "该池按满足需求的最小卡数规划，不应用方案余量。")]
         if pool.get("cards_planned") is not None:
             kids.append(tree_node("规划卡数", "口径见该池计算推导", "",
                                   tree_value(pool.get("cards_planned"), "张"),
@@ -527,9 +557,10 @@ def build_total_tree(report, pools, headroom):
                                   tree_value(pool.get("planned_p"), "P"),
                                   f"状态：{pool.get('completeness')}；基础容量 {tree_value(pool.get('base_p'), 'P')}",
                                   kids))
-    return tree_node("建议规划总算力",
-                     "总量 = Σ 三池建议容量（各池已含余量，汇总不再乘余量）" if legacy
-                     else "总量 = Σ 三池建议容量（业务池不含余量，创新/研发各含一次，汇总不再乘余量）",
+    relation = ("总量 = Σ 三池建议容量（各池已含余量，汇总不再乘余量）" if business_legacy
+                else "总量 = Σ 三池建议容量（业务池不含余量，创新/研发各含一次，汇总不再乘余量）" if pool_legacy
+                else "总量 = Σ 三池建议容量（三池都不含方案余量，汇总不再乘余量）")
+    return tree_node("建议规划总算力", relation,
                      " + ".join(fmt(p.get("planned_p")) for p in pools) or "暂无可计入资源池",
                      tree_value(report.get("total_planned_p"), "P"),
                      "三池独立配置，同池兼容模型可共享权重但负载仍相加；跨池不共享。", children)
@@ -537,7 +568,8 @@ def build_total_tree(report, pools, headroom):
 
 def build_derivation(run, scope):
     report, payload = run["result"], run["input_snapshot"]
-    headroom = D(report["headroom"])
+    # engine-v2.2.0 起快照不再写 headroom：只有旧快照才需要它去还原当时的口径。
+    headroom = D(report.get("headroom") or 0)
     # catalog_snapshot 双格式：v2.0.0 起为 {inference_models, inference_chips,
     # inference_scenes, params_effective}；旧快照是模型清单数组，冻结不动。
     snapshot = run.get("catalog_snapshot")
@@ -558,22 +590,33 @@ def build_derivation(run, scope):
                   notes=["全部数值来自该次输入、模型和计算轨迹快照，不读取当前编辑值、当前模型库或新的默认值。",
                          "中间数值最多展示6位小数，最终容量采用快照未舍入值；算力以 BF16 稠密算力为基准折算、单位 P / T，效率和结构代理仍需实测校准。"])
     inputs, steps = result["inputs"], result["steps"]
-    # engine-v2.1.1 起业务池不再应用方案余量；更早的快照仍按当时口径（含余量）还原。
-    legacy = not _engine_at_least(report, 2, 1, 1)
-    if scope != "business" or legacy:
+    # 两条口径边界：v2.1.1 业务池先取消余量；v2.2.0 创新/研发池也取消余量与 +1 冗余。
+    business_legacy = not _engine_at_least(report, 2, 1, 1)
+    pool_legacy = not _engine_at_least(report, 2, 2, 0)
+    legacy = business_legacy if scope == "business" else pool_legacy
+    if scope == "total":
+        if business_legacy or pool_legacy:
+            inputs.extend([field("容量余量", headroom * 100, "%")])
+    elif legacy:
         inputs.extend([field("容量余量", headroom * 100, "%")])
     if scope == "total":
         result["breakdown"] = [dict(id=p["id"], name=NAMES[p["id"]], base_p=p["base_p"], planned_p=p["planned_p"], completeness=p["completeness"]) for p in pools]
         steps.append(sum_step("汇总三类资源池基础容量", pools, report["total_base_p"]))
-        if legacy:
+        if business_legacy:
             steps.extend(margin_steps(report["total_base_p"], report["total_planned_p"], headroom))
             result["notes"].append("三池独立配置；同池兼容模型可以共享权重，但计算负载仍相加。各池建议值已含余量，汇总后不再次增加余量。")
-        else:
+        elif pool_legacy:
             steps.append(step("汇总各池建议容量", "建议规划总算力 = Σ 各池建议容量",
                               " + ".join(fmt(p.get("planned_p")) for p in pools) or "暂无可计入资源池",
                               report["total_planned_p"],
                               note="创新/研发池已各含一次方案余量；业务池按最小卡数取偶、不含余量，汇总层不再统一乘余量。"))
             result["notes"].append("三池独立配置；同池兼容模型可以共享权重，但计算负载仍相加。业务池不加方案余量，创新/研发各含一次余量，汇总后不再次增加。")
+        else:
+            steps.append(step("汇总各池建议容量", "建议规划总算力 = Σ 各池建议容量",
+                              " + ".join(fmt(p.get("planned_p")) for p in pools) or "暂无可计入资源池",
+                              report["total_planned_p"],
+                              note="三池都不叠加方案余量：各池建议容量 = 基础容量，汇总层也不乘余量。"))
+            result["notes"].append("三池独立配置；同池兼容模型可以共享权重，但计算负载仍相加。三池都不加方案余量，汇总后也不再增加。")
         result["tree"] = build_total_tree(report, pools, headroom)
         return result
     if pool["completeness"] == "DISABLED":
@@ -622,7 +665,7 @@ def build_derivation(run, scope):
             result["notes"].append("旧快照缺少槽位参数，不使用当前档位默认值重建研发聚合。")
     if scope != "development":
         steps.append(sum_step("汇总资源池基础容量", pool["items"], pool["base_p"]))
-    if scope != "business" or legacy:
+    if legacy:
         steps.extend(margin_steps(pool["base_p"], pool["planned_p"], headroom))
     originals = {t["id"]: t for s in payload["scenarios"] for t in s.get("components", [])}
     if scope == "business":
@@ -651,5 +694,5 @@ def build_derivation(run, scope):
     if scope == "business":
         result["tree"] = build_business_tree(pool, result, headroom, legacy)
     elif scope in ("innovation", "development"):
-        result["tree"] = build_pool_tree(scope, pool, result, headroom)
+        result["tree"] = build_pool_tree(scope, pool, result, headroom, pool_legacy)
     return result

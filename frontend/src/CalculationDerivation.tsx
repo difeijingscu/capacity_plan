@@ -3,7 +3,7 @@ import { Alert, Button, Card, Collapse, Descriptions, Drawer, Pagination, Space,
 import { api, capacity, num, stateNames } from './api';
 import type { Obj } from './api';
 import FxTree from './FxTree';
-import { businessHasHeadroom } from './engineVersion';
+import { businessHasHeadroom, poolHasHeadroom } from './engineVersion';
 
 function valueText(value: unknown) {
   if (value == null) return '待补充';
@@ -26,18 +26,31 @@ function Steps({ rows }: { rows: Obj[] }) {
   </li>)}</ol>;
 }
 
-/** 各口径的树脚注：卡数规则与余量口径按池不同，且旧快照（< engine-v2.1.1）业务池仍含余量。 */
-function treeFooter(scope: string, legacy: boolean): string | undefined {
+/**
+ * 各口径的树脚注：卡数规则与余量口径按池不同，且旧快照的池口径不一样——
+ * 业务池的边界是 engine-v2.1.1，创新/研发池的边界是 engine-v2.2.0。
+ */
+function treeFooter(scope: string, view: Obj): string | undefined {
   if (scope === 'business') {
-    return legacy
+    return businessHasHeadroom(view)
       ? '口径：所有节点来自本次测算快照。卡数 = 逐场景 max(A 显存, B Prefill, C Decode) 后求和；'
         + '该快照保存于 engine-v2.1.1 之前，规划卡数仍按方案余量放大后向上对齐到 8 卡部署单元。'
       : '口径：所有节点来自本次测算快照。卡数 = 逐场景 max(A 显存, B Prefill, C Decode) 后求和；'
         + '规划卡数只做奇数补偶、不足 8 卡补到一个部署单元，业务池不加方案余量，无独立故障冗余。';
   }
   if (scope === 'total') {
-    return '口径：三池建议容量相加，' + (legacy ? '三池各含一次余量' : '创新/研发各含一次余量、业务池不含余量')
+    const tail = businessHasHeadroom(view) ? '三池各含一次余量'
+      : poolHasHeadroom(view) ? '创新/研发各含一次余量、业务池不含余量'
+        : '三池都不含方案余量';
+    return '口径：三池建议容量相加，' + tail
       + '，汇总层不再乘余量；三池卡数不相加（机型与部署粒度不同），只在本池内有意义。';
+  }
+  if (scope === 'innovation' || scope === 'development') {
+    return poolHasHeadroom(view)
+      ? '口径：所有节点来自本次测算快照。该快照保存于 engine-v2.2.0 之前，建议容量 = 基础容量 × (1 + 方案余量)，'
+        + '规划卡数 = max(基础卡数 + 1 张故障冗余, 一次余量算力卡数, 一次余量显存卡数)。'
+      : '口径：所有节点来自本次测算快照。建议容量 = 基础容量（不乘方案余量），'
+        + '规划卡数 = max(算力卡数, 显存卡数)；不叠加故障冗余，也不按 8 卡整机对齐。';
   }
   return undefined;
 }
@@ -69,7 +82,7 @@ export default function CalculationDerivation({ runId, scope, stale, onClose }: 
         {view.completeness === 'DISABLED' && <Alert type="info" showIcon message="本次方案未启用此资源池" description="该资源池计入总量为0，没有任务推导。" />}
         {view.missing_items.length > 0 && <Alert type="warning" showIcon message="以下需求尚未完整计入，当前数值仅代表已计入部分" description={<ul>{view.missing_items.map((r: Obj, i: number) => <li key={i}>{r.name || r.id}：{r.message}</li>)}</ul>} />}
         {view.tree && <Card size="small" title="计算过程 · 杜邦式展开">
-          <FxTree tree={view.tree} variant="pool" footer={treeFooter(scope ?? '', businessHasHeadroom(view))} />
+          <FxTree tree={view.tree} variant="pool" footer={treeFooter(scope ?? '', view)} />
         </Card>}
         <Card size="small" title="本次输入与共同口径"><Inputs rows={view.inputs} /></Card>
         {view.steps.length > 0 && <Card size="small" title={view.tree ? '文字步骤：公式与代入数值' : scope === 'total' ? '总量汇总与余量' : '资源池推导与汇总'}><Steps rows={view.steps} /></Card>}

@@ -13,7 +13,9 @@ PETA = D("1e15")
 GIGA = D("1e9")
 # v2.0.5：取消方案级显存预留，创新/研发池显存改为「权重 + KV cache + runtime」直接汇总，
 # 显存需求与卡数整体下降；口径变化会使旧缓存指纹失效，因此升版本。
-ENGINE_VERSION = "engine-v2.1.1"
+# v2.2.0：三池全部取消方案余量与 +1 张故障冗余，创新/研发池的建议容量 = 基础容量，
+# 规划卡数 = max(算力卡数, 显存卡数)；口径变化会使旧缓存指纹失效，因此升版本。
+ENGINE_VERSION = "engine-v2.2.0"
 REFERENCE = "BF16_DENSE_EQUIVALENT"
 # QLoRA 权重量化元数据开销的全局默认（4-bit 权重 + 量化参数的工程经验值）。
 # v2.0.0 起模型清单不再逐模型登记该字段，统一取此常量。
@@ -261,11 +263,13 @@ def summarize_memory(items):
     return dict(memory_gb=total, status=status, groups=list(groups.values()))
 
 
-def cards_for_pool(pool, chip, headroom):
+def cards_for_pool(pool, chip):
     """把池的需求算力（P，BF16 基准）折算成物理卡数：算力约束与显存约束取大。
 
-    口径与业务池 `business.planned_cards` 对齐：
-    - `cards` / `cards_planned` / `servers` 与业务池同名字段，前端可直接复用；
+    口径（engine-v2.2.0）：三池都不再叠加方案余量与故障冗余，因此
+    `cards_planned == cards`，`servers_planned == servers`；两个字段保留是为了
+    前端与费用附录读同一组扁平字段，也为了旧快照里同名键仍能读。
+
     - `cards_detail` 保留推导过程，供抽屉与审计；
     - 芯片缺失或规格不全时返回 None，宁可报待补也不按默认芯片硬算。
 
@@ -278,55 +282,42 @@ def cards_for_pool(pool, chip, headroom):
     if bf16 <= 0 or mem <= 0:
         return None
     memory_gb = D((pool.get("memory") or {}).get("memory_gb") or 0)
-
-    def _split(amount_p, mem_gb):
-        compute = max(1, ceil(D(amount_p) * D(1000) / bf16))
-        memory = max(1, ceil(mem_gb / mem)) if mem_gb > 0 else 0
-        return compute, memory, max(compute, memory)
-
-    compute, memory, cards = _split(pool["planned_p"], memory_gb)
-    unit = 8
-    # pool_summary 已在 planned_p 中应用一次容量余量，这里不得再次按比例放大。
-    # 显存尚未应用容量余量，因此只在显存规划约束上补充一次。
-    c2, m2, _raw = _split(pool["planned_p"], memory_gb * (D(1) + D(headroom)))
+    compute = max(1, ceil(D(pool["planned_p"]) * D(1000) / bf16))
+    memory = max(1, ceil(memory_gb / mem)) if memory_gb > 0 else 0
     # 池层不对齐整机：池内可混机型，按整机对齐会让「1 卡」变成「9 卡」。
-    # 「至少多一张」是独立的故障冗余规则，不属于比例容量余量。
-    cards_planned = max(cards + 1, max(c2, m2))
-    servers = max(1, ceil(cards / unit))
-    servers_planned = max(1, ceil(cards_planned / unit))
+    cards = max(compute, memory)
+    unit = 8
     return dict(
-        cards=cards, cards_planned=cards_planned,
-        servers=servers, servers_planned=servers_planned,
+        cards=cards, cards_planned=cards,
+        servers=max(1, ceil(cards / unit)), servers_planned=max(1, ceil(cards / unit)),
         capacity_p=D(cards) * bf16 / D(1000),
-        capacity_planned_p=D(cards_planned) * bf16 / D(1000),
+        capacity_planned_p=D(cards) * bf16 / D(1000),
         cards_detail=dict(
             chip_key=chip.get("key"), chip_label=chip.get("label"),
             bf16_tflops=bf16, memory_gb_per_card=mem, memory_gb=memory_gb,
             compute_cards=compute, memory_cards=memory,
-            planned_compute_cards=c2, planned_memory_cards=m2,
+            planned_compute_cards=compute, planned_memory_cards=memory,
             bottleneck="显存" if memory > compute else "算力" if compute > memory else "持平",
-            cards_per_server=unit, headroom=D(headroom), headroom_applications=1,
-            redundancy_cards=1,
-            rule="planned_p 已含一次比例余量；规划卡数 = max(cards+1, 一次余量算力卡数, 一次余量显存卡数)，不按整机对齐",
+            cards_per_server=unit,
+            rule="规划卡数 = max(算力卡数, 显存卡数)，不叠加方案余量与故障冗余，不按整机对齐",
         ),
     )
 
 
-def _attach_cards(pool, chip, headroom):
+def _attach_cards(pool, chip):
     """把卡数结果平铺到池对象上，字段名与业务池一致（cards / cards_planned / servers）。
 
     在池上直接加字段而不是嵌套一层，是因为前端与费用附录都按扁平字段读；
     芯片缺失时显式写 None 并留 reason，避免「没有这个字段」和「算不出来」被混淆。
-    禁用池不需要芯片，也不应用余量或冗余，所有资源配置均为零。
+    禁用池不需要芯片，所有资源配置均为零。
     """
     if pool.get("completeness") == "DISABLED":
         pool.update(cards=0, cards_planned=0, servers=0, servers_planned=0,
                     capacity_p=ZERO, capacity_planned_p=ZERO,
                     cards_detail=dict(reason="本池已禁用，不配置算力资源",
-                                      headroom_applications=0, redundancy_cards=0,
                                       rule="禁用池为零资源"))
         return pool
-    detail = cards_for_pool(pool, chip, headroom)
+    detail = cards_for_pool(pool, chip)
     if detail is None:
         pool.update(cards=None, cards_planned=None, servers=None,
                     servers_planned=None, capacity_planned_p=None,
@@ -336,13 +327,14 @@ def _attach_cards(pool, chip, headroom):
     return pool
 
 
-def pool_summary(pool_id, items, missing, plan, enabled=True, base_override=None, memory_override=None):
+def pool_summary(pool_id, items, missing, enabled=True, base_override=None, memory_override=None):
+    """池汇总：基础容量与建议容量同值（engine-v2.2.0 起三池都不叠加方案余量）。"""
     computable = [x for x in items if x.get("base_p") is not None]
     native_missing = [dict(id=x["id"], code="PRECISION_NOT_COMPARABLE", message="原生精度无参考映射，未计入合计算力", pool_id=pool_id) for x in items if x.get("base_p") is None]
     missing = missing + native_missing
     status = "DISABLED" if not enabled else "PARTIAL" if missing and computable else "BLOCKED" if missing else "COMPLETE"
     base = (base_override if base_override is not None else sum((x["base_p"] for x in computable), ZERO)) if computable or not enabled or not missing else None
-    return dict(id=pool_id, base_p=base, planned_p=base * (1 + plan.headroom) if base is not None else None, effective_p=sum((x.get("effective_p") or ZERO for x in computable), ZERO), completeness=status, evidence_grade="C", items=items, missing_items=missing, counted_tasks=len(computable), total_tasks=len(computable) + len(missing), memory=memory_override or summarize_memory(computable))
+    return dict(id=pool_id, base_p=base, planned_p=base, effective_p=sum((x.get("effective_p") or ZERO for x in computable), ZERO), completeness=status, evidence_grade="C", items=items, missing_items=missing, counted_tasks=len(computable), total_tasks=len(computable) + len(missing), memory=memory_override or summarize_memory(computable))
 
 
 def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
@@ -374,7 +366,6 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
     base_inf_chips = list(inference_chips if inference_chips is not None else inference_catalog.chips())
     inf_chips = base_inf_chips + list(custom_inference_chips or [])
     inf_scenes = inference_scenes if inference_scenes is not None else inference_catalog.scenes()
-    headroom = float(plan.headroom)
     all_inf_models = list(inf_models) + list(custom_inference_models or [])
     lookup = {m["key"]: inference_model_view(m) for m in all_inf_models}
     missing = []
@@ -486,10 +477,9 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
                 if item:
                     item["monthly_tokens"] = count
                     item["trace"]["quota"] = dict(monthly_total=monthly, model_share=allocation.share, allocated=count, service_seconds=seconds, peak_factor=config.peak_factor, cache_hit_rate=config.cache_hit_rate, input_tokens_per_second=count*allocation.input_fraction/seconds*config.peak_factor, output_tokens_per_second=count*(1-allocation.input_fraction)/seconds*config.peak_factor, reasoning_already_included=True)
-    innovation_pool = pool_summary("innovation", innov, innov_missing, plan, config.enabled)
+    innovation_pool = pool_summary("innovation", innov, innov_missing, config.enabled)
     innovation_pool["monthly_tokens"] = monthly
-    _attach_cards(innovation_pool, next((c for c in inf_chips if c.get("key") == config.chip_key), None),
-                  plan.headroom)
+    _attach_cards(innovation_pool, next((c for c in inf_chips if c.get("key") == config.chip_key), None))
 
     dev, dev_missing = [], []
     dc = plan.development
@@ -537,18 +527,17 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
             lane = max(train_mems, default=ZERO) * slots
             dev_base = max(train_caps) * slots
             dev_memory = dict(memory_gb=lane, status="PROXY" if not dev_missing else "WEIGHT_LOWER_BOUND", groups=[], train_slot_gb=lane)
-    development_pool = pool_summary("development", dev, dev_missing, plan, dc.enabled, dev_base, dev_memory)
+    development_pool = pool_summary("development", dev, dev_missing, dc.enabled, dev_base, dev_memory)
     development_pool["intensity_parameters"] = dev_cfg
     development_pool["aggregation_rule"] = "微调槽位数 × 最大单任务容量（只含微调，不含评测）"
-    _attach_cards(development_pool, next((c for c in inf_chips if c.get("key") == dc.chip_key), None),
-                  plan.headroom)
+    _attach_cards(development_pool, next((c for c in inf_chips if c.get("key") == dc.chip_key), None))
 
     pools = [business_pool, innovation_pool, development_pool]
     missing_items = [m for p in pools for m in p["missing_items"]]
     counted = sum(p["counted_tasks"] for p in pools)
     total = sum((p["base_p"] or ZERO for p in pools), ZERO)
     complete = "PARTIAL" if missing_items and counted else "BLOCKED" if missing_items or counted == 0 else "COMPLETE"
-    report = dict(engine_version=ENGINE_VERSION, defaults_version=defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=sum((p["planned_p"] or ZERO for p in pools), ZERO) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
+    report = dict(engine_version=ENGINE_VERSION, defaults_version=defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=sum((p["planned_p"] or ZERO for p in pools), ZERO) if counted else None, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
     if sensitivity and counted:
         variations = []
         scene_default = {s["key"]: s for s in inf_scenes}

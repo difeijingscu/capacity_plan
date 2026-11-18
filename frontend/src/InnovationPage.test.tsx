@@ -53,7 +53,6 @@ const catalog: Obj = {
 
 function planWith(allocations: Obj[]): Obj {
   return {
-    headroom: 0.2,
     innovation: {
       enabled: true, users: 100, quota_per_user_month: 1000000, usage_ratio: 1,
       service_days: 22, service_hours_per_day: 8, peak_factor: 3,
@@ -64,14 +63,13 @@ function planWith(allocations: Obj[]): Obj {
 
 /** 与后端 /preview-calculation 的 innovation pool 同构（单模型）。 */
 const preview: Obj = {
-  headroom: 0.2,
   pools: [{
-    id: 'innovation', cards: 6, cards_planned: 8, servers: 1, servers_planned: 1,
-    base_p: '0.5', planned_p: '0.6', monthly_tokens: '100000000', completeness: 'COMPLETE',
+    id: 'innovation', cards: 6, cards_planned: 6, servers: 1, servers_planned: 1,
+    base_p: '0.5', planned_p: '0.5', monthly_tokens: '100000000', completeness: 'COMPLETE',
     memory: { memory_gb: '300', status: 'PROXY' }, missing_items: [],
     cards_detail: {
       chip_label: '昇腾910C', compute_cards: 6, memory_cards: 3,
-      bottleneck: '算力', headroom: 0.2, redundancy_cards: 1, rule: '卡数 = max(cards+1, 余量卡数)',
+      bottleneck: '算力', rule: '规划卡数 = max(算力卡数, 显存卡数)',
     },
     items: [{
       id: 'innovation-glm5_3_flash', model_id: 'glm5_3_flash', base_p: '0.5',
@@ -126,10 +124,14 @@ describe('创新服务页', () => {
 
   it('汇总读取本池卡数与算力', () => {
     renderPage(planWith(single));
-    // 明细表「含余量卡数」= 8 张；折算明细里有算力/显存两个约束卡数
-    expect(screen.getByText('8 张')).toBeTruthy();
+    // 物理卡数与规划卡数同值（6 张）；折算明细里有算力/显存两个约束卡数
+    expect(screen.getAllByText('6 张').length).toBeGreaterThan(0);
     expect(screen.getByText('算力约束卡数')).toBeTruthy();
-    expect(screen.getByText(/含余量约 1 台服务器/)).toBeTruthy();
+    expect(screen.getByText(/约 1 台服务器/)).toBeTruthy();
+    // 方案余量与 +1 故障冗余已移除：页面上不再出现这两个只读口径
+    expect(screen.queryByText(/余量与故障冗余/)).toBeNull();
+    expect(screen.queryByText(/故障冗余/)).toBeNull();
+    expect(screen.queryByText(/\+20% 方案余量/)).toBeNull();
   });
 
   it('旧方案存在多个模型分配时说明「汇总是合计值」，不谎报未计入', () => {

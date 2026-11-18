@@ -101,7 +101,6 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
   }, items[0]);
   const maxItemBaseP = item?.base_p == null ? null : Number(item.base_p);
   const vars: Obj = item?.trace?.variables || {};
-  const headroomPct = num(Number(payload.headroom ?? 0) * 100, 0);
 
   /** 强度档生效参数：payload → 档位默认值 → 引擎快照，逐级回退。 */
   const preset: Obj = (intensityDefaults || INTENSITY_FALLBACK)[c.intensity] || INTENSITY_FALLBACK[c.intensity] || {};
@@ -209,7 +208,7 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
             </Space>
           </span>
         </div>
-        <div className="be-global-grid is-2">
+        <div className="be-global-grid is-1">
           <div className="field">
             <label>算力卡（本池）
               <Tooltip title="与业务场景共用同一套算力卡规格（含自定义卡），三池卡数才可比；训练与推理共用同一张卡的算力与显存。">
@@ -220,13 +219,6 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
               placeholder="未选择则本池不出卡数" allowClear showSearch optionFilterProp="label"
               options={chipSelectOptions(chips)} onChange={v => change('chip_key', v ?? null)} />
             <div className="be-chip-hint">{chipSpecHint(chip)}</div>
-          </div>
-          <div className="field">
-            <label>余量与故障冗余（方案级，只读）</label>
-            <div className="be-chip-hint" style={{ marginTop: 0, fontSize: 12 }}>
-              +{headroomPct}% 方案余量 · +1 张故障冗余
-              <br />余量比例在方案设置中调整，对本池与业务场景同时生效。
-            </div>
           </div>
         </div>
         {/* 训练系数：与业务页「当前生效的工程系数」同一交互层级——默认收起 */}
@@ -400,12 +392,12 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
       <Card>
         <div className="be-sec-h">
           <h2>算力汇总</h2>
-          <span>{c.enabled ? '按并行槽位聚合：算力与显存双约束取大，再按余量与冗余补卡' : '本池未启用，不计入规划总量'}</span>
+          <span>{c.enabled ? '按并行槽位聚合：算力与显存双约束取大即规划卡数' : '本池未启用，不计入规划总量'}</span>
           <span className="act">
             <Space>
               <span className="muted">
                 {derivationReady
-                  ? (derivationStale ? '输入已变更，展开内容仍来自最近保存的测算快照' : '从单任务训练量、并行槽位逐层展开到显存、余量与物理卡数')
+                  ? (derivationStale ? '输入已变更，展开内容仍来自最近保存的测算快照' : '从单任务训练量、并行槽位逐层展开到显存与物理卡数')
                   : '完成一次正式测算后可展开计算过程'}
               </span>
               <Button icon={<ApartmentOutlined aria-hidden="true" />} disabled={!derivationReady}
@@ -422,14 +414,14 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
                     <div className="k">所需卡数</div>
                     <div className="v">{num(pool.cards_planned, 0)}<small>张</small></div>
                     <div className="sub">
-                      物理 {num(pool.cards, 0)} 张 · 含余量约 {num(pool.servers_planned, 0)} 台服务器（8 卡/台）
+                      物理 {num(pool.cards, 0)} 张 · 约 {num(pool.servers, 0)} 台服务器（8 卡/台）
                     </div>
                   </div>
                   <div className="be-kpi">
                     <div className="k">需求算力（BF16 等效）</div>
                     <div className="v">{capacity(pool.planned_p)}</div>
                     <div className="sub">
-                      基础 {capacity(pool.base_p)} · {extraModels > 0 ? `最大单任务 × ${num(slots, 0)} 槽位` : `单任务 × ${num(slots, 0)} 槽位`} · 已含 {headroomPct}% 余量
+                      基础 {capacity(pool.base_p)} · {extraModels > 0 ? `最大单任务 × ${num(slots, 0)} 槽位` : `单任务 × ${num(slots, 0)} 槽位`} · 不含方案余量
                     </div>
                   </div>
                   <div className="be-kpi">
@@ -501,8 +493,8 @@ export default function DevelopmentPage({ payload, edit, catalog, catalogLoading
                   { key: 'memory', label: '显存约束卡数', children: detail.memory_cards == null ? '—' : num(detail.memory_cards, 0) + ' 张' },
                   { key: 'bottleneck', label: '主导约束', children: detail.bottleneck || '—' },
                   { key: 'coef', label: '训练系数', children: `k ${num(coef('train_k'))} · ηtrain ${num(coef('train_eta'))}` },
-                  { key: 'headroom', label: '余量与冗余', children: `+${num(Number(detail.headroom ?? payload.headroom ?? 0) * 100, 0)}% 余量 · +${num(detail.redundancy_cards ?? 1, 0)} 张冗余` },
-                  { key: 'servers', label: '服务器台数', children: `${num(pool.servers, 0)} 台物理 · ${num(pool.servers_planned, 0)} 台含余量` },
+                  { key: 'margin', label: '余量与冗余', children: '不叠加（engine-v2.2.0 起）' },
+                  { key: 'servers', label: '服务器台数', children: `${num(pool.servers, 0)} 台` },
                 ]} />
                 {memoryParts.some(([, v]) => v != null) && (
                   <div className="note-line" style={{ marginTop: 12, marginBottom: 0 }}>

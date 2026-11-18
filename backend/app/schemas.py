@@ -199,6 +199,9 @@ class BusinessDefaults(StrictModel):
 
 
 class PlanInput(StrictModel):
+    # 已停用（engine-v2.2.0）：三池都不再叠加方案余量，取值不参与计算与展示。
+    # 保留字段只为旧 payload 通过 extra="forbid" 校验；历史快照里的 headroom 仍按
+    # 当时口径解释（derivations 按 engine_version 分支），新快照不再记录该字段。
     headroom: Annotated[Decimal, Field(ge=0, le=5)] = Decimal(".20")
     # 已停用（v2.0.5）：显存预留不再参与任何池的显存估算或卡数折算。
     # 保留字段只为旧 payload 通过 extra="forbid" 校验，取值不参与计算与展示；

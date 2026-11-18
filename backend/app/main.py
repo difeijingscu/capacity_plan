@@ -130,8 +130,7 @@ def create_app(data_dir=None):
             "templates":TEMPLATES,
             "task_defaults":Task().model_dump(mode="json",exclude={"id","provenance"}),
             "development_defaults":Development().model_dump(mode="json",exclude={"models"}),
-            # 显存预留已停用（v2.0.5），不再作为可配置默认值下发。
-            "planning_defaults":PlanInput().model_dump(mode="json",include={"headroom"}),
+            # 显存预留已停用（v2.0.5）、方案余量已停用（v2.2.0），两者都不再作为可配置默认值下发。
             "intensities":INTENSITIES,
             "defaults_version": inference_params.version(),
         }
