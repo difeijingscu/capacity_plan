@@ -4,6 +4,8 @@
 > 对标对象：`https://aidc2026.cn/ai-dc-design.html?tab=computeEst`，实际计算页为 iframe 内的 `/ai-dc-computeEst.html`（rev=xlsx-2）
 > 本项目侧：`backend/app/engine/inference.py`（A/B/C 三维引擎）+ `business.py`（池层汇总）
 > 方法：抓取目标页源码逐条还原公式（含 JS 计算函数 `calculate()`），再用本项目引擎跑同模型同卡的对照算例与并发扫描
+>
+> 时效说明：本文按 2026-11-08 的代码口径撰写。业务池自 engine-v2.1.1（2026-11-17）起取消方案余量、规划卡数改为奇数补偶，下文「含余量卡数」一节不再对应当前实现。
 
 ---
 

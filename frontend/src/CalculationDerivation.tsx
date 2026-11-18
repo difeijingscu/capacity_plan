@@ -28,8 +28,8 @@ function Steps({ rows }: { rows: Obj[] }) {
 /** 各口径的树脚注：卡数规则与余量口径按池不同，不能共用一句。 */
 const TREE_FOOTERS: Record<string, string> = {
   business: '口径：所有节点来自本次测算快照。卡数 = 逐场景 max(A 显存, B Prefill, C Decode) 后求和；'
-    + '余量只在场景层应用一次，含余量卡数按 8 卡最小部署粒度向上对齐，无独立故障冗余。',
-  total: '口径：三池建议容量相加，各池已含一次余量，汇总层不再乘余量；'
+    + '规划卡数只做奇数补偶、不足 8 卡补到一个部署单元，业务池不加方案余量，无独立故障冗余。',
+  total: '口径：三池建议容量相加，创新/研发各含一次余量、业务池不含余量，汇总层不再乘余量；'
     + '三池卡数不相加（机型与部署粒度不同），只在本池内有意义。',
 };
 
@@ -66,7 +66,7 @@ export default function CalculationDerivation({ runId, scope, stale, onClose }: 
         {view.steps.length > 0 && <Card size="small" title={view.tree ? '文字步骤：公式与代入数值' : scope === 'total' ? '总量汇总与余量' : '资源池推导与汇总'}><Steps rows={view.steps} /></Card>}
         {view.breakdown.length > 0 && <Card size="small" title={scope === 'total' ? '三类资源池的数值组成' : '各场景的数值组成'}><Table<Obj> rowKey="id" size="small" pagination={{ pageSize: 10, hideOnSinglePage: true }} dataSource={view.breakdown} scroll={{ x: 580 }} columns={[
           { title: '名称', dataIndex: 'name' }, { title: '基础容量', dataIndex: 'base_p', render: capacity },
-          { title: '建议容量（已含余量）', dataIndex: 'planned_p', render: capacity }, { title: '状态', dataIndex: 'completeness', render: v => stateNames[v] || v },
+          { title: '建议容量', dataIndex: 'planned_p', render: capacity }, { title: '状态', dataIndex: 'completeness', render: v => stateNames[v] || v },
         ]} /></Card>}
         {view.items.length > 0 && <Card size="small" title={scope === 'development' ? '单任务计算：候选模型与微调' : '逐项展开：输入、公式与代入数值'}>
           <Collapse key={view.run_id + view.scope + taskPage} defaultActiveKey={taskItems.length ? [taskItems[0].id] : []} items={taskItems.map((item: Obj) => ({

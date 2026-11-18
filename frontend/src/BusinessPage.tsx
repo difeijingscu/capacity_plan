@@ -434,7 +434,9 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
             {row?.cards_planned != null
               ? <>
                   <span className="cards">{num(row.cards_planned, 0)}<small>张</small></span>
-                  <small className="muted">物理 {num(row.cards, 0)} 张 · {capacity(row.base_p)}{row.sla_passed === false || row.latency_status === 'NOT_MET' ? ' · 时延未达标' : ''}</small>
+                  <small className="muted">{row.cards_planned === row.cards
+                    ? `三维最小 ${num(row.cards, 0)} 张`
+                    : `三维最小 ${num(row.cards, 0)} 张 · 补偶后 ${num(row.cards_planned, 0)} 张`} · {capacity(row.base_p)}{row.sla_passed === false || row.latency_status === 'NOT_MET' ? ' · 时延未达标' : ''}</small>
                 </>
               : <span className="pending">{off ? '不适用' : '待补充'}</span>}
             {stateTag(s)}
@@ -642,7 +644,9 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
             <div className="be-kpi hl">
               <div className="k">所需卡数</div>
               <div className="v">{num(pool.cards_planned, 0)}<small>张</small></div>
-              <div className="sub">物理 {num(pool.cards, 0)} 张 · 约 {num(Math.ceil(Number(pool.cards_planned || 0) / 8), 0)} 台服务器（8 卡/台）</div>
+              <div className="sub">{pool.cards_planned === pool.cards
+                ? `三维最小 ${num(pool.cards, 0)} 张`
+                : `三维最小 ${num(pool.cards, 0)} 张 · 补偶后 ${num(pool.cards_planned, 0)} 张`} · 约 {num(Math.ceil(Number(pool.cards_planned || 0) / 8), 0)} 台服务器（8 卡/台）</div>
             </div>
             <div className="be-kpi">
               <div className="k">需求算力（BF16 等效）</div>

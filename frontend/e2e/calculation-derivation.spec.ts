@@ -53,7 +53,7 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await page.getByRole('button', { name: '查看建议规划总算力计算推导', exact: true }).click();
   await expect(drawer).toContainText('汇总三类资源池基础容量');
   await expect(drawer).toContainText('三类资源池的数值组成');
-  await expect(drawer).toContainText('汇总后不再次增加余量');
+  await expect(drawer).toContainText('汇总后不再次增加');
   await drawer.locator('.ant-drawer-close').click();
   // 业务池：三维取最大 + 奇数补偶 + 时延预测 + 卡数与算力两套口径都要能看到
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();
@@ -64,7 +64,9 @@ test('四张容量卡片展示真实代入过程及研发最大任务聚合', as
   await expect(drawer).toContainText('卡数 = max(A, B, C)，奇数补偶');
   await expect(drawer).toContainText('折算等效算力');
   await expect(drawer).toContainText('时延预测');
-  await expect(drawer).toContainText('汇总场景卡数');
+  // engine-v2.1.1：业务池不再乘方案余量，卡数只补偶
+  await expect(drawer).toContainText('汇总场景规划卡数');
+  await expect(drawer).toContainText('业务池不加方案余量');
   await expect(drawer).toContainText('卡数为物理台数');
   await drawer.getByRole('button', { name: /推导长文/ }).click();
   await expect(drawer).toContainText('deepseek_v4_flash');
@@ -106,7 +108,7 @@ test('修改输入后推导保留历史口径，重新测算后展示新输入',
   await page.getByRole('button', { name: '查看业务场景计算推导', exact: true }).click();
   const drawer = page.locator('.calculation-derivation');
   await expect(drawer).toContainText('当前输入已变更，以下推导来自所选历史测算快照');
-  // 场景级输入走 items 里的输入表，池级输入只有余量与卡数
+  // 场景级输入走 items 里的输入表，池级输入只有规划卡数与等效算力
   const conc = () => drawer.locator('.derivation-inputs').nth(1)
     .locator('.ant-descriptions-item').filter({ hasText: '并发会话' });
   await expect(conc()).toContainText('100');

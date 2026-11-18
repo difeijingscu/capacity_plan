@@ -118,7 +118,11 @@ def test_derivation_is_read_only_and_uses_frozen_inputs_and_catalog(client):
     scenario = before["items"][0]
     assert D(by_title_input(scenario["inputs"], "并发会话")["value"]) == 100
     assert "max(A, B, C)" in by_title(scenario["steps"], "三维取最大（不是相加）+ 奇数补偶")["formula"]
-    assert D(by_title(before["steps"], "增加一次容量余量")["value"]) == pytest.approx(D(before["planned_p"]))
+    # 业务池不再有「增加一次容量余量」步骤，规划卡数直接等于取偶后的最小卡数
+    assert all(s["title"] != "增加一次容量余量" for s in before["steps"])
+    pool = run["result"]["pools"][0]
+    assert by_title(before["steps"], "汇总场景规划卡数")["value"] == str(pool["cards_planned"])
+    assert D(before["planned_p"]) == D(before["base_p"])
 
 
 def test_total_margin_once_and_cards_are_explained(client):
@@ -126,12 +130,13 @@ def test_total_margin_once_and_cards_are_explained(client):
         model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
     run = save_run(client, payload)
     total = get(client, run, "total")
-    assert D(total["planned_p"]) == pytest.approx(D(total["base_p"]) * D("1.2"))
+    # 业务池不含余量，创新/研发禁用 → 总量等于业务池建议容量（= 基础容量）
+    assert D(total["planned_p"]) == sum((D(p["planned_p"] or 0) for p in run["result"]["pools"]), D(0))
     assert D(total["steps"][-1]["value"]) == D(total["planned_p"])
     business = get(client, run, "business")
     pool = run["result"]["pools"][0]
     assert D(business["base_p"]) == D(pool["base_p"])
-    assert by_title(business["steps"], "汇总场景卡数")["value"] == str(pool["cards_planned"])
+    assert by_title(business["steps"], "汇总场景规划卡数")["value"] == str(pool["cards_planned"])
     assert get(client, run, "innovation")["steps"] == []
     assert get(client, run, "innovation")["completeness"] == "DISABLED"
 
@@ -220,25 +225,49 @@ def test_scope_validation_and_missing_run(client):
     assert client.get("/api/v1/calculations/missing/derivation").status_code == 404
 
 
-def test_business_tree_explains_three_dimensions_and_eight_card_granularity():
-    """业务池也要有杜邦树：三维取最大 → 汇总 → 一次余量 → 8 卡粒度 → 容量折算。"""
+def test_business_tree_explains_three_dimensions_and_even_card_granularity():
+    """业务池也要有杜邦树：三维取最大 → 奇数补偶 → 8 卡部署单元 → 容量折算（无余量）。"""
     payload = PlanInput(headroom=".2", scenarios=[Scenario(name="问答", inference=InferenceRequest(
         model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
     explanation, run = direct_explanation(payload, "business")
     tree = explanation["tree"]
     assert tree["label"] == "业务池规划结果"
-    assert [c["label"] for c in tree["children"]] == ["逐场景需求与卡数", "一次容量余量与部署粒度", "等效算力折算"]
+    assert [c["label"] for c in tree["children"]] == ["逐场景需求与卡数", "规划卡数与部署粒度", "等效算力折算"]
     scene = tree_child(tree, "问答")
     assert scene is not None and "max(" in scene["expr"]
     # 场景内仍能展开到 A/B/C 三维与补偶的具体数值
     assert tree_child(scene, "三维取最大（不是相加）+ 奇数补偶")
     pool = run["result"]["pools"][0]
-    margin = tree_child(tree, "一次容量余量与部署粒度")
-    assert margin["value"] == f"{pool['cards_planned']} 张"
-    assert "8" in margin["relation"]
-    assert tree_child(tree, "物理卡数（不含余量）")["value"] == f"{pool['cards']} 张"
+    parity = tree_child(tree, "规划卡数与部署粒度")
+    assert parity["value"] == f"{pool['cards_planned']} 张"
+    assert "8" in parity["relation"]
+    assert tree_child(parity, "建议容量（不含余量）")["value"] == f"{pool['planned_p']} P"
+    assert tree_child(tree, "三维最小卡数（补偶前）")["value"] == f"{pool['cards']} 张"
     # 业务池没有独立故障冗余，不应出现创新/研发池的 +1 节点
     assert tree_child(tree, "独立故障冗余") is None
+
+
+def test_legacy_snapshot_keeps_headroom_wording():
+    """engine-v2.1.0 的快照仍按「含余量」口径解释，新口径不改写历史。"""
+    payload = PlanInput(headroom=".2", scenarios=[Scenario(name="问答", inference=InferenceRequest(
+        model_key="qwen3_8b", chip_key="910c", scene_key="kb_qa", concurrency=100))])
+    explanation, run = direct_explanation(payload, "business")
+    legacy = deepcopy(run)
+    legacy["result"]["engine_version"] = "engine-v2.1.0"
+    pool = legacy["result"]["pools"][0]
+    pool["planned_p"] = D(pool["base_p"]) * D("1.2")
+    pool["cards_planned"] = 104  # 旧口径：×(1+h) 后按 8 卡向上对齐
+    view = build_derivation(legacy, "business")
+    tree = view["tree"]
+    assert [c["label"] for c in tree["children"]] == ["逐场景需求与卡数", "一次容量余量与部署粒度", "等效算力折算"]
+    assert tree["expr"] == "headroom = 20%"
+    margin = tree_child(tree, "一次容量余量与部署粒度")
+    assert "1 + 0.2" in margin["expr"]
+    assert by_title(view["steps"], "增加一次容量余量")["value"] == str(pool["planned_p"])
+    assert D(by_title_input(view["inputs"], "容量余量")["value"]) == 20
+    # 新快照（engine-v2.1.1）不出现余量步骤
+    fresh = build_derivation(run, "business")
+    assert all(s["title"] != "增加一次容量余量" for s in fresh["steps"])
 
 
 def test_total_tree_sums_three_pools_without_second_margin():

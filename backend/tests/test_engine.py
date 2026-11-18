@@ -297,13 +297,15 @@ def test_vlm_same_as_text():
     assert D(vision["vision_flop_per_request"])==0
 
 
-def test_headroom_once():
-    """余量只在池层乘一次：planned = base × (1+h)，卡数不再叠加第二重余量。"""
+def test_business_pool_has_no_headroom_but_other_pools_do():
+    """业务池不加方案余量：planned = base；创新池仍按 h 在池层放大一次。"""
     one=result(spec(),headroom=".2")["pools"][0]
-    near(D(one["planned_p"]),float(one["base_p"])*1.2)
+    near(D(one["planned_p"]),float(one["base_p"]))
     two=result(spec(),spec(),headroom=".2")["pools"][0]
     near(D(two["base_p"]),float(one["base_p"])*2)
-    near(D(two["planned_p"]),float(two["base_p"])*1.2)
+    near(D(two["planned_p"]),float(two["base_p"]))
+    innov=result(innovation=innovation(),headroom=".2")["pools"][1]
+    near(D(innov["planned_p"]),float(innov["base_p"])*1.2)
 
 
 def test_pool_compute_headroom_is_not_applied_twice():
@@ -334,27 +336,29 @@ def test_pool_memory_headroom_is_applied_once():
     assert detail["cards_planned"]==12
 
 
-@pytest.mark.parametrize("cards,h,expected",[
-    (1,"0",8),      # 不足一个部署单元 → 补到 8
-    (2,"0",8),
-    (8,"0",8),      # h=0 不再强制增加一台
-    (9,"0",16),
-    (10,".2",16),
-    (18,".2",24),
-    (20,".2",24),
-    (40,".2",48),   # 浮点回归：40×1.2 不能因 48.00000000000001 变成 56
+@pytest.mark.parametrize("cards,expected",[
+    (1,8),      # 不足一个部署单元 → 补到 8
+    (2,8),
+    (7,8),
+    (8,8),      # 已是一个部署单元，不再增加
+    (9,10),     # 奇数补偶，不再向 8 的倍数对齐
+    (18,18),    # 偶数保持
+    (19,20),
+    (40,40),    # 40×1.2=48 的老口径不再适用
+    (103,104),
 ])
-def test_business_cards_align_to_deployment_unit(cards,h,expected):
-    """8 卡是最小部署粒度，不是"至少多一台实例"：按 8 卡向上取整且不少于 8 卡。"""
-    assert planned_cards(cards,8,h)==expected
+def test_business_cards_align_to_deployment_unit(cards,expected):
+    """业务池卡数只做奇数补偶；8 卡是最小部署单元，不是向上取整粒度。"""
+    assert planned_cards(cards,8)==expected
 
 
-def test_business_pool_planned_cards_are_deployment_multiples():
-    """业务池汇总卡数同样落在部署粒度上，且零余量时不会额外增加一台。"""
-    pool=result(spec(),headroom="0")["pools"][0]
-    assert pool["cards_planned"]%8==0
-    assert pool["cards_planned"]>=8
+def test_business_pool_planned_cards_are_even_and_not_padded_to_servers():
+    """业务池汇总卡数为偶数、不小于最小卡数，且不再按 8 卡整机倍数放大。"""
+    pool=result(spec())["pools"][0]
+    assert pool["cards_planned"]%2==0
+    assert pool["cards_planned"]>=min(8,pool["cards"])
     assert pool["cards_planned"]>=pool["cards"]
+    assert pool["planned_p"]==pool["base_p"]
 
 
 def test_independent_pool_cost_rounding_and_missing_price():
@@ -597,11 +601,11 @@ def test_custom_model_flows_through_business_and_sensitivity():
 
 
 def test_scenarios_aggregate_without_double_margin():
-    """两个同配置场景：需求相加，卡数相加，余量只乘一次。"""
+    """两个同配置场景：需求相加，卡数相加，业务池不再乘方案余量。"""
     one=result(spec())["pools"][0]
     two=result(spec(),spec())["pools"][0]
     assert two["cards"]==one["cards"]*2
-    near(D(two["planned_p"]),float(one["base_p"])*2*1.2)
+    near(D(two["planned_p"]),float(one["base_p"])*2)
     assert len(two["scenarios"])==2
 
 

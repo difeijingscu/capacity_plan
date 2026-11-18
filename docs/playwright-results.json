@@ -4,7 +4,7 @@
       "C:\\Users\\difeijing\\.workbuddy\\binaries\\node\\versions\\22.22.2-6\\node.exe",
       "D:\\10.Coding\\ComputePlanner\\frontend\\node_modules\\@playwright\\test\\cli.js",
       "test",
-      "e2e/calculation-derivation.spec.ts"
+      "e2e/planner.spec.ts"
     ],
     "configFile": "D:\\10.Coding\\ComputePlanner\\frontend\\playwright.config.ts",
     "rootDir": "D:/10.Coding/ComputePlanner/frontend/e2e",
@@ -102,19 +102,19 @@
       "timeout": 30000,
       "reuseExistingServer": false,
       "env": {
-        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794924846222"
+        "PLANNER_DATA_DIR": "D:\\10.Coding\\ComputePlanner\\data\\e2e-1794966822012"
       }
     }
   },
   "suites": [
     {
-      "title": "calculation-derivation.spec.ts",
-      "file": "calculation-derivation.spec.ts",
+      "title": "planner.spec.ts",
+      "file": "planner.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [
         {
-          "title": "四张容量卡片展示真实代入过程及研发最大任务聚合",
+          "title": "完整规划：示例、编辑、保存、计算、依据、费用和历史对比",
           "ok": true,
           "tags": [],
           "tests": [
@@ -129,12 +129,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 8702,
+                  "duration": 11442,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T14:14:09.145Z",
+                  "startTime": "2026-11-18T01:53:44.816Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -142,13 +142,13 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-8e0f29785af663f5aac6",
-          "file": "calculation-derivation.spec.ts",
-          "line": 26,
+          "id": "5d42237028e62295b8dc-a0987dd79d3680379344",
+          "file": "planner.spec.ts",
+          "line": 19,
           "column": 1
         },
         {
-          "title": "创新和研发配置页可展开最近测算的杜邦树",
+          "title": "文字导入、缺失任务与手动流程",
           "ok": true,
           "tags": [],
           "tests": [
@@ -163,12 +163,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 5913,
+                  "duration": 6260,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T14:14:19.382Z",
+                  "startTime": "2026-11-18T01:53:56.608Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -176,13 +176,13 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-5dcf13a04ec60e8b20f1",
-          "file": "calculation-derivation.spec.ts",
-          "line": 83,
+          "id": "5d42237028e62295b8dc-9f43d9346d7e5f0e1a0b",
+          "file": "planner.spec.ts",
+          "line": 67,
           "column": 1
         },
         {
-          "title": "修改输入后推导保留历史口径，重新测算后展示新输入",
+          "title": "移动端可访问且没有横向页面溢出",
           "ok": true,
           "tags": [],
           "tests": [
@@ -197,12 +197,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 9148,
+                  "duration": 1082,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-17T14:14:25.328Z",
+                  "startTime": "2026-11-18T01:54:02.889Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -210,43 +210,9 @@
               "status": "expected"
             }
           ],
-          "id": "efb813057c26d203475a-e4558c7396c5254a1d1f",
-          "file": "calculation-derivation.spec.ts",
-          "line": 100,
-          "column": 1
-        },
-        {
-          "title": "缺失任务和未启用资源池说明清楚，手机抽屉可阅读",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 60000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "",
-              "projectName": "",
-              "results": [
-                {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 4802,
-                  "errors": [],
-                  "stdout": [],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-11-17T14:14:34.502Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "efb813057c26d203475a-81c152d96e634961c6d4",
-          "file": "calculation-derivation.spec.ts",
-          "line": 129,
+          "id": "5d42237028e62295b8dc-75c618eb593fda96b015",
+          "file": "planner.spec.ts",
+          "line": 92,
           "column": 1
         }
       ]
@@ -254,9 +220,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-17T14:14:06.233Z",
-    "duration": 34962.337,
-    "expected": 4,
+    "startTime": "2026-11-18T01:53:42.019Z",
+    "duration": 23635.579,
+    "expected": 3,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

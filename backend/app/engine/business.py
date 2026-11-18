@@ -4,13 +4,13 @@
 1. 把方案里的场景配置（Scenario.inference）翻成引擎入参；
 2. 旧方案迁移：旧场景档 / 旧精度 / 旧芯片 key 的映射（全部打 MIGRATED_* 告警，不静默）；
    带 components 但没有 inference 的场景，按模型名模糊匹配 + 任务模板推一份等价配置；
-3. 把引擎结果折算成业务池口径：等效算力（P，BF16 基准）、物理卡数、含余量卡数。
+3. 把引擎结果折算成业务池口径：等效算力（P，BF16 基准）、物理卡数、规划卡数。
 
-口径约定（v2.0.0，与推理评估页一致）：
+口径约定（engine-v2.1.1，与推理评估页一致）：
 - 场景层输出「恰好满足 SLA 的最小卡数」，不含任何余量；
 - base_p（等效算力）= 卡数 × chip.bf16_tflops ÷ 1000（BF16 基准）；
-- 余量只在池层乘一次（plan.headroom），planned_cards 按 headroom 放大后向上对齐到
-  最小部署粒度（8 卡/台），且不少于一个部署单元；
+- 业务池不应用方案余量 plan.headroom：planned_p = base_p，planned_cards 只做奇数补偶，
+  不足一个部署单元（8 卡）时补到 8 卡；余量只作用于创新池与研发池；
 - 卡数（物理台数）与算力（P）不同量纲，不能相加比较。
 """
 from __future__ import annotations
@@ -303,25 +303,28 @@ def estimate_scenario(scenario_id: str, name: str, spec: dict, models: list[dict
     }
 
 
-def planned_cards(cards: int, unit: int, headroom: float) -> int:
-    """含余量卡数：按 headroom 放大后向上对齐到部署粒度，且不少于一个部署单元。
+def planned_cards(cards: int, unit: int) -> int:
+    """规划卡数：场景最小卡数奇数补偶，且不少于一个部署单元。
 
-    口径（2026-11-15 确认）：`unit`（8 卡）是最小部署粒度，不是"至少多一台实例"。
-    - h=0 时 8 卡场景仍为 8 卡，不再强制增加一台；
-    - 不足 8 卡的场景一律补到 8 卡（1 卡需求也规划 8 卡），这是粒度规则的必然结果；
-    - 用 Decimal 计算，避免 40×1.2=48.00000000000001 这类浮点误差多进一个部署单元。
+    口径（2026-11-17 确认）：业务场景池不再应用方案余量 headroom（20%），也不按
+    `unit`（8 卡）向上取整到整机倍数——卡数只需保证成对，便于按 2 卡为一个部署
+    单位批量采购。`unit` 仍作为最小部署单元：不足 8 卡时补到 8 卡，这是"至少一台
+    服务器"的物理下限，不是余量。
     """
     unit = max(1, unit)
-    scaled = math.ceil(D(max(1, cards)) * (1 + D(headroom)) / D(unit)) * unit
-    return max(unit, scaled)
+    even = max(1, int(cards)) + max(1, int(cards)) % 2
+    return max(unit, even)
 
 
-def pool_summary(scenario_items: list[dict], missing: list[dict], headroom: float,
+def pool_summary(scenario_items: list[dict], missing: list[dict],
                  enabled_scenarios: int) -> dict:
-    """业务池汇总：等效算力（P，BF16 基准）、含余量算力、物理卡数、含余量卡数。"""
+    """业务池汇总：等效算力（P，BF16 基准）、规划卡数。
+
+    业务池不应用方案余量：建议容量等于基础容量（Σ 场景卡容量），卡数只做奇数补偶。
+    """
     counted = [x for x in scenario_items if x.get("base_p") is not None]
     base = sum((x["base_p"] for x in counted), D(0))
-    planned = base * (D(1) + D(headroom))
+    planned = base
     cards = sum(x["cards"] for x in counted)
     cards_planned = sum(x["cards_planned"] for x in counted)
     capacity = sum((x["capacity_p"] for x in counted), D(0))

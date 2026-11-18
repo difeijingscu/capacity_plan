@@ -13,7 +13,7 @@ PETA = D("1e15")
 GIGA = D("1e9")
 # v2.0.5：取消方案级显存预留，创新/研发池显存改为「权重 + KV cache + runtime」直接汇总，
 # 显存需求与卡数整体下降；口径变化会使旧缓存指纹失效，因此升版本。
-ENGINE_VERSION = "engine-v2.1.0"
+ENGINE_VERSION = "engine-v2.1.1"
 REFERENCE = "BF16_DENSE_EQUIVALENT"
 # QLoRA 权重量化元数据开销的全局默认（4-bit 权重 + 量化参数的工程经验值）。
 # v2.0.0 起模型清单不再逐模型登记该字段，统一取此常量。
@@ -437,20 +437,20 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
                                 code=exc.code, message=exc.message))
             continue
         per_card = item["capacity_p"] / max(1, item["cards"])
-        item["cards_planned"] = business.planned_cards(item["cards"], item["unit"], headroom)
+        item["cards_planned"] = business.planned_cards(item["cards"], item["unit"])
         item["capacity_planned"] = item["cards_planned"] * per_card
         item["inference_spec"] = resolved["spec"]
         item["inference_origin"] = resolved["origin"]
         item["warnings"] = resolved["warnings"] + item["warnings"]
         business_items.append(item)
 
-    business_pool = business.pool_summary(business_items, missing, headroom, enabled_scenarios)
+    business_pool = business.pool_summary(business_items, missing, enabled_scenarios)
     business_pool["resolved_specs"] = resolved_specs
     scenario_summaries = []
     for item in business_items:
         scenario_summaries.append(dict(
             id=item["id"], name=item["name"], base_p=item["base_p"],
-            planned_p=item["base_p"] * (D(1) + D(headroom)),
+            planned_p=item["base_p"],
             cards=item["cards"], cards_planned=item["cards_planned"],
             chip_key=item["chip_key"], chip_label=item["chip_label"],
             model_key=item["model_id"], model_label=item["model_label"],
@@ -548,7 +548,7 @@ def calculate(plan: PlanInput, models: list[dict], sensitivity=False,
     counted = sum(p["counted_tasks"] for p in pools)
     total = sum((p["base_p"] or ZERO for p in pools), ZERO)
     complete = "PARTIAL" if missing_items and counted else "BLOCKED" if missing_items or counted == 0 else "COMPLETE"
-    report = dict(engine_version=ENGINE_VERSION, defaults_version=defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=total*(1+plan.headroom) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
+    report = dict(engine_version=ENGINE_VERSION, defaults_version=defaults_version, reference_precision=REFERENCE, completeness=complete, evidence_grade="C", latency_status="UNVERIFIED", total_base_p=total if counted else None, total_planned_p=sum((p["planned_p"] or ZERO for p in pools), ZERO) if counted else None, headroom=plan.headroom, pools=pools, missing_items=missing_items, counted_tasks=counted, total_tasks=counted+len(missing_items), is_demo=plan.is_demo, warnings=["HEURISTIC_EFFICIENCY", "SLA_NOT_BENCHMARKED"], duration_ms=D(str((perf_counter()-started)*1000)))
     if sensitivity and counted:
         variations = []
         scene_default = {s["key"]: s for s in inf_scenes}

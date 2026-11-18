@@ -73,9 +73,9 @@ export default function PlanningOrganization({ onBack, onBasis }: { onBack: () =
       </Card>
 
       <Card title="03 · 汇总与比较：资源池如何组合，方案如何使用">
-        <div className="basis-formula"><span>同一个方案内部</span><div>方案建议总算力 = 业务场景建议算力 + 创新服务建议算力 + 开发测试建议算力</div><small>各池已经包含余量时，总计不再重复增加余量；有缺失任务时，结果只代表已计入部分。</small></div>
+        <div className="basis-formula"><span>同一个方案内部</span><div>方案建议总算力 = 业务场景建议算力 + 创新服务建议算力 + 开发测试建议算力</div><small>业务池不加方案余量（卡数取偶），创新/研发各含一次余量；总计不再重复增加余量。有缺失任务时，结果只代表已计入部分。</small></div>
         <p>当前三类资源池按独立配置处理。即使业务池与创新池使用相同模型，也分别计入容量与显存，不自动跨池共享。</p>
-        <div className="organization-example-label"><Tag color="gold">纯示意数值</Tag><span>下面各池均假设已包含余量，采用相同的 BF16 基准口径。</span></div>
+        <div className="organization-example-label"><Tag color="gold">纯示意数值</Tag><span>下面为口径示意：业务池按最小卡数取偶、不含余量，创新/研发池各含一次余量，均采用相同的 BF16 基准。</span></div>
         <Table rowKey="name" size="small" pagination={false} dataSource={exampleRows} scroll={{ x: 620 }} columns={[
           { title: '同一项目下的方案', dataIndex: 'name' }, { title: '业务场景', dataIndex: 'business' },
           { title: '创新服务', dataIndex: 'innovation' }, { title: '开发测试', dataIndex: 'development' },

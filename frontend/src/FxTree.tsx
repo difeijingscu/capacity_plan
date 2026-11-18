@@ -140,7 +140,7 @@ export default function FxTree({ tree, variant = 'inference', footer }: {
       <div className="fx2-foot">
         {footer || (isPool
           ? '口径：所有节点来自本次测算快照。planned_p 只应用一次比例余量；规划卡数再考虑显存约束与独立 1 卡冗余，不按 8 卡整机对齐。'
-          : '口径：容量按十进制 GB（1 GB = 10⁹ B）；每 token KV 随模型架构与量化档变化。最终卡数取 max(A 显存, B Prefill, C Decode) → 奇数补偶；余量在池层统一加成，含余量卡数按 8 卡最小部署粒度向上对齐、不少于一个部署单元。')}
+          : '口径：容量按十进制 GB（1 GB = 10⁹ B）；每 token KV 随模型架构与量化档变化。最终卡数取 max(A 显存, B Prefill, C Decode) → 奇数补偶；业务池不加方案余量，规划卡数只做奇数补偶、不足 8 卡补到一个部署单元。')}
       </div>
     </div>
   );
