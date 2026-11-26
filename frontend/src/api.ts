@@ -29,6 +29,20 @@ export function capacity(value: unknown) {
 export function num(value: unknown, digits = 2) {
   return value === null || value === undefined ? '—' : Number(value).toLocaleString('zh-CN', { maximumFractionDigits: digits });
 }
+/**
+ * 生成 32 位十六进制 id。
+ * 不能直接用 crypto.randomUUID：它只在安全上下文（https 或 localhost）存在，
+ * 用局域网 IP / 反向代理以 http 打开时是 undefined，调用即抛 TypeError，
+ * 事件回调里的异常不会显示在页面上，表现就是「点了按钮没反应」。getRandomValues 无此限制。
+ */
+export function uid(): string {
+  const box = globalThis.crypto as Crypto | undefined;
+  if (typeof box?.randomUUID === 'function') return box.randomUUID().replaceAll('-', '');
+  const bytes = new Uint8Array(16);
+  if (typeof box?.getRandomValues === 'function') box.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
 export const poolNames: Obj = { business: '业务场景', innovation: '创新服务', development: '开发测试' };
 export const typeNames: Obj = { text: '文本模型', vlm: '多模态理解', cv: 'CV 目标检测', unit: '其他任务', native: '原生精度容量' };
 export const stateNames: Obj = { COMPLETE: '已完成估算', PARTIAL: '部分已计入', BLOCKED: '待补充参数', DISABLED: '未启用', PROXY: '经验代理', WEIGHT_LOWER_BOUND: '仅显存下界', UNKNOWN: '待核验' };

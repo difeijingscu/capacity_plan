@@ -6,7 +6,7 @@ import {
 import {
   CloudUploadOutlined, DeleteOutlined, InfoCircleOutlined, PlusOutlined, ThunderboltFilled,
 } from '@ant-design/icons';
-import { capacity, num } from './api';
+import { capacity, num, uid } from './api';
 import type { Obj } from './api';
 import CustomModelModal from './CustomModelModal';
 import CustomChipModal from './CustomChipModal';
@@ -320,22 +320,27 @@ export default function BusinessPage({ payload, edit, catalog, catalogLoading, p
   }
 
   function addScenario() {
-    const id = crypto.randomUUID().replaceAll('-', '');
-    const preset = sceneOf({ scene_key: DEFAULT_INFERENCE.scene_key });
-    const first = models.find(m => m.key === (preset.default_model_key || 'qwen3_8b')) || models[0];
-    // 新场景插到最上方：场景多时列表会滚出首屏，追加到末尾等于「点了没反应」。
-    edit(plan => plan.scenarios.unshift({
-      id, name: '新业务场景', description: '', enabled: true, source_reference: {},
-      components: [],
-      inference: {
-        ...DEFAULT_INFERENCE,
-        chip_key: globalChip || '910c', profile: globalProfile,
-        weight_precision: globalPrecision,
-        model_key: first?.key,
-        concurrency: preset.concurrency ?? null,
-      },
-    }));
-    setFolds(f => ({ ...f, [id]: 'adv' }));
+    try {
+      const id = uid();
+      const preset = sceneOf({ scene_key: DEFAULT_INFERENCE.scene_key });
+      const first = models.find(m => m.key === (preset.default_model_key || 'qwen3_8b')) || models[0];
+      // 新场景插到最上方：场景多时列表会滚出首屏，追加到末尾等于「点了没反应」。
+      edit(plan => plan.scenarios.unshift({
+        id, name: '新业务场景', description: '', enabled: true, source_reference: {},
+        components: [],
+        inference: {
+          ...DEFAULT_INFERENCE,
+          chip_key: globalChip || '910c', profile: globalProfile,
+          weight_precision: globalPrecision,
+          model_key: first?.key,
+          concurrency: preset.concurrency ?? null,
+        },
+      }));
+      setFolds(f => ({ ...f, [id]: 'adv' }));
+    } catch (err) {
+      // 事件回调里的异常只会进控制台，页面无任何反馈；这里显式提示，避免再次出现「点了没反应」。
+      message.error('添加场景失败：' + (err instanceof Error ? err.message : String(err)));
+    }
   }
 
   /** 场景状态徽标：与旧表格「状态」列同一套口径。 */

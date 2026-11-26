@@ -9,7 +9,9 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 
-vi.mock('./api', () => ({
+vi.mock('./api', async importOriginal => ({
+  // 只替换展示类格式化函数，uid 等其余导出仍用真实实现（新增场景的 id 生成需要被真实执行）。
+  ...(await importOriginal<typeof import('./api')>()),
   capacity: (v: unknown) => String(v ?? ''),
   num: (v: unknown) => String(v ?? ''),
 }));
@@ -295,6 +297,28 @@ describe('业务场景 · 新增场景位置', () => {
     expect(names).toHaveLength(3);
     expect(names[0]).toBe('新业务场景');
     expect(names.slice(1)).toEqual(['企业知识问答', '第二个场景']);
+  }, 20000);
+
+  /**
+   * 外部以 http + 局域网 IP / 反向代理打开时不属于安全上下文，
+   * crypto.randomUUID 为 undefined，直接调用会抛 TypeError 导致按钮静默失效。
+   */
+  it('不安全上下文（无 crypto.randomUUID）下仍能添加场景', () => {
+    const box = globalThis.crypto as any;
+    const had = Object.prototype.hasOwnProperty.call(box, 'randomUUID');
+    const original = box.randomUUID;
+    Object.defineProperty(box, 'randomUUID', { value: undefined, configurable: true, writable: true });
+    try {
+      const initial: Obj = JSON.parse(JSON.stringify(payload));
+      render(<StatefulPage initial={initial} />);
+      fireEvent.click(screen.getByRole('button', { name: /添加场景/ }));
+      const names = screen.getAllByPlaceholderText('场景名称')
+        .map(node => (node as HTMLInputElement).value);
+      expect(names.filter(n => n === '新业务场景')).toHaveLength(1);
+    } finally {
+      if (had) box.randomUUID = original;
+      else delete box.randomUUID;
+    }
   }, 20000);
 });
 
